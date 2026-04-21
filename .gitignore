@@ -1,0 +1,93 @@
+# ============================================
+# Domdhi.Agents — System Ignores
+# ============================================
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# Editors / IDEs
+# ============================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================
+# Environment Variables
+# ============================================
+.env
+.env.local
+.env.*.local
+
+# ============================================
+# Dependencies
+# ============================================
+node_modules/
+
+# ============================================
+# Build Output
+# ============================================
+dist/
+coverage/
+
+# ============================================
+# Temp / Logs
+# ============================================
+*.log
+*.bak
+*.tmp
+
+# Ephemeral output (rebuilt from source or session-specific)
+# Tracked (NOT listed here): plans/, reviews/, research/, investigations/, work/
+docs/.output/memories/
+docs/.output/screenshots*/
+docs/.output/sessions*/
+docs/.output/telemetry*/
+docs/.output/telemetry/coverage/
+
+# Playwright CLI (runtime browser data)
+!.claude/templates/root/.playwright/
+.playwright*/
+
+# ============================================
+# Optional / Archive (available in git history)
+# ============================================
+.archive
+.claude/agents-optional/
+.claude/skills-optional/
+
+# ============================================
+# Legacy root-level dirs (pre-.claude structure)
+# ============================================
+/agents/
+/commands/
+/core/
+/hooks/
+/ides/
+/installers/
+/manifest/
+/modules/
+/skills/
+/templates/
+/.agents/
+/supra.json
+/supracoder.yaml
+/settings.json
+/INSTALL.md
+/guardrail-rules.yaml
+/manifest.json
+
+# ============================================
+# Misc
+# ============================================
+nul
+*.local.*

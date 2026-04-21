@@ -1,0 +1,264 @@
+# Domdhi.Agents — System Map
+
+Complete inventory of commands, agents, skills, hooks, and core scripts — and how they wire together.
+
+This is a **reference** doc: tables, inventories, and workflow graphs, kept in sync with what's actually on disk. For the conceptual framing — what a command, agent, skill, or hook *is*, and how the three tiers compose — read the explainer docs in [`../concepts/`](../concepts/): [`commands.md`](../concepts/commands.md), [`agents.md`](../concepts/agents.md), [`skills.md`](../concepts/skills.md), [`memory.md`](../concepts/memory.md), [`hooks.md`](../concepts/hooks.md). For the rendered per-command detail (flowcharts, dispatch shape), see [`./commands.md`](./commands.md).
+
+---
+
+## Command Inventory
+
+### Setup Commands (run once per project)
+
+| Command | Agent | Skill | Reads | Produces | Gate |
+|---------|-------|-------|-------|----------|------|
+| `/brainstorm` | product-strategist | project-analyst | user input, codebase | `_brainstorm.md`, `_feature-ideas.md` | — |
+| `/research` | product-strategist | project-analyst | user topic, web | `_research.md` | — |
+| `/interview` | — (main) | — | user input | decision summary (chat only) | — |
+| `/create:project-brief` | product-strategist | project-brief-writer | `_brainstorm.md`, `_research.md` | `_project-brief.md` | — |
+| `/create:project-requirements` | product-strategist | prd-writer | brief OR brainstorm OR research | `_project-requirements.md` | needs phase 1 artifact |
+| `/create:project-design` | ux-designer | ux-designer | `_project-requirements.md` | `_project-design.md` + 4 design files | needs PRD |
+| `/create:project-architecture` | architect | architecture-writer | `_project-requirements.md` | `_project-architecture.md` | needs PRD |
+| `/create:project-epics` | project-planner | epic-writer | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
+| `/create:project-todo` | project-planner | epic-writer | `_backlog.md` | `TODO_{Project}.md` | needs backlog |
+| `/create:project-epics-todo` | project-planner | epic-writer | `_backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
+
+### Build Commands (daily loop)
+
+| Command | Agent | Skill | What it does |
+|---------|-------|-------|-------------|
+| `/prime` | — (main) | — | Load context from `__handoff.md` + git log. Chat output only. |
+| `/todo` | Explore + project-planner + code-reviewer | — | Research codebase, assemble execution-ready checklist with AC |
+| `/do` | Explore + domain agent | — | Execute one task from a TODO. Plan → implement → verify → commit. |
+| `/run-todo` | Explore + domain agents + code-reviewer | — | Execute entire TODO checklist. Parallel waves, dev+QA pairs, auto-commit per wave. |
+| `/run-tests` | playwright + general-purpose | — | Execute manual/E2E testing checklist with screenshots and verification |
+| `/end` | — (main) | — | Write `__handoff.md` for next session |
+
+### Supporting Commands (as needed)
+
+| Command | Agent | Skill | What it does |
+|---------|-------|-------|-------------|
+| `/status` | — (script) | — | Parse TODO files + telemetry → text + HTML dashboard |
+| `/investigate` | — (main) | — | 4-phase root cause diagnosis with 3-strike rule |
+| ~~`/recap`~~ | — | — | *Removed — memory auto-compounds via Stop hook* |
+| `/organize` | — (hooks) | — | Move plan files to dated folders |
+| `/create:module` | product-strategist + architect + ux-designer + general-purpose | epic-writer | Add a new module to an existing project |
+| `/create:component` | — (main) | system-builder | Create a new agent, command, or skill following conventions |
+
+### Review Commands (periodic)
+
+| Command | Agent | Skill | Modifies files? |
+|---------|-------|-------|----------------|
+| `/review:code-review` | code-reviewer | code-reviewer + code-review-playbook | No (read-only) |
+| `/review:security` | security-auditor | code-reviewer + code-review-playbook | Yes (writes to `docs/.output/reviews/`) |
+| `/review:check-readiness` | architect + product-strategist + project-planner + ux-designer | prd/arch/ux/epic writers | No (read-only) |
+| `/review:check-sync` | architect + project-planner + product-strategist | — | No (read-only) |
+| `/review:check-templates` | — (main) | — | Yes (writes to `docs/.output/reviews/`, `--multi` for cross-project) |
+| `/review:update-docs` | doc-writer | project-context | Yes (fixes drift) |
+| `/review:qa` | qa-engineer | qa-engineer | Yes (generates tests) |
+| `/review:optimize-backlog` | project-planner | epic-writer | Optional |
+| `/review:retro` | doc-writer | project-context | Yes (creates retro doc) |
+| `/review:changelog` | doc-writer | project-context | Yes (creates/updates CHANGELOG) |
+| `/review:specialize` | architect | tailwind (as exemplar) | Yes (updates agents, creates skills) |
+| `/review:optimize-agents` | — (main) | — | Optional (--fix mode) |
+| `/review:personalize` | doc-writer | — | Yes (updates agent files) |
+| `/review:memory-health` | — (script) | — | Yes (writes to `docs/.output/reviews/` when not SILENT) |
+| `/review:promote-memories` | — (script) | — | Optional (marks promotions) |
+
+---
+
+## Agent Inventory
+
+| Agent | Skill(s) Loaded | Used By Commands |
+|-------|----------------|-----------------|
+| `architect` | architecture-writer | project-architecture, module, specialize, check-readiness, check-sync |
+| `product-strategist` | project-analyst, prd-writer, project-brief-writer | brainstorm, research, project-brief, project-requirements, module, check-readiness, check-sync |
+| `ux-designer` | ux-designer, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects | project-design, module, check-readiness |
+| `project-planner` | epic-writer | project-epics, project-todo, project-epics-todo, optimize-backlog, todo, check-readiness, check-sync |
+| `code-reviewer` | code-reviewer, code-review-playbook | code-review, run-todo, todo |
+| `qa-engineer` | qa-engineer | qa |
+| `doc-writer` | project-context, documentation | changelog, update-docs, retro, personalize |
+| `security-auditor` | code-reviewer, code-review-playbook | security |
+| `general-purpose` | full-output-enforcement, systematic-debugging, verification-before-completion, finishing-a-development-branch, using-git-worktrees | module, run-tests, do (domain tasks) |
+| `playwright` | playwright-cli | run-tests |
+| `shadow` | article-writer | (not referenced by any command) |
+
+### Agents with no command usage
+- **shadow** — available for direct invocation but no command explicitly calls it
+
+---
+
+## Skill Inventory
+
+| Skill | Loaded By Agent(s) | Referenced By Command(s) | Purpose |
+|-------|--------------------|--------------------------| --------|
+| architecture-writer | architect | project-architecture, check-readiness | Architecture doc template + quality criteria |
+| prd-writer | product-strategist | project-requirements, check-readiness | PRD template + quality criteria |
+| project-brief-writer | product-strategist | project-brief | Brief template + quality criteria |
+| epic-writer | project-planner | project-epics, project-todo, project-epics-todo, optimize-backlog, module | Epic/story template + quality criteria |
+| project-analyst | product-strategist | brainstorm, research | Research methodology + brainstorm facilitation |
+| project-context | doc-writer | changelog, update-docs, retro | Project context doc format |
+| documentation | doc-writer | — | Documentation wayfinding + verification rules |
+| ux-designer | ux-designer | project-design, check-readiness | UX spec template + quality criteria |
+| brand-guidelines | ux-designer | project-design (updates it) | Brand colors/typography guide |
+| code-reviewer | code-reviewer, security-auditor | code-review | Review severity + patterns |
+| code-review-playbook | code-reviewer, security-auditor | code-review | Review process + checklists |
+| qa-engineer | qa-engineer | qa | Test strategy + generation patterns |
+| playwright-cli | playwright | run-tests | Browser automation patterns |
+| article-writer | shadow | — | Blog/article writing patterns |
+| content-formats | — | — | LinkedIn, newsletter, Twitter, YouTube templates |
+| system-builder | — | create:component | Agent/command/skill creation conventions |
+| tailwind-css-patterns | ux-designer | specialize (as exemplar) | Tailwind utility patterns |
+| full-output-enforcement | general-purpose | — | Anti-truncation rules |
+| systematic-debugging | general-purpose | — | 4-phase root cause investigation |
+| verification-before-completion | general-purpose | — | Blocks success claims without fresh verification |
+| finishing-a-development-branch | general-purpose | — | Branch integration workflow (merge, PR, keep, discard) |
+| using-git-worktrees | general-purpose | — | Isolated worktree creation for feature work |
+| writing-skills | — | — | TDD for skill creation (baseline test before writing) |
+| design-taste-frontend | ux-designer | — | Frontend design standards |
+| redesign-existing-projects | ux-designer | — | Upgrade existing UI patterns |
+| session-handoff | — | end, do, run-todo, run-tests, todo | Handoff template + fill rules consumed by session-persistence commands |
+
+### Skills-optional (`.claude/skills-optional/` — gitignored, local only)
+
+Optional aesthetic skills not tracked in git. Drop them in manually for design-heavy projects. Wire via `/review:specialize`.
+
+---
+
+## Workflow Graphs
+
+### Setup Flow (run once)
+
+```
+brainstorm ──┐
+research ────┤
+interview ───┘
+      │
+      ▼
+project-brief (optional)
+      │
+      ▼
+project-requirements ──────────► project-design (optional)
+      │                                │
+      ▼                                │
+project-architecture ◄─────────────────┘
+      │
+      ▼
+project-epics
+      │
+      ├──► project-todo (master index)
+      │         │
+      └──► project-epics-todo (per-epic checklists)
+                │
+                ▼
+          [ready to build]
+```
+
+### Build Loop (daily)
+
+```
+prime ──► todo ──► do ──────► end
+              │         │
+              │    (or)  │
+              │         ▼
+              └──► run-todo ──► end
+                       │
+                  (includes)
+                       │
+              ┌────────┼────────┐
+              ▼        ▼        ▼
+           plan    implement   verify
+          (Explore) (domain)  (gate.js)
+              │        │        │
+              └────────┼────────┘
+                       │
+                    commit
+```
+
+### Supporting / Review (as needed)
+
+```
+run-tests ◄── after significant changes
+code-review ◄── before merge / PR
+check-sync ──► update-docs (if drift found)
+qa ◄── generate tests for new code
+retro ◄── after epic completion
+changelog ◄── before release
+optimize-backlog ◄── re-prioritize
+specialize ◄── after architecture exists (once)
+optimize-agents ◄── during implementation (periodic)
+personalize ◄── give agents personality (once)
+module ◄── add new feature area mid-project
+```
+
+---
+
+## Duplication & Overlap — RESOLVED
+
+### Commands deduped (2026-04-10)
+Removed from all `create/*` commands:
+- **Inline interview questions** — commands now reference the agent's skill Interview Questions section
+- **Inline validation checklists** — commands now reference the skill's Required Sections Checklist
+- **"Read skill" instructions** — removed from 15 commands (agents auto-load skills via frontmatter `skills:` field)
+
+One intentional exception: `specialize.md` tells the architect to read `tailwind-css-patterns` as a format exemplar (not its own skill).
+
+**Principle established**: Commands own orchestration (gates, mode detection, delegation, validation, commit). Skills own domain knowledge (templates, quality criteria, checklists, interview questions). Agents own personality and working style. No overlaps.
+
+### Skills with no command consumers (but wired to agents)
+| Skill | Status |
+|-------|--------|
+| tailwind-css-patterns | Loaded by ux-designer; also used as format exemplar by /specialize |
+| full-output-enforcement | Loaded by general-purpose agent |
+| systematic-debugging | Loaded by general-purpose agent |
+| verification-before-completion | Loaded by general-purpose agent |
+| finishing-a-development-branch | Loaded by general-purpose agent |
+| using-git-worktrees | Loaded by general-purpose agent |
+| design-taste-frontend | Loaded by ux-designer agent |
+| redesign-existing-projects | Loaded by ux-designer agent |
+| documentation | Loaded by doc-writer agent |
+| content-formats | Not wired to any agent — standalone skill |
+| writing-skills | Not wired to any agent — standalone skill |
+
+---
+
+## Core Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `gate.js` | Build/test gate with auto-detection. Output: `docs/.output/telemetry/` |
+| `constants.js` | System-wide constants, phase artifacts, doc chain, memory decay config |
+| `scaffold.js` | Copies templates → `docs/` and root configs |
+| `memory-manager.js` | Memory CRUD + search + active-day decay + linting (JSON + SQLite FTS5) |
+| `memory-compiler.js` | Daily log → concept article compilation pipeline + cross-references |
+| `memory-extractor.js` | Haiku-powered structured extraction from daily logs via `claude -p` |
+| `memory-curator.js` | Haiku-powered dedup/contradiction/merge analyzer — runs on Stop when `MEMORY_PROFILE=strict` |
+| `memory-promoter.js` | Scan/rank/mark concepts for promotion to templates/skills |
+| `memory-ingester.js` | Convert legacy daily recaps to daily log format (`ingest`, `status`, `--dry-run`) |
+| `daily-log.js` | Standalone daily log capture — called by `memory-capture.cjs` Stop hook and pre-compaction hook |
+| `decision-viz.js` | Decision log visualization — 6 data source parsers → vis.js Timeline + Network HTML |
+| `metrics.js` | Workflow metrics from telemetry + git + TODOs |
+| `template-updater.js` | Zone-aware template sync to downstream projects (`--merge`, `--dry-run`) |
+| `status.js` | TODO progress + metrics → text + HTML dashboard |
+| `memory-health-check.js` | Headless memory health check — lint + decay report for `/review:memory-health` |
+| `cleanup-logs.js` | Prune old gate logs |
+| `gen-timeline.js` | Weekly commit history generator → `docs/_project-timeline.md` |
+| `profile.js` | Memory profile resolver (`MEMORY_PROFILE=minimal\|standard\|strict`). Hooks call `isAtLeast()` to gate expensive work |
+| `memory-benchmark.js` | Weekly recall hit-rate benchmark — Haiku picks expected slug per daily-log entry, compared against `searchMemories()` top-5 |
+
+### Hooks (`.claude/hooks/`)
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| `secret-scanner.cjs` | Pre-Write/Edit | Blocks secrets from being written to files |
+| `guardrail.cjs` | Pre-Bash | Blocks/confirms destructive commands via `guardrail-rules.yaml` |
+| `pre-compaction-archive.cjs` | Pre-Compact | Snapshots state + daily log before context compaction |
+| `post-read-scrubber.cjs` | Post-Read | Warns on secrets in read files (non-blocking) |
+| `organize.cjs` | Post-ExitPlanMode, Post-Bash | Organizes plans + screenshots into dated folders |
+| `damage-control.cjs` | Post-Bash | Error analysis on failures — prevents retry spin loops |
+| `command-usage-logger.cjs` | Post-Read/Bash | Logs command invocations + gate runs to `docs/.output/telemetry/` |
+| `memory-guard.cjs` | Post-Write | Warns when memory category approaches limit |
+| `memory-capture.cjs` | Stop, PostToolUse:Bash | Auto-compound memory: daily log + compile + extract (opt-in) on Stop; commit enrichment on Bash |
+| `session-start-prime.cjs` | SessionStart | Injects top compiled memory concepts as system-reminder at session opening |
+| `edit-capture.cjs` | Post-Edit | Captures edits to canonical docs (CLAUDE.md, architecture, skills) as daily-log entries (`MEMORY_PROFILE=strict` only) |
+| `secret-patterns.cjs` | (shared module) | Secret/credential regex patterns — used by `secret-scanner.cjs` and git pre-commit hook |

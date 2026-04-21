@@ -1,0 +1,5 @@
+{
+  "version": "4.20.1",
+  "updated": "2026-04-21",
+  "changelog": "First public release cut — published subset to Agents.Domdhi via publish.js + publish-manifest.json. Locked docs structure (README, CLAUDE.md, LICENSE, docs/{README,CLAUDE,getting-started,concepts/**,reference/**,guides/**}). DEFAULT_EXCLUDES safety rail covers handoff, .output, todo, research, app, design, timeline, settings.local, agent-memory."
+}

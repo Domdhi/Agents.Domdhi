@@ -1,0 +1,190 @@
+---
+description: Gate check before implementation — validates all planning docs are complete and consistent
+---
+
+# Check Implementation Readiness
+
+Validate that all Phase 1-3 documentation is complete, consistent, and ready for implementation. Returns PASS, CONCERNS, or FAIL.
+
+## Agent Delegation
+
+> **Orchestration rule**: You (the main agent) handle document existence checks, cross-document consistency, and the final verdict. Domain agents handle completeness validation for their area. Do NOT validate document sections inline — delegate to the domain expert.
+
+**Agents used** (via Task tool):
+- `architect` — validates architecture document
+- `product-strategist` — validates PRD
+- `project-planner` — validates backlog/epics
+- `ux-designer` — validates design suite (if UI project)
+
+## Workflow
+
+### 1. Check Required Documents Exist (main agent)
+
+Check each document exists AND is not a template (no `<!-- @@template -->` marker on first line):
+
+| Document | Path | Required |
+|----------|------|----------|
+| Project Brief | `docs/_project-brief.md` | Recommended |
+| PRD | `docs/_project-requirements.md` | **Required** |
+| UX Spec | `docs/_project-design.md` | If UI project |
+| Wireframes | `docs/design/_wireframes.md` | If UI project |
+| Light Theme | `docs/design/_design.light.md` | If UI project |
+| Dark Theme | `docs/design/_design.dark.md` | If UI project |
+| Mock Layout | `docs/design/_mock-layout.html` | If UI project |
+| Architecture | `docs/_project-architecture.md` | **Required** |
+| Backlog | `docs/todo/_backlog.md` | **Required** |
+
+**Template check**: Read the first line of each file. If it contains `<!-- @@template -->`, treat the file as non-existent (scaffolded but unfilled).
+
+If any **required** doc is missing or is a template → **FAIL** immediately with instructions.
+
+**Detect UI project**: If any design file exists (non-template), treat all design files as expected.
+
+### 2. Delegate Completeness Checks (main agent → domain agents)
+
+Launch domain agents **in parallel** via Task tool. Each agent auto-loads its skills via frontmatter — do NOT tell them which skill files to read.
+
+**2a. Architecture validation** — `subagent_type: "architect"`
+
+Task prompt:
+1. Read `docs/_project-architecture.md`
+2. Validate completeness against the architecture-writer skill's quality checklist
+3. Return a structured report: section name, present (Y/N), issues found
+4. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
+
+**2b. PRD validation** — `subagent_type: "product-strategist"`
+
+Task prompt:
+1. Read `docs/_project-requirements.md`
+2. Validate completeness against the prd-writer skill's quality checklist
+3. Return a structured report: section name, present (Y/N), issues found
+4. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
+
+**2c. Backlog validation** — `subagent_type: "project-planner"`
+
+Task prompt:
+1. Read `docs/todo/_backlog.md`
+2. Validate completeness against the epic-writer skill's quality checklist
+3. Check: Phase 0 exists, every story has AC, dependencies specified, estimates present, domain tags present
+4. Return a structured report: check name, pass (Y/N), issues found
+5. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
+
+**2d. Design suite validation** (only if design files exist) — `subagent_type: "ux-designer"`
+
+Task prompt:
+1. Read all design files: `docs/_project-design.md`, `docs/design/_wireframes.md`, `docs/design/_design.light.md`, `docs/design/_design.dark.md`, `docs/design/_mock-layout.html`
+2. Validate completeness against the ux-designer skill's quality checklist
+3. Check cross-file consistency: token names match across all 5 files, WCAG compliance table present
+4. Return a structured report: file name, complete (Y/N), issues found
+5. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
+
+### 3. Cross-Document Consistency (main agent)
+
+After agent results return, perform cross-document checks yourself:
+
+- **Tech Stack**: Architecture tech stack matches what epics reference
+- **FR Coverage**: Every Must-Have FR from PRD maps to at least one story in backlog
+- **NFR Coverage**: Performance and security NFRs addressed in architecture
+- **Data Model**: PRD entities appear in architecture data design
+- **Auth Model**: PRD security requirements match architecture auth section
+
+### 4. Ambiguity Scan (main agent)
+
+Scan for red flags across all docs:
+- Acceptance criteria with words: "appropriate", "correctly", "properly", "as needed"
+- NFRs without measurable targets
+- Stories without acceptance criteria
+- Missing error handling in user flows
+- Undefined terms not in glossary
+
+### 5. Generate Verdict (main agent)
+
+Combine agent results + consistency checks + ambiguity scan:
+
+**PASS** — All required docs exist, agents rate them COMPLETE, cross-references are consistent
+
+**CONCERNS** — Docs exist but have issues that should be fixed:
+- Any agent rates a doc as PARTIAL
+- Missing recommended (not required) sections
+- Minor inconsistencies
+- Vague acceptance criteria (list each one)
+
+**FAIL** — Cannot proceed to implementation:
+- Required document missing or is a template
+- Any agent rates a doc as INCOMPLETE
+- Critical sections empty
+- Fundamental inconsistencies (e.g., PRD says REST but architecture says GraphQL)
+- No acceptance criteria on Must-Have stories
+
+### 6. Persist Output (main agent)
+
+Write the full gate results to disk before reporting:
+
+```bash
+mkdir -p docs/.output/reviews
+```
+
+Write the complete readiness check output (all agent findings + consistency + verdict) to:
+`docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md`
+
+File format:
+```markdown
+# Readiness Check — {YYYY-MM-DD}
+
+**Verdict**: {PASS / CONCERNS / FAIL}
+
+{full report content — document status table, agent validation details, consistency checks, ambiguity flags, issues, recommended actions}
+```
+
+### 7. Commit (main agent)
+
+Stage and commit the readiness check output file:
+
+```
+git add docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md
+git commit -m "docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found"
+```
+
+### 8. Report (main agent)
+
+```markdown
+## Implementation Readiness Check
+
+**Output**: `docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md`
+
+### Verdict: {PASS / CONCERNS / FAIL}
+
+### Document Status
+| Document | Exists | Complete | Rating | Issues |
+|----------|--------|----------|--------|--------|
+| _project-brief.md | {Y/N} | {Y/N} | {COMPLETE/PARTIAL/INCOMPLETE/—} | {count} |
+| _project-requirements.md | {Y/N} | {Y/N} | {agent rating} | {count} |
+| _project-design.md | {Y/N/NA} | {Y/N} | {agent rating} | {count} |
+| design/_wireframes.md | {Y/N/NA} | {Y/N} | {agent rating} | {count} |
+| design/_design.light.md | {Y/N/NA} | {Y/N} | {agent rating} | {count} |
+| design/_design.dark.md | {Y/N/NA} | {Y/N} | {agent rating} | {count} |
+| design/_mock-layout.html | {Y/N/NA} | {Y/N} | {agent rating} | {count} |
+| _project-architecture.md | {Y/N} | {Y/N} | {agent rating} | {count} |
+| _backlog.md | {Y/N} | {Y/N} | {agent rating} | {count} |
+
+### Agent Validation Details
+{For each agent that ran, include their structured findings — section-by-section breakdown}
+
+### Consistency Checks
+| Check | Status | Notes |
+|-------|--------|-------|
+| FR Coverage | {PASS/FAIL} | {details} |
+| NFR Coverage | {PASS/FAIL} | {details} |
+| Tech Stack Match | {PASS/FAIL} | {details} |
+| Data Model Match | {PASS/FAIL} | {details} |
+| Auth Model Match | {PASS/FAIL} | {details} |
+
+### Ambiguity Flags
+{Numbered list of vague/unmeasurable items with file:section references}
+
+### Issues Found
+{Numbered list of all issues from agents + consistency + ambiguity, grouped by severity}
+
+### Recommended Actions
+{What to fix before starting implementation, ordered by priority}
+```

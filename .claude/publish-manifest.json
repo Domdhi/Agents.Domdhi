@@ -1,0 +1,20 @@
+{
+  "version": "1",
+  "description": "Explicit allowlist of files that ship to the public repo (Agents.Domdhi). Consumed by .claude/core/publish.js. A hardcoded DEFAULT_EXCLUDES list in publish.js ALWAYS applies on top of this — see publish.js for the safety-net set (handoff, .output, todo, research, app, design, timeline, settings.local.json, .git, node_modules, __tests__, _helpers).",
+  "include": [
+    "README.md",
+    "CLAUDE.md",
+    "LICENSE",
+    ".gitignore",
+    "package.json",
+    "docs/README.md",
+    "docs/CLAUDE.md",
+    "docs/getting-started.md",
+    "docs/concepts/**",
+    "docs/reference/**",
+    "docs/guides/**",
+    ".claude/**",
+    ".githooks/**"
+  ],
+  "exclude": []
+}

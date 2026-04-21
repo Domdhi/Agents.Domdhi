@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Git pre-commit hook — Secret Scanner
+#
+# Scans staged files for secrets, credentials, and sensitive data.
+# Blocks the commit if any are found.
+#
+# Install:
+#   git config core.hooksPath .githooks
+#
+# Or copy to .git/hooks/:
+#   cp .githooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+
+node .claude/hooks/secret-scanner.cjs --git-precommit
