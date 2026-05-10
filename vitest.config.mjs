@@ -3,7 +3,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['.claude/**/__tests__/**/*.test.{js,cjs}'],
+    include: [
+      '.claude/**/__tests__/**/*.test.{js,cjs}',
+      'tools/**/__tests__/**/*.test.{js,cjs}',
+    ],
     exclude: ['node_modules', 'docs/.output/**'],
     testTimeout: 30000,
     pool: 'forks',
