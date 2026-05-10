@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 
 /**
  * Tests for P2.5 guardrail extensions — four-tier YAML schema (A3),
- * Zod schema validation at load time (D1), and checkPathAccess (A3).
+ * hand-rolled schema validation at load time (D1), and checkPathAccess (A3).
  */
 
 function writeYaml(tmpRoot, content) {
@@ -27,7 +27,7 @@ describe('guardrail-rules P2.5 extensions', () => {
         try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }
     });
 
-    // ── loadRules: Zod schema validation (D1) ────────────────────────────────────
+    // ── loadRules: schema validation (D1) ───────────────────────────────────────
 
     it('loadRules_validFourTierSchema_returnsAllTiers', () => {
         const { loadRules } = require('../guardrail-rules');
@@ -67,7 +67,7 @@ describe('guardrail-rules P2.5 extensions', () => {
     });
 
     it('loadRules_tierFieldWrongType_failsSafeToEmptyRules', () => {
-        // D1 fail-safe: if Zod validation fails, guardrail falls back to
+        // D1 fail-safe: if schema validation fails, guardrail falls back to
         // block-all defaults — NOT pass-through. Verify by checking that an
         // invalid schema returns an empty-tier rules object.
         const { loadRules } = require('../guardrail-rules');
