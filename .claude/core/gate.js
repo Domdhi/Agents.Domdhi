@@ -34,10 +34,12 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { getTelemetryDir } = require('./_lib/telemetry-paths');
+const { writeSummary } = require('./_lib/gate-summary');
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-const GATE_DIR = path.join(PROJECT_ROOT, 'docs', '.output', 'telemetry');
-const LOG_DIR = path.join(GATE_DIR, 'logs');
+const GATE_DIR = getTelemetryDir(PROJECT_ROOT);
+const LOG_DIR = path.join(getTelemetryDir(PROJECT_ROOT), 'logs');
 const LOCK_FILE = path.join(GATE_DIR, '.gate.lock');
 const CONFIG_FILE = path.join(PROJECT_ROOT, '.claude', 'gate.config.json');
 
@@ -416,10 +418,7 @@ async function main() {
         };
     }
 
-    fs.writeFileSync(
-        path.join(GATE_DIR, '_latest-summary.json'),
-        JSON.stringify(summary, null, 2)
-    );
+    writeSummary(PROJECT_ROOT, summary);
 
     fullLog += `\n${'='.repeat(60)}\n${mode} gate completed at ${new Date().toISOString()}\n`;
     fullLog += `Overall: ${overall ? 'PASSED' : 'FAILED'}\n`;

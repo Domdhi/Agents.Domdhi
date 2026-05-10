@@ -13,13 +13,14 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { getJsonlPath } = require('./_lib/telemetry-paths');
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
 
 // ── Telemetry ────────────────────────────────────────────────────
 
 function computeTelemetry() {
-  const telemetryPath = path.join(PROJECT_ROOT, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+  const telemetryPath = getJsonlPath(PROJECT_ROOT, 'command-usage.jsonl');
 
   if (!fs.existsSync(telemetryPath)) return null;
 
@@ -56,7 +57,7 @@ function computeTelemetry() {
       if (!gate_results[cmd]) {
         gate_results[cmd] = { pass: 0, fail: 0, pass_rate: 0 };
       }
-      if (evt.outcome === 'pass') {
+      if (evt.outcome === 'success') {
         gate_results[cmd].pass++;
       } else {
         gate_results[cmd].fail++;

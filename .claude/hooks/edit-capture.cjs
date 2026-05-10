@@ -14,24 +14,13 @@
 const fs = require('fs');
 const path = require('path');
 const { isAtLeast } = require('../core/profile');
+const { readHookInput } = require('../core/_lib/hook-input');
 
 const CANONICAL_PATTERNS = [
     /(^|\/)CLAUDE\.md$/,
     /\/docs\/_project-architecture\.md$/,
     /\/\.claude\/skills\/[^/]+\/SKILL\.md$/
 ];
-
-function readStdin() {
-    return new Promise((resolve) => {
-        if (process.stdin.isTTY) { resolve(''); return; }
-        let data = '';
-        process.stdin.setEncoding('utf8');
-        process.stdin.on('data', (chunk) => { data += chunk; });
-        process.stdin.on('end', () => resolve(data));
-        process.stdin.on('error', () => resolve(''));
-        setTimeout(() => resolve(data), 1000);
-    });
-}
 
 function isCanonicalDoc(filePath) {
     const normalized = filePath.replace(/\\/g, '/');
@@ -94,7 +83,7 @@ async function main() {
     // Profile gate — only runs under strict
     if (!isAtLeast('strict')) { process.exit(0); }
 
-    const raw = await readStdin();
+    const raw = await readHookInput();
     if (!raw) { process.exit(0); }
 
     let data;

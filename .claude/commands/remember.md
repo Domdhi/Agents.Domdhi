@@ -1,5 +1,5 @@
 ---
-description: Capture a conversational insight to the daily log for memory compilation
+description: Capture a conversational insight to the daily log for memory acquisition
 argument-hint: [what to remember — a decision, insight, or discovery]
 ---
 

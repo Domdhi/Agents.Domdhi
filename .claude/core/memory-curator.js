@@ -12,11 +12,19 @@
  *   node memory-curator.js status               — show latest curation file summary
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
-const { MEMORY_DECAY } = require('./constants');
+const CONSTANTS = require('./constants');
+const { calculateDecayedConfidence, createActiveDaysResolver } = require('./_lib/memory-decay');
+const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
+const { readConcepts } = require('./_lib/concept-reader');
+const {
+    checkClaudeCli,
+    invokeHaiku,
+    parseHaikuResult,
+    extractTokenCounts,
+} = require('./_lib/haiku-runner');
 
 const MAX_CONCEPTS_PER_RUN = 30;
 const MAX_ACTIVITY_SCOPE_ARTICLES = 10;
@@ -27,7 +35,7 @@ const MAX_DAILY_LOG_CHARS = 10000;
 const HAIKU_INPUT_PRICE = 0.0000008;
 const HAIKU_OUTPUT_PRICE = 0.000004;
 
-const CATEGORIES = ['patterns', 'constraints', 'decisions', 'workflows', 'rejected-approaches'];
+const CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 
 class MemoryCurator {
     constructor() {
@@ -36,19 +44,15 @@ class MemoryCurator {
         this.dailyDir = path.join(projectRoot, 'docs', '.output', 'memories', 'daily');
         this.conceptsDir = path.join(projectRoot, 'docs', '.output', 'memories', 'concepts');
         this.pendingDir = path.join(projectRoot, 'docs', '.output', 'memories', 'pending-curation');
+        this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
     }
 
     // -------------------------------------------------------------------------
-    // Guards
+    // Guards (thin adapters over _lib/haiku-runner)
     // -------------------------------------------------------------------------
 
     checkClaudeCli() {
-        try {
-            execSync('claude --version', { stdio: 'ignore', timeout: 5000 });
-            return true;
-        } catch {
-            return false;
-        }
+        return checkClaudeCli();
     }
 
     // -------------------------------------------------------------------------
@@ -56,86 +60,23 @@ class MemoryCurator {
     // -------------------------------------------------------------------------
 
     async loadConcepts() {
-        const concepts = [];
-
-        for (const category of CATEGORIES) {
-            const catDir = path.join(this.conceptsDir, category);
-            let files;
-            try {
-                files = await fs.readdir(catDir);
-            } catch {
-                continue;
-            }
-
-            for (const file of files) {
-                if (!file.endsWith('.md')) continue;
-                try {
-                    const filePath = path.join(catDir, file);
-                    const content = await fs.readFile(filePath, 'utf-8');
-                    const fm = this.parseFrontmatter(content);
-                    if (!fm) continue;
-
-                    const slug = file.replace('.md', '');
-                    const confidence = parseFloat(fm.confidence) || 0.6;
-                    const updated = fm.updated || new Date().toISOString();
-
-                    const daysSinceUpdate = (Date.now() - new Date(updated)) / (1000 * 60 * 60 * 24);
-                    const rate = MEMORY_DECAY.RATES[category] || MEMORY_DECAY.DEFAULT_RATE;
-                    let decayed = confidence * Math.pow(rate, daysSinceUpdate);
-                    decayed += MEMORY_DECAY.USAGE_BOOST * (parseInt(fm.usage_count) || 0);
-                    if (daysSinceUpdate < MEMORY_DECAY.RECENT_UPDATE_DAYS) {
-                        decayed += MEMORY_DECAY.RECENT_UPDATE_BOOST;
-                    }
-                    decayed = Math.min(decayed, 1.0);
-
-                    concepts.push({
-                        slug,
-                        title: fm.title || slug,
-                        category,
-                        content,
-                        confidence,
-                        decayedConfidence: decayed,
-                        sources: fm.sources || []
-                    });
-                } catch {
-                    // skip unreadable files
-                }
-            }
-        }
-
-        return concepts;
+        // Thin adapter over _lib/concept-reader.js. The shared reader returns
+        // a superset shape — curator's callers access {slug, title, category,
+        // content, confidence, decayedConfidence, sources}, ignoring the extra
+        // {usageCount, promotedTo, updated} fields.
+        return readConcepts({
+            conceptsDir: this.conceptsDir,
+            categories: CATEGORIES,
+            activeDaysResolver: this._activeDaysResolver,
+        });
     }
 
     /**
      * Parse YAML frontmatter from a markdown file.
-     * Mirrors memory-promoter.js parseFrontmatter.
+     * Thin adapter over _lib/frontmatter.js.
      */
     parseFrontmatter(content) {
-        const match = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!match) return null;
-
-        const raw = match[1];
-        const result = {};
-        let inSources = false;
-        const sourcesList = [];
-
-        for (const line of raw.split('\n')) {
-            if (line.startsWith('sources:')) {
-                inSources = true;
-                continue;
-            }
-            if (inSources && line.startsWith('  - ')) {
-                sourcesList.push(line.replace('  - ', '').trim());
-                continue;
-            }
-            inSources = false;
-
-            const kv = line.match(/^([\w_]+):\s*(.+)$/);
-            if (kv) result[kv[1]] = kv[2].trim();
-        }
-
-        if (sourcesList.length > 0) result.sources = sourcesList;
-        return result;
+        return parseFm(content);
     }
 
     // -------------------------------------------------------------------------
@@ -252,86 +193,37 @@ If there are no candidates in a category, return an empty array for it. Emit onl
     }
 
     // -------------------------------------------------------------------------
-    // Haiku invocation (mirrors memory-extractor.js:104-111 exactly)
+    // Haiku invocation (thin adapters over _lib/haiku-runner)
     // -------------------------------------------------------------------------
 
     invokeHaiku(prompt) {
-        const escapedPrompt = prompt.replace(/'/g, "'\\''");
-        try {
-            const result = execSync(
-                `claude -p '${escapedPrompt}' --model claude-haiku-4-5 --allowedTools Read --output-format json --bare`,
-                {
-                    encoding: 'utf8',
-                    timeout: 90000,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    maxBuffer: 10 * 1024 * 1024,
-                    windowsHide: true,
-                }
-            );
-            return result;
-        } catch (e) {
-            process.stderr.write(`[memory-curator] Haiku invocation failed: ${e.message}\n`);
-            return null;
-        }
+        return invokeHaiku(prompt, {
+            cwd: this.projectRoot,
+            timeout: 90000,
+            logTag: 'memory-curator',
+        });
     }
 
-    /**
-     * Parse the --output-format json envelope, then parse the inner JSON payload.
-     * The envelope varies by claude CLI version — try common shapes.
-     */
     parseHaikuResult(raw) {
-        if (!raw) return null;
-        let envelope;
+        // Curator's original had a dedup-specific fallback (`envelope.dedup_candidates`)
+        // for the edge case where Haiku returned payload directly instead of an envelope.
+        // Preserve that behavior by chaining: try the shared envelope-aware parser first,
+        // then fall back to treating the whole string as the payload.
+        const primary = parseHaikuResult(raw);
+        if (primary) return primary;
         try {
-            envelope = JSON.parse(raw);
-        } catch {
-            // Not JSON at the envelope level — try parsing raw as the payload
-            return this.tryParseInnerJson(raw);
-        }
-
-        // Common envelope shapes: { result, usage } | { text } | { content: [...] }
-        let text = null;
-        if (typeof envelope === 'string') text = envelope;
-        else if (envelope && typeof envelope === 'object') {
-            text = envelope.result || envelope.text || envelope.output || null;
-            if (!text && Array.isArray(envelope.content)) {
-                text = envelope.content.map(c => c.text || '').join('');
-            }
-        }
-
-        if (text) return this.tryParseInnerJson(text);
-        // Fallback: envelope itself may be the payload
-        return envelope && envelope.dedup_candidates !== undefined ? envelope : null;
+            const envelope = JSON.parse(raw);
+            if (envelope && envelope.dedup_candidates !== undefined) return envelope;
+        } catch { /* ignore */ }
+        return null;
     }
 
     tryParseInnerJson(text) {
-        if (typeof text !== 'string') return null;
-        const stripped = text.trim()
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim();
-        try {
-            return JSON.parse(stripped);
-        } catch {
-            return null;
-        }
+        return require('./_lib/haiku-runner').tryParseInnerJson(text);
     }
 
-    /**
-     * Extract input/output token counts from the Haiku response envelope.
-     * Used for per-invocation cost logging (AC#11).
-     */
     extractTokenCounts(raw) {
-        try {
-            const envelope = JSON.parse(raw);
-            if (envelope && envelope.usage) {
-                return {
-                    input: envelope.usage.input_tokens || 0,
-                    output: envelope.usage.output_tokens || 0
-                };
-            }
-        } catch {}
-        return { input: 0, output: 0 };
+        return extractTokenCounts(raw);
     }
 
     // -------------------------------------------------------------------------
@@ -346,7 +238,7 @@ If there are no candidates in a category, return an empty array for it. Emit onl
 
         const concepts = await this.loadConcepts();
         if (concepts.length === 0) {
-            process.stderr.write('[memory-curator] No concepts found — run memory-compiler first\n');
+            process.stderr.write('[memory-curator] No concepts found — concepts are produced by memory-extractor.js (manual) or memory-manager.js create\n');
             return null;
         }
 

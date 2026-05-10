@@ -14,8 +14,21 @@
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
+const CONSTANTS = require('./constants');
+const { jaccardFromSets } = require('./_lib/jaccard');
+const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
+const {
+    parseDailyFile: parseDailyFileLib,
+    extractKeywords: extractKeywordsLib,
+} = require('./_lib/daily-log-parser');
+const { writeConceptArticle: writeConceptArticleLib } = require('./_lib/concept-article');
+const {
+    generateIndex: generateIndexLib,
+    injectRelatedConcepts: injectRelatedConceptsLib,
+} = require('./_lib/concept-index');
+const { generateCrossReferences: generateCrossReferencesLib } = require('./_lib/cross-references');
 
-const CATEGORIES = ['patterns', 'constraints', 'decisions', 'workflows', 'rejected-approaches'];
+const CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 
 // Jaccard similarity threshold for grouping entries under a concept
 const SIMILARITY_THRESHOLD = 0.3;
@@ -231,25 +244,12 @@ class MemoryCompiler {
 
     /**
      * Split a daily log file into individual compaction entries.
-     * Each entry starts at "## HH:MM — Pre-Compaction".
-     * Returns array of { date, time, rawText }.
+     * Thin adapter over _lib/daily-log-parser.js — preserves instance-method API.
+     * Returns shape {date, time, heading, rawText}; callers using only
+     * {date, time, rawText} can ignore the extra `heading` field.
      */
     parseDailyFile(content, date) {
-        const entries = [];
-        // Split on compaction headings — keep the heading as part of each chunk
-        const chunks = content.split(/(?=^## \d{2}:\d{2} — )/m).filter(s => s.trim());
-
-        for (const chunk of chunks) {
-            const timeMatch = chunk.match(/^## (\d{2}:\d{2}) — /);
-            if (!timeMatch) continue;
-            entries.push({
-                date,
-                time: timeMatch[1],
-                rawText: chunk.trim()
-            });
-        }
-
-        return entries;
+        return parseDailyFileLib(content, date);
     }
 
     // -------------------------------------------------------------------------
@@ -262,84 +262,7 @@ class MemoryCompiler {
      * Returns a Set of lowercased keyword tokens.
      */
     extractKeywords(entry) {
-        const keywords = new Set();
-        const text = entry.rawText;
-
-        // Branch name (skip generic "ingested" branch)
-        const branchMatch = text.match(/\*\*Branch:\*\*\s*(.+)/);
-        if (branchMatch) {
-            const branchValue = branchMatch[1].trim();
-            if (branchValue !== 'ingested') {
-                const branchTokens = branchValue.split(/[-_/]/);
-                for (const t of branchTokens) {
-                    const clean = t.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    if (clean.length > 2) keywords.add(clean);
-                }
-            }
-        }
-
-        // Source title (from ingested recaps)
-        const sourceMatch = text.match(/\*\*Source:\*\*\s*(.+)/);
-        if (sourceMatch) {
-            const words = sourceMatch[1].trim().toLowerCase().split(/[\s+&,—–-]+/);
-            for (const w of words) {
-                const clean = w.replace(/[^a-z0-9]/g, '');
-                if (clean.length > 2) keywords.add(clean);
-            }
-        }
-
-        // Commit subjects — take meaningful words (skip hash)
-        const commitSection = text.match(/### Recent Commits\s*```([\s\S]*?)```/);
-        if (commitSection) {
-            const lines = commitSection[1].trim().split('\n').filter(l => l.trim());
-            for (const line of lines) {
-                // Line format: "abc1234 feat: add auth middleware" — skip hash prefix
-                const subject = line.replace(/^[a-f0-9]+\s+/, '');
-                const words = subject.toLowerCase().split(/\s+/);
-                // Take first 4 meaningful words, skip type prefix (feat:, fix:, etc.)
-                const meaningful = words
-                    .map(w => w.replace(/^[a-z]+:\s*/, '').replace(/[^a-z0-9]/g, ''))
-                    .filter(w => w.length > 2)
-                    .slice(0, 4);
-                for (const w of meaningful) keywords.add(w);
-            }
-        }
-
-        // In-progress story names
-        const inProgressSection = text.match(/### In-Progress Work\s*([\s\S]*?)(?=\n###|\n##|$)/);
-        if (inProgressSection) {
-            const lines = inProgressSection[1].split('\n').filter(l => l.includes('[>]') || l.includes('[!]'));
-            for (const line of lines) {
-                // Extract story name: "Story 3.2: OAuth integration (TODO_epic03.md)"
-                const storyMatch = line.match(/(?:\[>\]|\[!\])\s*(.+?)(?:\s*\(|$)/);
-                if (storyMatch) {
-                    const words = storyMatch[1].toLowerCase().split(/\s+/);
-                    for (const w of words) {
-                        const clean = w.replace(/[^a-z0-9]/g, '');
-                        if (clean.length > 2) keywords.add(clean);
-                    }
-                }
-            }
-        }
-
-        // Key decisions table — extract decision text
-        const decisionsSection = text.match(/### Key Decisions\s*([\s\S]*?)(?=\n##|$)/);
-        if (decisionsSection) {
-            const rows = decisionsSection[1].split('\n')
-                .filter(r => r.startsWith('|') && !r.includes('---') && !r.match(/Decision.*Rationale.*Outcome/i));
-            for (const row of rows) {
-                const cells = row.split('|').map(c => c.trim()).filter(c => c);
-                for (const cell of cells) {
-                    const words = cell.toLowerCase().split(/\s+/);
-                    for (const w of words) {
-                        const clean = w.replace(/[^a-z0-9]/g, '');
-                        if (clean.length > 2) keywords.add(clean);
-                    }
-                }
-            }
-        }
-
-        return keywords;
+        return extractKeywordsLib(entry);
     }
 
     // -------------------------------------------------------------------------
@@ -365,20 +288,10 @@ class MemoryCompiler {
             parent[find(i)] = find(j);
         }
 
-        function jaccard(setA, setB) {
-            if (setA.size === 0 && setB.size === 0) return 0;
-            let intersection = 0;
-            for (const k of setA) {
-                if (setB.has(k)) intersection++;
-            }
-            const unionSize = setA.size + setB.size - intersection;
-            return unionSize === 0 ? 0 : intersection / unionSize;
-        }
-
         // Compare all pairs
         for (let i = 0; i < entries.length; i++) {
             for (let j = i + 1; j < entries.length; j++) {
-                const sim = jaccard(entries[i].keywords, entries[j].keywords);
+                const sim = jaccardFromSets(entries[i].keywords, entries[j].keywords);
                 if (sim >= SIMILARITY_THRESHOLD) {
                     union(i, j);
                 }
@@ -501,166 +414,19 @@ class MemoryCompiler {
 
     /**
      * Write or update a concept article for a group of entries.
-     * Returns { title, category, filename, slug, description } or null on failure.
+     * Thin wrapper over _lib/concept-article.js — injects compiler's own
+     * detection/generation methods as closures.
      */
     async writeConceptArticle(group) {
-        try {
-            const category = this.detectCategory(group);
-            const title = this.generateTitle(group);
-            const slug = this.getConceptId(title);
-            const filename = `${slug}.md`;
-            const filePath = path.join(this.conceptsDir, category, filename);
-
-            // Collect source dates from this group
-            const newSources = Array.from(new Set(group.map(e => e.date))).sort();
-            const now = new Date().toISOString();
-
-            // Check for existing concept (idempotency)
-            let existingFrontmatter = null;
-            let existingSources = [];
-            let createdDate = now;
-            let existingContent = null;
-
-            try {
-                existingContent = await fs.readFile(filePath, 'utf-8');
-                existingFrontmatter = this.parseFrontmatter(existingContent);
-                if (existingFrontmatter) {
-                    existingSources = existingFrontmatter.sources || [];
-                    createdDate = existingFrontmatter.created || now;
-                }
-            } catch {
-                // File doesn't exist yet — fresh write
-            }
-
-            // Merge sources (deduplicate, sort)
-            const mergedSources = Array.from(new Set([...existingSources, ...newSources])).sort();
-
-            const summary = this.generateSummary(group, category);
-
-            // Build evidence section — each entry as a dated block
-            const evidenceBlocks = group.map(entry => {
-                return `### ${entry.date} ${entry.time}\n\n${entry.rawText}`;
-            });
-
-            // If updating existing, we may have prior evidence — preserve it
-            let priorEvidence = '';
-            if (existingFrontmatter && existingContent) {
-                const evidenceMatch = existingContent.match(/## Evidence\s*\n([\s\S]*)$/);
-                if (evidenceMatch) {
-                    priorEvidence = evidenceMatch[1].trim();
-                }
-            }
-
-            // Merge evidence: prior first, then new (deduplicated by date+time heading)
-            const existingEvidenceHeadings = new Set();
-            if (priorEvidence) {
-                const headingMatches = priorEvidence.matchAll(/^### (\d{4}-\d{2}-\d{2} \d{2}:\d{2})/gm);
-                for (const m of headingMatches) existingEvidenceHeadings.add(m[1]);
-            }
-
-            const newEvidenceBlocks = evidenceBlocks.filter(block => {
-                const headingMatch = block.match(/^### (\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
-                if (!headingMatch) return true;
-                return !existingEvidenceHeadings.has(headingMatch[1]);
-            });
-
-            const allEvidence = [
-                ...(priorEvidence ? [priorEvidence] : []),
-                ...newEvidenceBlocks
-            ].join('\n\n---\n\n');
-
-            // Build tags from category + top keywords
-            const keywordFreq = new Map();
-            for (const entry of group) {
-                for (const kw of entry.keywords) {
-                    keywordFreq.set(kw, (keywordFreq.get(kw) || 0) + 1);
-                }
-            }
-            const topKeywords = Array.from(keywordFreq.entries())
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
-                .map(([kw]) => kw);
-            const tags = [category, ...topKeywords.filter(k => k !== category)];
-
-            // Build aliases from keyword permutations (alternative titles)
-            const aliasKeywords = topKeywords.slice(0, 3);
-            const aliases = [];
-            if (aliasKeywords.length >= 2) {
-                // Reverse order as an alias
-                aliases.push(aliasKeywords.slice().reverse().map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
-            }
-            if (aliasKeywords.length >= 3) {
-                // Skip middle word
-                aliases.push([aliasKeywords[0], aliasKeywords[2]].map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
-            }
-
-            // Compute Obsidian/Dataview metadata
-            const sourceCount = mergedSources.length;
-            const entryCount = existingEvidenceHeadings.size + newEvidenceBlocks.length;
-            const dateRange = mergedSources.length === 1
-                ? mergedSources[0]
-                : `${mergedSources[0]} to ${mergedSources[mergedSources.length - 1]}`;
-
-            // Build YAML frontmatter (Obsidian-compatible)
-            const sourcesYaml = mergedSources.map(s => `  - ${s}`).join('\n');
-            const tagsYaml = tags.map(t => `  - ${t}`).join('\n');
-            const aliasesYaml = aliases.length > 0
-                ? aliases.map(a => `  - ${a}`).join('\n')
-                : '  - ' + title;
-            const frontmatter = [
-                '---',
-                `title: ${title}`,
-                `category: ${category}`,
-                `cssclasses:`,
-                `  - concept-${category}`,
-                `tags:`,
-                tagsYaml,
-                `aliases:`,
-                aliasesYaml,
-                `sources:`,
-                sourcesYaml,
-                `created: ${this.formatDateOnly(createdDate)}`,
-                `updated: ${this.formatDateOnly(now)}`,
-                `confidence: ${DEFAULT_CONFIDENCE}`,
-                `source_count: ${sourceCount}`,
-                `entry_count: ${entryCount}`,
-                `date_range: "${dateRange}"`,
-                '---'
-            ].join('\n');
-
-            // Add daily log backlinks to evidence headings for Obsidian graph connectivity
-            const evidenceWithBacklinks = this.addDailyBacklinks(allEvidence || '_No evidence blocks._');
-
-            const articleContent = [
-                frontmatter,
-                '',
-                '## Summary',
-                '',
-                `> [!abstract] Summary`,
-                `> ${summary}`,
-                '',
-                '## Evidence',
-                '',
-                evidenceWithBacklinks
-            ].join('\n');
-
-            await fs.writeFile(filePath, articleContent, 'utf-8');
-
-            const action = existingFrontmatter ? 'Updated' : 'Created';
-            console.log(`  ${action}: ${category}/${filename}`);
-
-            return {
-                title,
-                category,
-                filename,
-                slug,
-                description: summary.slice(0, 120),
-                confidence: DEFAULT_CONFIDENCE
-            };
-        } catch (err) {
-            console.error(`  Error writing concept for group: ${err.message}`);
-            return null;
-        }
+        return writeConceptArticleLib(group, {
+            conceptsDir: this.conceptsDir,
+            detectCategory:    (g) => this.detectCategory(g),
+            generateTitle:     (g) => this.generateTitle(g),
+            getConceptId:      (t) => this.getConceptId(t),
+            generateSummary:   (g, c) => this.generateSummary(g, c),
+            addDailyBacklinks: (t) => this.addDailyBacklinks(t),
+            formatDateOnly:    (iso) => this.formatDateOnly(iso),
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -668,89 +434,13 @@ class MemoryCompiler {
     // -------------------------------------------------------------------------
 
     /**
-     * Post-pass: inject ## Related Concepts section with [[wiki-links]]
-     * into each concept article based on cross-references.json.
-     *
-     * Inserts between ## Summary and ## Evidence. Idempotent — replaces
-     * existing Related Concepts section on re-compile.
+     * Inject Related Concepts sections — thin wrapper over _lib/concept-index.
      */
     async injectRelatedConcepts(writtenConcepts) {
-        // Load cross-references
-        const crossRefPath = path.join(this.conceptsDir, 'cross-references.json');
-        let crossRefMap;
-        try {
-            const raw = await fs.readFile(crossRefPath, 'utf-8');
-            crossRefMap = JSON.parse(raw);
-        } catch {
-            return; // No cross-references to inject
-        }
-
-        // Build slug→{title, category} lookup from all concept files
-        const conceptLookup = new Map();
-        for (const cat of CATEGORIES) {
-            const catDir = path.join(this.conceptsDir, cat);
-            try {
-                const files = await fs.readdir(catDir);
-                for (const file of files) {
-                    if (!file.endsWith('.md')) continue;
-                    const slug = file.replace('.md', '');
-                    try {
-                        const content = await fs.readFile(path.join(catDir, file), 'utf-8');
-                        const fm = this.parseFrontmatter(content);
-                        if (fm) {
-                            conceptLookup.set(slug, { title: fm.title || slug, category: cat });
-                        }
-                    } catch { /* skip */ }
-                }
-            } catch { /* skip */ }
-        }
-
-        // Inject into each concept article
-        let injected = 0;
-        for (const [slug, data] of Object.entries(crossRefMap)) {
-            const related = data.related || [];
-            if (related.length === 0) continue;
-
-            const info = conceptLookup.get(slug);
-            if (!info) continue;
-
-            const filePath = path.join(this.conceptsDir, info.category, `${slug}.md`);
-            let content;
-            try {
-                content = await fs.readFile(filePath, 'utf-8');
-            } catch { continue; }
-
-            // Build Related Concepts section with wiki-links
-            const links = related
-                .map(relSlug => {
-                    const relInfo = conceptLookup.get(relSlug);
-                    if (!relInfo) return null;
-                    return `- [[${relSlug}|${relInfo.title}]]`;
-                })
-                .filter(Boolean);
-
-            if (links.length === 0) continue;
-
-            const relatedSection = `## Related Concepts\n\n${links.join('\n')}`;
-
-            // Remove existing Related Concepts section if present
-            const cleaned = content.replace(/## Related Concepts\s*\n[\s\S]*?(?=\n## Evidence|$)/, '');
-
-            // Insert before ## Evidence
-            const updated = cleaned.replace(
-                /(\n## Evidence)/,
-                `\n${relatedSection}\n$1`
-            );
-
-            if (updated !== content) {
-                await fs.writeFile(filePath, updated, 'utf-8');
-                injected++;
-            }
-        }
-
-        if (injected > 0) {
-            console.log(`  Related Concepts injected into ${injected} article(s).`);
-        }
+        return injectRelatedConceptsLib(writtenConcepts, {
+            conceptsDir: this.conceptsDir,
+            categories: CATEGORIES,
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -759,49 +449,10 @@ class MemoryCompiler {
 
     /**
      * Parse YAML frontmatter from a markdown file.
-     * Returns plain object or null if no frontmatter found.
-     * Handles simple key: value pairs and list fields (sources, tags, aliases).
+     * Thin adapter over _lib/frontmatter.js — preserves instance-method API for tests.
      */
     parseFrontmatter(content) {
-        const match = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!match) return null;
-
-        const raw = match[1];
-        const result = {};
-        const listFields = new Set(['sources', 'tags', 'aliases', 'cssclasses']);
-        let currentList = null;
-        const lists = {};
-
-        for (const line of raw.split('\n')) {
-            // Check for start of a list field
-            const listStart = line.match(/^(\w+):$/);
-            if (listStart && listFields.has(listStart[1])) {
-                currentList = listStart[1];
-                lists[currentList] = [];
-                continue;
-            }
-
-            // Collect list items
-            if (currentList && line.startsWith('  - ')) {
-                lists[currentList].push(line.replace('  - ', '').trim());
-                continue;
-            }
-
-            // End of list
-            if (currentList && !line.startsWith('  - ')) {
-                currentList = null;
-            }
-
-            const kv = line.match(/^(\w+):\s*(.+)$/);
-            if (kv) result[kv[1]] = kv[2].trim();
-        }
-
-        // Merge lists into result
-        for (const [key, values] of Object.entries(lists)) {
-            if (values.length > 0) result[key] = values;
-        }
-
-        return result;
+        return parseFm(content);
     }
 
     // -------------------------------------------------------------------------
@@ -809,160 +460,14 @@ class MemoryCompiler {
     // -------------------------------------------------------------------------
 
     /**
-     * Generate docs/.output/memories/concepts/index.md as an Obsidian MOC (Map of Content).
-     * Uses [[wiki-links]] for graph connectivity, Dataview queries for dynamic views.
+     * Generate the MOC index — thin wrapper over _lib/concept-index.
      */
     async generateIndex(concepts) {
-        const now = new Date().toISOString();
-        const today = this.formatDateOnly(now);
-
-        // Group by category
-        const byCategory = {};
-        for (const cat of CATEGORIES) byCategory[cat] = [];
-        for (const concept of concepts) {
-            if (concept && byCategory[concept.category]) {
-                byCategory[concept.category].push(concept);
-            }
-        }
-
-        // Also scan existing concept files not in this compile run
-        // (idempotency: index should reflect ALL concepts, not just newly written ones)
-        for (const cat of CATEGORIES) {
-            const catDir = path.join(this.conceptsDir, cat);
-            try {
-                const files = await fs.readdir(catDir);
-                const existingSlugs = new Set(byCategory[cat].map(c => c.filename));
-                for (const file of files) {
-                    if (!file.endsWith('.md') || existingSlugs.has(file)) continue;
-                    try {
-                        const content = await fs.readFile(path.join(catDir, file), 'utf-8');
-                        const fm = this.parseFrontmatter(content);
-                        if (fm) {
-                            // Extract summary text (handle callout format)
-                            const summaryMatch = content.match(/## Summary\s*\n+(?:> \[!abstract\][^\n]*\n)?> ?([^\n]+)/);
-                            const plainMatch = content.match(/## Summary\s*\n+([^\n>]+)/);
-                            const description = (summaryMatch ? summaryMatch[1].trim() : plainMatch ? plainMatch[1].trim() : fm.title || file.replace('.md', '')).slice(0, 120);
-                            byCategory[cat].push({
-                                title: fm.title || file.replace('.md', ''),
-                                category: cat,
-                                filename: file,
-                                slug: file.replace('.md', ''),
-                                description,
-                                confidence: fm.confidence ? parseFloat(fm.confidence) : DEFAULT_CONFIDENCE
-                            });
-                        }
-                    } catch {
-                        // skip unreadable files
-                    }
-                }
-            } catch {
-                // category dir may not exist
-            }
-        }
-
-        // Confidence level indicator helper
-        function confidenceIndicator(conf) {
-            const c = typeof conf === 'number' ? conf : parseFloat(conf) || DEFAULT_CONFIDENCE;
-            if (c >= 0.7) return '[HIGH]';
-            if (c >= 0.4) return '[MED]';
-            return '[LOW]';
-        }
-
-        // Count total concepts
-        let totalConcepts = 0;
-        for (const cat of CATEGORIES) totalConcepts += byCategory[cat].length;
-
-        // Build MOC content with frontmatter
-        const lines = [
-            '---',
-            'title: Memory Concepts Index',
-            'cssclasses:',
-            '  - moc',
-            `updated: ${today}`,
-            'tags:',
-            '  - MOC',
-            '  - memory-system',
-            '---',
-            '',
-            '# Memory Concepts Index',
-            '',
-            `Last compiled: ${now}`,
-            '',
-            '> [!info] Quick Stats',
-            `> **${totalConcepts}** concepts across **${CATEGORIES.length}** categories`,
-            '',
-        ];
-
-        for (const cat of CATEGORIES) {
-            lines.push(`## ${cat}`);
-            lines.push('');
-            const entries = byCategory[cat];
-            if (entries.length === 0) {
-                lines.push('_No concepts compiled yet._');
-            } else {
-                for (const entry of entries) {
-                    const indicator = confidenceIndicator(entry.confidence);
-                    const slug = entry.slug || entry.filename.replace('.md', '');
-                    lines.push(`- ${indicator} [[${slug}|${entry.title}]] — ${entry.description}`);
-                }
-            }
-            lines.push('');
-        }
-
-        // Append Cross-References section with wiki-links
-        const crossRefPath = path.join(this.conceptsDir, 'cross-references.json');
-        try {
-            const crossRefContent = await fs.readFile(crossRefPath, 'utf-8');
-            const crossRefMap = JSON.parse(crossRefContent);
-
-            // Collect unique pairs (A < B lexicographically to avoid duplicates)
-            const pairs = new Set();
-            for (const [slugA, data] of Object.entries(crossRefMap)) {
-                for (const slugB of (data.related || [])) {
-                    const pair = slugA < slugB ? `${slugA}|${slugB}` : `${slugB}|${slugA}`;
-                    pairs.add(pair);
-                }
-            }
-
-            lines.push('## Cross-References');
-            lines.push('');
-            if (pairs.size === 0) {
-                lines.push('_No cross-references found._');
-            } else {
-                for (const pair of Array.from(pairs).sort()) {
-                    const [a, b] = pair.split('|');
-                    lines.push(`- [[${a}]] ↔ [[${b}]]`);
-                }
-            }
-            lines.push('');
-        } catch {
-            // cross-references.json may not exist yet — omit the section
-        }
-
-        // Dataview dynamic query blocks
-        lines.push('## Dynamic Views');
-        lines.push('');
-        lines.push('### Recently Updated');
-        lines.push('```dataview');
-        lines.push('TABLE confidence, date_range, source_count');
-        lines.push('FROM ""');
-        lines.push('WHERE confidence AND file.name != "index"');
-        lines.push('SORT updated DESC');
-        lines.push('LIMIT 10');
-        lines.push('```');
-        lines.push('');
-        lines.push('### High Confidence');
-        lines.push('```dataview');
-        lines.push('TABLE category, date_range, source_count');
-        lines.push('FROM ""');
-        lines.push('WHERE confidence >= 0.7 AND file.name != "index"');
-        lines.push('SORT confidence DESC');
-        lines.push('```');
-        lines.push('');
-
-        const indexPath = path.join(this.conceptsDir, 'index.md');
-        await fs.writeFile(indexPath, lines.join('\n'), 'utf-8');
-        console.log(`  Index written: ${indexPath}`);
+        return generateIndexLib(concepts, {
+            conceptsDir: this.conceptsDir,
+            categories: CATEGORIES,
+            formatDateOnly: (iso) => this.formatDateOnly(iso),
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -970,106 +475,15 @@ class MemoryCompiler {
     // -------------------------------------------------------------------------
 
     /**
-     * Compute pairwise Jaccard similarity between all concept articles.
-     * Pairs with similarity >= CROSS_REF_THRESHOLD and < SIMILARITY_THRESHOLD
-     * are recorded as "related" cross-references.
-     *
-     * Writes docs/.output/memories/concepts/cross-references.json.
-     * Returns the number of unique pairs found.
+     * Generate cross-references — thin wrapper over _lib/cross-references.
      */
     async generateCrossReferences() {
-        // Load ALL concept articles from disk (same pattern as generateIndex)
-        const allConcepts = []; // { slug, category, title, keywords }
-
-        for (const cat of CATEGORIES) {
-            const catDir = path.join(this.conceptsDir, cat);
-            try {
-                const files = await fs.readdir(catDir);
-                for (const file of files) {
-                    if (!file.endsWith('.md')) continue;
-                    try {
-                        const content = await fs.readFile(path.join(catDir, file), 'utf-8');
-                        const fm = this.parseFrontmatter(content);
-                        if (!fm) continue;
-
-                        const slug = file.replace('.md', '');
-                        const title = fm.title || slug;
-
-                        // Extract summary text for keyword computation
-                        const summaryMatch = content.match(/## Summary\s*\n+([\s\S]*?)(?=\n##|$)/);
-                        const summaryText = summaryMatch ? summaryMatch[1].trim() : '';
-
-                        // Simple keyword tokenizer: title + summary, split on whitespace,
-                        // lowercase, filter words > 2 chars
-                        const rawText = `${title} ${summaryText}`;
-                        const keywords = new Set(
-                            rawText
-                                .toLowerCase()
-                                .split(/\s+/)
-                                .map(w => w.replace(/[^a-z0-9]/g, ''))
-                                .filter(w => w.length > 2)
-                        );
-
-                        allConcepts.push({ slug, category: cat, keywords });
-                    } catch {
-                        // skip unreadable files
-                    }
-                }
-            } catch {
-                // category dir may not exist
-            }
-        }
-
-        // Jaccard similarity between two Sets
-        function jaccard(setA, setB) {
-            if (setA.size === 0 && setB.size === 0) return 0;
-            let intersection = 0;
-            for (const k of setA) {
-                if (setB.has(k)) intersection++;
-            }
-            const unionSize = setA.size + setB.size - intersection;
-            return unionSize === 0 ? 0 : intersection / unionSize;
-        }
-
-        // Build bidirectional cross-reference map
-        // { slug: { related: [slugs], category: cat } }
-        const crossRefMap = {};
-
-        // Initialize all known concepts with empty related arrays
-        for (const concept of allConcepts) {
-            crossRefMap[concept.slug] = {
-                related: [],
-                category: concept.category
-            };
-        }
-
-        let pairCount = 0;
-
-        // Compare all pairs
-        for (let i = 0; i < allConcepts.length; i++) {
-            for (let j = i + 1; j < allConcepts.length; j++) {
-                const sim = jaccard(allConcepts[i].keywords, allConcepts[j].keywords);
-                if (sim >= CROSS_REF_THRESHOLD && sim < SIMILARITY_THRESHOLD) {
-                    const slugA = allConcepts[i].slug;
-                    const slugB = allConcepts[j].slug;
-                    crossRefMap[slugA].related.push(slugB);
-                    crossRefMap[slugB].related.push(slugA);
-                    pairCount++;
-                }
-            }
-        }
-
-        // Remove concepts that have no related entries to keep the file clean,
-        // but only if they have no related. Keep all in map per AC (bidirectional).
-        // Actually: AC says structure is { slug: { related: [...], category } } —
-        // keep all slugs so the file documents the full universe.
-
-        // Write cross-references.json (empty object {} when no concepts exist)
-        const outputMap = allConcepts.length === 0 ? {} : crossRefMap;
-        const crossRefPath = path.join(this.conceptsDir, 'cross-references.json');
-        await fs.writeFile(crossRefPath, JSON.stringify(outputMap, null, 2), 'utf-8');
-
-        return pairCount;
+        return generateCrossReferencesLib({
+            conceptsDir: this.conceptsDir,
+            categories: CATEGORIES,
+            crossRefThreshold: CROSS_REF_THRESHOLD,
+            similarityThreshold: SIMILARITY_THRESHOLD,
+        });
     }
 }
 

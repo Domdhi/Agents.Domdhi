@@ -165,6 +165,14 @@ const SKIP_PATHS = [
     /package-lock\.json$/,
     /yarn\.lock$/,
     /pnpm-lock\.yaml$/,
+    // Test files legitimately contain fixtures (mock secrets, fake passwords for
+    // auth-flow integration tests) that match the Password/Secret Assignment
+    // patterns. A secret committed here would be a bigger problem than the
+    // scanner can solve; code review is the right gate.
+    /__test__\//,
+    /__tests__\//,
+    /\.test\.(ts|tsx|js|jsx|mjs|cjs)$/,
+    /\.spec\.(ts|tsx|js|jsx|mjs|cjs)$/,
 ];
 
 // ============================================

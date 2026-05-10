@@ -4,7 +4,7 @@
  * Memory Ingester — Converts legacy daily recap files into daily log format
  *
  * Reads recap files from external projects (e.g., Domdhi.platform) and converts
- * them into the daily log format consumed by memory-compiler.js.
+ * them into the daily log format consumed by memory-extractor.js (manual Haiku pipeline).
  *
  * Source format: docs/.archive/recaps/.archive/{YYYY-MM}/daily_recap_{YYYY_MM_DD}.md
  *   - YAML frontmatter (value_created, traditional_hours, velocity_multiplier, date)
@@ -14,7 +14,7 @@
  * Target format: docs/.output/memories/daily/{YYYY-MM-DD}.md
  *   - ## HH:MM — ingested entries with Branch, Recent Commits, In-Progress Work, Key Decisions
  *
- * Pipeline: memory-ingester.js → memory-compiler.js compile → memory-promoter.js scan
+ * Pipeline: memory-ingester.js (this tool) → docs/.output/memories/daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create
  */
 
 const fs = require('fs');
@@ -412,8 +412,8 @@ Options:
   --output-dir    Override output directory (default: docs/.output/memories/daily/)
 
 Source format:  daily_recap_YYYY_MM_DD.md (narrative recaps with YAML frontmatter)
-Target format:  YYYY-MM-DD.md (daily log entries for memory-compiler.js)
-Pipeline:       memory-ingester.js → memory-compiler.js compile → memory-promoter.js scan`);
+Target format:  YYYY-MM-DD.md (daily log entries for memory-extractor.js, manual Haiku pipeline)
+Pipeline:       memory-ingester.js (this tool) → docs/.output/memories/daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create`);
 }
 
 if (require.main === module) {

@@ -8,58 +8,40 @@
  * Writes extracted learnings to docs/.output/memories/extracted/{date}/
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
+const { parseDailyFile: parseDailyFileLib } = require('./_lib/daily-log-parser');
+const {
+    checkClaudeCli,
+    invokeHaiku,
+    tryParseInnerJson,
+} = require('./_lib/haiku-runner');
 
 const MAX_ENTRIES_PER_RUN = 10;
 
 class MemoryExtractor {
     constructor() {
-        const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.dailyDir = path.join(projectRoot, 'docs', '.output', 'memories', 'daily');
-        this.extractedDir = path.join(projectRoot, 'docs', '.output', 'memories', 'extracted');
+        this.projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'daily');
+        this.extractedDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'extracted');
     }
 
     /**
      * Check if the claude CLI is available in PATH.
-     * Returns true if available, false otherwise.
+     * Thin adapter over _lib/haiku-runner.
      */
     checkClaudeCli() {
-        try {
-            execSync('claude --version', { stdio: 'ignore', timeout: 5000 });
-            return true;
-        } catch {
-            return false;
-        }
+        return checkClaudeCli();
     }
 
     /**
      * Split a daily log file into individual compaction entries.
-     * Each entry starts at "## HH:MM — Pre-Compaction".
-     * Uses the same regex as memory-compiler.js line 211.
+     * Thin adapter over _lib/daily-log-parser.js — preserves instance-method API.
      * Returns array of { date, time, heading, rawText }.
      */
     parseDailyFile(content, date) {
-        const entries = [];
-        // Split on compaction headings — keep the heading as part of each chunk
-        const chunks = content.split(/(?=^## \d{2}:\d{2} — )/m).filter(s => s.trim());
-
-        for (const chunk of chunks) {
-            const headingMatch = chunk.match(/^(## \d{2}:\d{2} — [^\n]*)/);
-            if (!headingMatch) continue;
-            const timeMatch = chunk.match(/^## (\d{2}:\d{2}) — /);
-            if (!timeMatch) continue;
-            entries.push({
-                date,
-                time: timeMatch[1],
-                heading: headingMatch[1],
-                rawText: chunk.trim()
-            });
-        }
-
-        return entries;
+        return parseDailyFileLib(content, date);
     }
 
     /**
@@ -97,48 +79,44 @@ class MemoryExtractor {
             '--- ENTRY END ---'
         ].join('\n');
 
-        // Escape the prompt for shell: wrap in single quotes, escape internal single quotes
-        const escapedPrompt = prompt.replace(/'/g, "'\\''");
+        // Extractor differs from curator/benchmark in two ways:
+        //   - Shorter timeout (30s — per-entry extraction is faster than full curation)
+        //   - Raw-payload response (no { result, usage } envelope expected — tests mock
+        //     with raw JSON arrays; production behavior matches per current fixtures)
+        const raw = invokeHaiku(prompt, {
+            cwd: this.projectRoot,
+            timeout: 30000,
+            // Extractor's original inline logger emitted to stderr with "Warning:" prefix
+            // before the message. The shared runner prefixes with logTag — use 'extractor'
+            // to keep telemetry grep-able, and accept the slight message-format shift.
+            logTag: null, // handled by the outer try/catch at call site below
+        });
 
-        try {
-            const result = execSync(
-                `claude -p '${escapedPrompt}' --model claude-haiku-4-5 --allowedTools Read --output-format json --bare`,
-                {
-                    encoding: 'utf8',
-                    timeout: 30000,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    windowsHide: true,
-                }
-            );
-
-            const trimmed = result.trim();
-            // Strip markdown code fences if present despite --bare
-            const jsonText = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-
-            try {
-                const parsed = JSON.parse(jsonText);
-                if (Array.isArray(parsed)) {
-                    return parsed.filter(item =>
-                        item &&
-                        typeof item.category === 'string' &&
-                        typeof item.title === 'string' &&
-                        typeof item.content === 'string' &&
-                        typeof item.confidence === 'number'
-                    );
-                }
-                // If the model wrapped in an object, try to find the array
-                if (parsed && Array.isArray(parsed.learnings)) return parsed.learnings;
-                if (parsed && Array.isArray(parsed.results)) return parsed.results;
-                return [];
-            } catch (parseErr) {
-                process.stderr.write(`  Warning: JSON parse failed for entry — ${parseErr.message}\n`);
-                return [];
-            }
-        } catch (execErr) {
-            const errMsg = execErr.stderr ? execErr.stderr.trim() : execErr.message;
-            process.stderr.write(`  Warning: Haiku invocation failed — ${errMsg}\n`);
+        if (raw === null) {
+            process.stderr.write('  Warning: Haiku invocation failed — subprocess returned null\n');
             return [];
         }
+
+        // Extractor uses raw-payload parsing (no envelope unwrapping) — historical behavior.
+        const parsed = tryParseInnerJson(raw);
+        if (parsed === null) {
+            process.stderr.write('  Warning: JSON parse failed for entry\n');
+            return [];
+        }
+
+        if (Array.isArray(parsed)) {
+            return parsed.filter(item =>
+                item &&
+                typeof item.category === 'string' &&
+                typeof item.title === 'string' &&
+                typeof item.content === 'string' &&
+                typeof item.confidence === 'number'
+            );
+        }
+        // If the model wrapped in an object, try to find the array
+        if (parsed && Array.isArray(parsed.learnings)) return parsed.learnings;
+        if (parsed && Array.isArray(parsed.results)) return parsed.results;
+        return [];
     }
 
     /**

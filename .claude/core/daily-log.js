@@ -11,18 +11,24 @@
  *   - /end command (every session end)
  *   - Manual: node .claude/core/daily-log.js capture [--trigger <name>]
  *
- * The daily log feeds the memory compilation pipeline:
- *   daily-log.js → memory-compiler.js → memory-promoter.js
+ * The daily log feeds the memory acquisition pipeline:
+ *   daily-log.js → docs/.output/memories/daily/{YYYY-MM-DD}.md
+ *     → memory-extractor.js (manual Haiku, brownfield only)
+ *     → memory-manager.js create
+ *
+ * Note: memory-compiler.js was retired 2026-04-20
+ * (per .claude/commands/review/memory-health.md:29).
  */
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { getDailyDir } = require('./_lib/daily-log-paths');
 
 class DailyLog {
     constructor(projectRoot) {
         this.projectRoot = projectRoot || process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'daily');
+        this.dailyDir = getDailyDir(this.projectRoot);
     }
 
     /**
@@ -233,7 +239,7 @@ Usage:
 
 Triggers: pre-compaction, end, remember, manual (default)
 Output:   docs/.output/memories/daily/{YYYY-MM-DD}.md (appended)
-Pipeline: daily-log.js → memory-compiler.js compile → memory-promoter.js scan`);
+Pipeline: daily-log.js → docs/.output/memories/daily/{YYYY-MM-DD}.md (captured) → memory-extractor.js extract (manual) → memory-manager.js create`);
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": "4.20.1",
-  "updated": "2026-04-21",
-  "changelog": "First public release cut — published subset to Agents.Domdhi via publish.js + publish-manifest.json. Locked docs structure (README, CLAUDE.md, LICENSE, docs/{README,CLAUDE,getting-started,concepts/**,reference/**,guides/**}). DEFAULT_EXCLUDES safety rail covers handoff, .output, todo, research, app, design, timeline, settings.local, agent-memory."
+  "version": "4.21.0",
+  "updated": "2026-05-09",
+  "changelog": "publish.js path-remap (workshop docs/concepts|guides|reference|README|CLAUDE|getting-started → .claude/.agents.docs/ at adopter), scaffold.js managed-block merge for .gitignore (preserves adopter customizations across re-scaffolds), test sources now ship (__tests__/ + _helpers/ included; coverage/test-results excluded), .githooks/ template retired in favor of Claude Code PreToolUse hooks for secret-scanning (workshop pre-commit deleted, scaffold core.hooksPath block removed, template-updater ROOT_TEMPLATE_DIRS emptied, guardrail-rules.yaml rule retired), inner gitignore rename fix (templates/root/.gitignore → gitignore so git stops treating it as an active gitignore at the template path)."
 }

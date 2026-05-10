@@ -80,8 +80,10 @@ You (the main agent) have the session context. Write the file directly — no su
 - {only real blockers — include what was tried}
 
 ## Key Files (max 5)
-- {path}:{line} — {why relevant to Next Actions, what to look for}
+- {path} — {why relevant to Next Actions, what to look for}
 ```
+
+**Key Files mechanics (read this before populating).** `/prime` Step 2 reads every listed file IN FULL — line-range annotations like `:47-89` are ignored by spec. The list directly controls cold-start token cost. Two repos' worth of audit data shows a single bad Key File entry can spike `/prime` from ~60k to ~100k tokens. The hard rules in **Key Files lifecycle** (between Steps 4 and 5) are mandatory, not advisory.
 
 ## Step 4: Command-specific tailoring
 
@@ -115,6 +117,31 @@ Different callers have different information to emphasize. Fill the template wit
 - **Decisions & Context:** one bullet on why this TODO was created, what it accomplishes
 - **Next Actions:** always `/run-todo {path}` as #1, `/do {first-story-id}` as #2
 - **Key Files:** the new TODO path + research files from `docs/.output/work/{date}/{slug}/`
+
+## Key Files lifecycle (mandatory — applies to every caller)
+
+`/prime` Step 2 reads every Key File in full. Listing the wrong files turns one cold start into a 90-100k token session. The rules below come from cross-repo token-economics audits (`docs/.output/investigations/2026-04-25-token-economics.md` and `…-DISPATCH.md`); they are mandatory, not advisory.
+
+### Never list as Key Files
+
+- **`CLAUDE.md` and `docs/CLAUDE.md`.** Both auto-load at session start. Listing them causes `/prime` to read them again — pure waste. Measured cost: 116k tokens of redundant loading over 14 days on Agents (21 occurrences × 5.5k tokens each).
+- **Raw telemetry: `*.jsonl`, hook-events logs, command-usage logs.** Append-only data files, not session-resumption context. `hook-events.jsonl` alone added 20.7k tokens to a single `/prime` in the audit window. If telemetry needs analysis, the next session can read it on demand — not at cold start.
+- **Files over 20kb (~5k tokens).** Line-range annotations (`:47-89`) do NOT save tokens — `/prime` Step 2 explicitly ignores them and reads the whole file. If a heavy file is genuinely needed for resume, split it: smaller live file + archive on disk. Reference precedent: `docs/.output/agent-updates.md` 38kb → 1kb live + 37kb archive on 2026-04-25.
+- **TODO files for closed epics.** Once the epic's final wave commits, the TODO becomes historical record. Replace with a one-line summary in Decisions & Context: *"Epic X complete — N stories, see commit Y."* Drop the file from Key Files on the same `/end` that closes the epic.
+- **Source files past their story commit.** During active structural work on `routes/login.tsx` (or any source file), listing it as a Key File is correct — the next session needs the full file to resume. After the story closes, drop it. Source-file Key Files carrying 2-3 sessions past completion add 2-5k tokens of cold-start detail with zero resumption value.
+- **Large reference docs** (`docs/reference/commands.md`, system maps, etc.) outside the specific session's scope. They're CLAUDE.md-equivalent overviews — useful when researching commands, noise on every other session.
+
+### Legitimate Key Files
+
+- The plan file paired with this session's work (`docs/.output/plans/{date}-{do|run-todo}-{slug}.md`).
+- The current TODO file *while the epic is in flight* (only). Drop it once final wave commits.
+- Investigation, audit, or review reports the next session needs to act on (drop once acted on).
+- Specific source files the next session will edit *first* — but only if Next Actions name them as the starting point.
+- The split live file when an archive pattern is in play (e.g., `agent-updates.md` post-split — keep listing it, it's 1kb).
+
+### When in doubt
+
+Ask: *"Will the next session need to read this file's full contents to do step 1 of Next Actions?"* If no, it's not a Key File. Decisions & Context can name a path without `/prime` having to read it. The mention costs ~30 tokens; reading it costs the file's full size.
 
 ## Step 5: Commit (caller-dependent)
 
@@ -213,7 +240,7 @@ node .claude/core/memory-manager.js create patterns plan-first-before-agent-disp
 > "Rejected spawning the memory compiler with detached:true + windowsHide:true — the two flags conflict at CreateProcess, causing a brief console flash. Switched to stdio:'ignore' + windowsHide:true + child.unref()."
 
 ```bash
-node .claude/core/memory-manager.js create constraints windows-detached-hide-conflict '{"description": "On Windows, combining spawn options detached:true with windowsHide:true causes a brief console flash — the child briefly owns a visible console before hide applies. The two flags conflict at the CreateProcess API layer.", "wrong_pattern": "spawn(cmd, args, { detached: true, windowsHide: true })", "correct_pattern": "spawn(cmd, args, { stdio: '\''ignore'\'', windowsHide: true }); child.unref();", "code_example": "// Fire-and-forget child on Windows without a console flash\nconst child = spawn(nodeBin, [script], {\n  stdio: '\''ignore'\'',\n  windowsHide: true,\n});\nchild.unref(); // parent can exit without waiting", "reference": ".claude/hooks/memory-capture.cjs spawnCompile() lines 65-74", "evidence": "Observed during MU testing on Windows 11 — flash was ~80ms, enough to be jarring."}'
+node .claude/core/memory-manager.js create constraints windows-detached-hide-conflict '{"description": "On Windows, combining spawn options detached:true with windowsHide:true causes a brief console flash — the child briefly owns a visible console before hide applies. The two flags conflict at the CreateProcess API layer.", "wrong_pattern": "spawn(cmd, args, { detached: true, windowsHide: true })", "correct_pattern": "spawn(cmd, args, { stdio: '\''ignore'\'', windowsHide: true }); child.unref();", "code_example": "// Fire-and-forget child on Windows without a console flash\nconst child = spawn(nodeBin, [script], {\n  stdio: '\''ignore'\'',\n  windowsHide: true,\n});\nchild.unref(); // parent can exit without waiting", "reference": ".claude/hooks/memory-capture.cjs spawnCurate() lines 67-78", "evidence": "Observed during MU testing on Windows 11 — flash was ~80ms, enough to be jarring."}'
 ```
 
 #### Example 3 — workflow with alternatives array
@@ -257,6 +284,9 @@ Default to `/remember` for fleeting captures you want off your mental stack. Use
 - **Decisions > descriptions.** "Rejected approach X because Y" beats "implemented feature Z."
 - **No housekeeping as next actions.** Don't list "push to origin" or "commit changes" — those already happened.
 - **No "uncommitted" or "ahead of origin"** fields — handoff reflects post-commit state.
+- **Key Files lifecycle is mandatory.** See the **Key Files lifecycle** section between Steps 4 and 5 for the full hard-rule list. Every entry over 5k tokens compounds across every `/prime` until removed.
+- **Never list `CLAUDE.md`, `docs/CLAUDE.md`, raw `*.jsonl` telemetry, or any file >20kb** as a Key File. Line-range annotations do not save tokens — `/prime` ignores them.
+- **Drop closed-epic TODOs and post-story source files from Key Files.** When the wave that closes a story commits, edit the Key Files list in the same handoff. Replace the TODO with a one-line summary in Decisions & Context.
 
 ## Cross-References
 

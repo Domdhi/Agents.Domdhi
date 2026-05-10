@@ -13,6 +13,19 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const CONSTANTS = require('./constants');
+const {
+    calculateDecayedConfidence: calcDecay,
+    createActiveDaysResolver,
+} = require('./_lib/memory-decay');
+const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
+const { lintMemories: lintMemoriesLib } = require('./_lib/memory-lint');
+const {
+    ingestAgentMemory: ingestAgentMemoryLib,
+    typeToCategory: ingestTypeToCategory,
+    idFromFilename: ingestIdFromFilename,
+    findMarkdownFiles: ingestFindMarkdownFiles,
+} = require('./_lib/memory-ingest');
 
 // Memory guard constants
 const MAX_MEMORIES_PER_CATEGORY = 50;
@@ -20,7 +33,7 @@ const PRUNE_THRESHOLD_PERCENT = 0.8;
 const PRUNE_MIN_AGE_DAYS = 30;
 const PRUNE_MIN_CONFIDENCE = 0.3;
 
-// Try to load built-in SQLite (Node 25+)
+// Try to load built-in SQLite (stable in Node 24+; experimental with --experimental-sqlite in Node 22-23)
 let DatabaseSync = null;
 try {
     DatabaseSync = require('node:sqlite').DatabaseSync;
@@ -31,10 +44,12 @@ try {
 class MemoryManager {
     constructor() {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+        this.projectRoot = projectRoot;
         this.memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
         this.dbPath = path.join(this.memoriesDir, 'memories.db');
-        this.categories = ['patterns', 'constraints', 'decisions', 'workflows', 'rejected-approaches'];
+        this.categories = Object.values(CONSTANTS.MEMORY_CATEGORIES);
         this.db = null;
+        this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
     }
 
     /**
@@ -375,53 +390,26 @@ class MemoryManager {
 
     /**
      * Count active work days (days with git commits) between a date and now.
-     * Cached per session — git log is only queried once.
+     * Delegates to the shared resolver; falls back to calendar days when git
+     * is unavailable. Per-instance cache — one git log invocation per manager.
      */
     getActiveDaysSince(sinceDate) {
-        if (!this._activeDaysCache) {
-            try {
-                const output = execSync('git log --format="%ad" --date=short', {
-                    encoding: 'utf-8',
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    timeout: 5000,
-                    windowsHide: true,
-                });
-                this._activeDaysCache = new Set(output.trim().split('\n').filter(Boolean));
-            } catch {
-                this._activeDaysCache = null; // Not a git repo or git unavailable
-            }
-        }
-        // Fallback to calendar days if git is unavailable
-        if (!this._activeDaysCache) {
-            return (Date.now() - new Date(sinceDate)) / (1000 * 60 * 60 * 24);
-        }
-        const since = new Date(sinceDate);
-        since.setHours(0, 0, 0, 0);
-        let count = 0;
-        for (const dateStr of this._activeDaysCache) {
-            const d = new Date(dateStr + 'T00:00:00');
-            if (d >= since) count++;
-        }
-        return count;
+        return this._activeDaysResolver.getActiveDaysSince(sinceDate);
     }
 
     /**
      * Calculate decayed confidence for a memory — read-time only, not stored.
-     * Formula: base * rate^active_work_days + usage_boost + recent_update_boost, capped at 1.0
-     * Rate is category-specific from MEMORY_DECAY.RATES; falls back to MEMORY_DECAY.DEFAULT_RATE (0.95).
-     * Uses active work days (days with git commits) instead of calendar days — a project
-     * untouched for months has zero decay because nothing changed to invalidate memories.
+     * Thin adapter over _lib/memory-decay.js — extracts the memory's shape into
+     * the shared function's parameter contract. Formula lives in the shared lib.
      */
     calculateDecayedConfidence(memory) {
-        const { MEMORY_DECAY } = require('./constants');
-        const baseConfidence = memory.metadata?.confidence ?? 1.0;
-        const activeDays = this.getActiveDaysSince(memory.updated);
-        const calendarDays = (Date.now() - new Date(memory.updated)) / (1000 * 60 * 60 * 24);
-        const rate = MEMORY_DECAY.RATES[memory.category] || MEMORY_DECAY.DEFAULT_RATE;
-        let decayed = baseConfidence * Math.pow(rate, activeDays);
-        decayed += (memory.usage_count || 0) * MEMORY_DECAY.USAGE_BOOST;
-        if (calendarDays < MEMORY_DECAY.RECENT_UPDATE_DAYS) decayed += MEMORY_DECAY.RECENT_UPDATE_BOOST;
-        return Math.min(decayed, 1.0);
+        return calcDecay({
+            confidence: memory.metadata?.confidence ?? 1.0,
+            category: memory.category,
+            usageCount: memory.usage_count || 0,
+            updated: memory.updated,
+            activeDays: this._activeDaysResolver.getActiveDaysSince(memory.updated),
+        });
     }
 
     /**
@@ -444,6 +432,7 @@ class MemoryManager {
         let commits = [];
         try {
             const raw = execSync(`git log --format=%H%x09%s -${limit}`, {
+                cwd: this.projectRoot,
                 encoding: 'utf8',
                 timeout: 5000,
                 stdio: ['pipe', 'pipe', 'pipe'],
@@ -465,7 +454,7 @@ class MemoryManager {
         const latestHash = commits[0].hash;
         const report = { scanned: 0, boosted: [], skipped: [] };
 
-        const STOPWORDS = new Set(['the','and','for','with','from','that','this','are','but','not','have','has','was','were','will','can','its','their','them','they','you','your','our','one','two','all','any','been','into','than','then','what','when','which','who','how','why','also','just','some','more','very']);
+        const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'but', 'not', 'have', 'has', 'was', 'were', 'will', 'can', 'its', 'their', 'them', 'they', 'you', 'your', 'our', 'one', 'two', 'all', 'any', 'been', 'into', 'than', 'then', 'what', 'when', 'which', 'who', 'how', 'why', 'also', 'just', 'some', 'more', 'very']);
 
         // 2. Iterate all categories + memories
         for (const category of this.categories) {
@@ -569,149 +558,34 @@ class MemoryManager {
      * @returns {Promise<{ingested: number, skipped: number, errors: Array<{file: string, reason: string}>}>}
      */
     async ingestAgentMemory(sourcePath, options = {}) {
-        const { dryRun = false } = options;
-        const report = { ingested: 0, skipped: 0, errors: [] };
-
-        const files = await this._findMarkdownFiles(sourcePath);
-        if (files.length === 0) {
-            return report;
-        }
-
-        for (const file of files) {
-            let raw;
-            try {
-                raw = await fs.readFile(file, 'utf8');
-            } catch (err) {
-                report.errors.push({ file, reason: `read failed: ${err.message}` });
-                continue;
-            }
-
-            const parsed = MemoryManager._parseFrontmatter(raw);
-            if (!parsed) {
-                report.errors.push({ file, reason: 'missing or malformed frontmatter' });
-                continue;
-            }
-
-            const { frontmatter, body } = parsed;
-            const type = (frontmatter.type || '').trim();
-            const category = MemoryManager._typeToCategory(type);
-            if (!category) {
-                report.errors.push({ file, reason: `unknown type: "${type}"` });
-                continue;
-            }
-
-            const id = MemoryManager._idFromFilename(path.basename(file));
-            const existing = await this.readMemory(category, id);
-            if (existing) {
-                report.skipped++;
-                continue;
-            }
-
-            if (dryRun) {
-                report.ingested++;
-                continue;
-            }
-
-            const content = {
-                description: (frontmatter.description || '').trim(),
-                body: body.trim(),
-                source: 'agent-memory',
-                originalName: (frontmatter.name || '').trim(),
-            };
-
-            const created = await this.createMemory(category, id, content);
-            if (created === null) {
-                report.errors.push({ file, reason: 'category full (50-cap)' });
-            } else {
-                report.ingested++;
-            }
-        }
-
-        return report;
+        return ingestAgentMemoryLib(sourcePath, {
+            dryRun: options.dryRun ?? false,
+            readMemory:   (cat, id) => this.readMemory(cat, id),
+            createMemory: (cat, id, content) => this.createMemory(cat, id, content),
+        });
     }
 
-    /**
-     * Recursively find `.md` files under a path, skipping `MEMORY.md` index
-     * files. If `sourcePath` points to a single file, returns just that file.
-     */
+    // Legacy alias — tests or external callers may reach into this private helper
     async _findMarkdownFiles(sourcePath) {
-        const results = [];
-        let stat;
-        try {
-            stat = await fs.stat(sourcePath);
-        } catch {
-            return results;
-        }
-
-        if (stat.isFile()) {
-            if (sourcePath.toLowerCase().endsWith('.md') &&
-                path.basename(sourcePath).toLowerCase() !== 'memory.md') {
-                results.push(sourcePath);
-            }
-            return results;
-        }
-
-        if (!stat.isDirectory()) return results;
-
-        const entries = await fs.readdir(sourcePath, { withFileTypes: true });
-        for (const entry of entries) {
-            const full = path.join(sourcePath, entry.name);
-            if (entry.isDirectory()) {
-                const nested = await this._findMarkdownFiles(full);
-                results.push(...nested);
-            } else if (entry.isFile()) {
-                if (entry.name.toLowerCase().endsWith('.md') &&
-                    entry.name.toLowerCase() !== 'memory.md') {
-                    results.push(full);
-                }
-            }
-        }
-        return results;
+        return ingestFindMarkdownFiles(sourcePath);
     }
 
     /**
      * Parse YAML frontmatter from a markdown string. Returns
      * `{ frontmatter: {...}, body: string }` or `null` if no frontmatter.
-     * Narrow schema: flat `key: value` lines only. Handles CRLF.
+     * Thin adapter over _lib/frontmatter.js with `returnBody: true`.
      */
     static _parseFrontmatter(raw) {
-        const normalized = raw.replace(/\r\n/g, '\n');
-        const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-        if (!match) return null;
-
-        const frontmatter = {};
-        for (const line of match[1].split('\n')) {
-            const kv = line.match(/^([\w-]+):\s*(.*)$/);
-            if (kv) frontmatter[kv[1]] = kv[2];
-        }
-        if (Object.keys(frontmatter).length === 0) return null;
-        return { frontmatter, body: match[2] };
+        return parseFm(raw, { returnBody: true });
     }
 
-    /**
-     * Map an auto-memory `type` value to a JSON-store category. Returns null
-     * for unknown types so the caller can report an error.
-     */
+    // Legacy static aliases — delegate to _lib/memory-ingest for backward compat
     static _typeToCategory(type) {
-        const map = {
-            feedback: 'patterns',
-            pattern: 'patterns',
-            constraint: 'constraints',
-            decision: 'decisions',
-            workflow: 'workflows',
-            'rejected-approach': 'rejected-approaches',
-        };
-        return map[type] || null;
+        return ingestTypeToCategory(type);
     }
 
-    /**
-     * Derive a memory id from a markdown filename:
-     * `feedback_execsync_spy_destructured.md` → `feedback-execsync-spy-destructured`
-     */
     static _idFromFilename(filename) {
-        return filename
-            .replace(/\.md$/i, '')
-            .replace(/_/g, '-');
+        return ingestIdFromFilename(filename);
     }
 
     /**
@@ -764,8 +638,12 @@ class MemoryManager {
     /**
      * Run all 7 memory lint checks and return a structured health report.
      */
+    /**
+     * Run all 7 memory lint checks and return a structured health report.
+     * Thin wrapper: assembles {category, summary, full} tuples then delegates
+     * to _lib/memory-lint.js. Keeps per-instance decay resolver wired in.
+     */
     async lintMemories() {
-        // Build master list: { category, summary, full } for all memories
         const allMemories = [];
         for (const category of this.categories) {
             const summaries = await this.listMemories(category);
@@ -777,164 +655,11 @@ class MemoryManager {
             }
         }
 
-        const findings = {
-            broken_refs:      { count: 0, severity: 'error',   findings: [] },
-            orphaned:         { count: 0, severity: 'warning',  findings: [] },
-            contradictions:   { count: 0, severity: 'warning',  findings: [] },
-            stale:            { count: 0, severity: 'warning',  findings: [] },
-            duplicates:       { count: 0, severity: 'warning',  findings: [] },
-            decay_validation: { count: 0, severity: 'info',     findings: [] },
-            category_balance: { count: 0, severity: 'warning',  findings: [] }
-        };
-
-        // Build a set of all known IDs for reference checking
-        const knownIds = new Set(allMemories.map(m => m.full.id));
-
-        // Check 1 — Broken cross-references
-        const refPattern = /(?:related:|see:|ref:)\s*([\w-]+)/gi;
-        for (const { category, full } of allMemories) {
-            const contentStr = JSON.stringify(full.content);
-            let match;
-            while ((match = refPattern.exec(contentStr)) !== null) {
-                const referencedId = match[1];
-                if (!knownIds.has(referencedId)) {
-                    findings.broken_refs.findings.push({
-                        memory: `${category}/${full.id}`,
-                        referenced_id: referencedId,
-                        detail: `References ID "${referencedId}" which does not exist`
-                    });
-                }
-            }
-        }
-        findings.broken_refs.count = findings.broken_refs.findings.length;
-
-        // Check 2 — Orphaned concepts
-        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-        for (const { category, full } of allMemories) {
-            if ((full.usage_count || 0) === 0 && new Date(full.updated).getTime() < thirtyDaysAgo) {
-                findings.orphaned.findings.push({
-                    memory: `${category}/${full.id}`,
-                    usage_count: full.usage_count || 0,
-                    days_since_update: Math.round((Date.now() - new Date(full.updated)) / (1000 * 60 * 60 * 24)),
-                    detail: 'Zero usage and not updated in 30+ days'
-                });
-            }
-        }
-        findings.orphaned.count = findings.orphaned.findings.length;
-
-        // Check 3 — Contradictions (same category, high overlap but conflicting signals)
-        const POSITIVE_SIGNALS = ['always', 'must', 'should', 'require', 'use', 'do'];
-        const NEGATIVE_SIGNALS = ["don't", "never", "avoid", 'skip', 'stop', 'remove'];
-        const byCategory = {};
-        for (const m of allMemories) {
-            if (!byCategory[m.category]) byCategory[m.category] = [];
-            byCategory[m.category].push(m);
-        }
-        for (const [category, members] of Object.entries(byCategory)) {
-            for (let i = 0; i < members.length; i++) {
-                for (let j = i + 1; j < members.length; j++) {
-                    const textA = JSON.stringify(members[i].full.content).toLowerCase();
-                    const textB = JSON.stringify(members[j].full.content).toLowerCase();
-                    const similarity = jaccardSimilarity(textA, textB);
-                    if (similarity > 0.5 && textA !== textB) {
-                        const aHasPositive = POSITIVE_SIGNALS.some(s => textA.includes(s));
-                        const aHasNegative = NEGATIVE_SIGNALS.some(s => textA.includes(s));
-                        const bHasPositive = POSITIVE_SIGNALS.some(s => textB.includes(s));
-                        const bHasNegative = NEGATIVE_SIGNALS.some(s => textB.includes(s));
-                        const conflict = (aHasPositive && bHasNegative) || (aHasNegative && bHasPositive);
-                        if (conflict) {
-                            findings.contradictions.findings.push({
-                                memory_a: `${category}/${members[i].full.id}`,
-                                memory_b: `${category}/${members[j].full.id}`,
-                                overlap: Math.round(similarity * 100),
-                                detail: 'High keyword overlap with conflicting positive/negative signals — flag for manual review'
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        findings.contradictions.count = findings.contradictions.findings.length;
-
-        // Check 4 — Staleness (decayed confidence < 0.3)
-        for (const { category, full } of allMemories) {
-            const decayed = this.calculateDecayedConfidence(full);
-            if (decayed < 0.3) {
-                findings.stale.findings.push({
-                    memory: `${category}/${full.id}`,
-                    decayed_confidence: Math.round(decayed * 1000) / 1000,
-                    detail: 'Decayed confidence below 0.3 threshold'
-                });
-            }
-        }
-        findings.stale.count = findings.stale.findings.length;
-
-        // Check 5 — Duplicates (same category, Jaccard > 0.8)
-        for (const [category, members] of Object.entries(byCategory)) {
-            for (let i = 0; i < members.length; i++) {
-                for (let j = i + 1; j < members.length; j++) {
-                    const textA = JSON.stringify(members[i].full.content).toLowerCase();
-                    const textB = JSON.stringify(members[j].full.content).toLowerCase();
-                    const similarity = jaccardSimilarity(textA, textB);
-                    if (similarity > 0.8) {
-                        findings.duplicates.findings.push({
-                            memory_a: `${category}/${members[i].full.id}`,
-                            memory_b: `${category}/${members[j].full.id}`,
-                            overlap: Math.round(similarity * 100),
-                            detail: `Content is ${Math.round(similarity * 100)}% similar — likely duplicate`
-                        });
-                    }
-                }
-            }
-        }
-        findings.duplicates.count = findings.duplicates.findings.length;
-
-        // Check 6 — Decay curve validation (raw confidence >= 0.7 but decayed < 0.3)
-        for (const { category, full } of allMemories) {
-            const rawConfidence = full.metadata?.confidence ?? 1.0;
-            const decayed = this.calculateDecayedConfidence(full);
-            if (rawConfidence >= 0.7 && decayed < 0.3) {
-                findings.decay_validation.findings.push({
-                    memory: `${category}/${full.id}`,
-                    raw_confidence: rawConfidence,
-                    decayed_confidence: Math.round(decayed * 1000) / 1000,
-                    days_since_update: Math.round((Date.now() - new Date(full.updated)) / (1000 * 60 * 60 * 24)),
-                    detail: 'High raw confidence but heavily decayed — not updated in a long time'
-                });
-            }
-        }
-        findings.decay_validation.count = findings.decay_validation.findings.length;
-
-        // Check 7 — Category balance (any category >= 80% of MAX_MEMORIES_PER_CATEGORY)
-        const balanceThreshold = Math.floor(MAX_MEMORIES_PER_CATEGORY * 0.8);
-        for (const category of this.categories) {
-            const count = (byCategory[category] || []).length;
-            if (count >= balanceThreshold) {
-                findings.category_balance.findings.push({
-                    category,
-                    count,
-                    limit: MAX_MEMORIES_PER_CATEGORY,
-                    threshold: balanceThreshold,
-                    detail: `${count} memories in "${category}" is >= ${balanceThreshold} (80% of ${MAX_MEMORIES_PER_CATEGORY} limit)`
-                });
-            }
-        }
-        findings.category_balance.count = findings.category_balance.findings.length;
-
-        // Calculate health score: start at 70, deduct per finding
-        const DEDUCTIONS = { error: 3, warning: 2, info: 1 };
-        let score = 70;
-        for (const check of Object.values(findings)) {
-            score -= check.count * DEDUCTIONS[check.severity];
-        }
-        score = Math.max(0, score);
-
-        return {
-            score,
-            checks: findings,
-            total_memories: allMemories.length,
-            categories_checked: this.categories.length
-        };
+        return lintMemoriesLib(allMemories, {
+            calculateDecayedConfidence: (memory) => this.calculateDecayedConfidence(memory),
+            categories: this.categories,
+            maxPerCategory: MAX_MEMORIES_PER_CATEGORY,
+        });
     }
 
     async generateReport() {
@@ -942,7 +667,7 @@ class MemoryManager {
             timestamp: new Date().toISOString(),
             storage: {
                 json: this.memoriesDir,
-                sqlite: DatabaseSync ? this.dbPath : 'not available (Node 25+ required)'
+                sqlite: DatabaseSync ? this.dbPath : 'not available (Node 24+ required)'
             },
             categories: {}
         };
@@ -975,146 +700,15 @@ class MemoryManager {
     }
 }
 
-/**
- * Jaccard similarity between two text strings, computed over word sets (words > 2 chars).
- */
-function jaccardSimilarity(text1, text2) {
-    const words1 = new Set(text1.toLowerCase().split(/\W+/).filter(w => w.length > 2));
-    const words2 = new Set(text2.toLowerCase().split(/\W+/).filter(w => w.length > 2));
-    const intersection = new Set([...words1].filter(w => words2.has(w)));
-    const union = new Set([...words1, ...words2]);
-    return union.size === 0 ? 0 : intersection.size / union.size;
-}
-
-// CLI interface
-async function main() {
-    const manager = new MemoryManager();
-    const [,, command, ...args] = process.argv;
-
-    switch(command) {
-        case 'create': {
-            const [category, id] = args;
-            const content = JSON.parse(args[2] || '{}');
-            await manager.createMemory(category, id, content);
-            break;
-        }
-        case 'read': {
-            const memory = await manager.readMemory(args[0], args[1]);
-            console.log(JSON.stringify(memory, null, 2));
-            break;
-        }
-        case 'list': {
-            const memories = await manager.listMemories(args[0]);
-            console.log(JSON.stringify(memories, null, 2));
-            break;
-        }
-        case 'search': {
-            const results = await manager.searchMemories(args[0]);
-            console.log(JSON.stringify(results, null, 2));
-            break;
-        }
-        case 'report': {
-            const report = await manager.generateReport();
-            console.log(JSON.stringify(report, null, 2));
-            break;
-        }
-        case 'rebuild-index': {
-            await manager.rebuildIndex();
-            break;
-        }
-        case 'lint': {
-            const result = await manager.lintMemories();
-            console.log(JSON.stringify(result, null, 2));
-            break;
-        }
-        case 'decay-report': {
-            // Collect all memories across all categories with decayed confidence
-            const allEntries = [];
-            for (const category of manager.categories) {
-                const memories = await manager.listMemories(category);
-                for (const m of memories) {
-                    const { MEMORY_DECAY } = require('./constants');
-                    allEntries.push({
-                        category,
-                        id: m.id,
-                        confidence: m.confidence,
-                        decayed_confidence: m.decayed_confidence,
-                        decay_rate: MEMORY_DECAY.RATES[category] || MEMORY_DECAY.DEFAULT_RATE,
-                        usage_count: m.usage_count,
-                        updated: m.updated
-                    });
-                }
-            }
-            // Sort ascending by decayed_confidence (stalest first)
-            allEntries.sort((a, b) => a.decayed_confidence - b.decayed_confidence);
-            console.log(JSON.stringify(allEntries, null, 2));
-            break;
-        }
-        case 'ingest': {
-            const [sourcePath] = args;
-            if (!sourcePath) {
-                console.error('Error: ingest requires a source path (file or directory)');
-                process.exit(1);
-            }
-            const dryRun = args.includes('--dry-run');
-            const report = await manager.ingestAgentMemory(sourcePath, { dryRun });
-            console.log(JSON.stringify(report, null, 2));
-            console.log(
-                `\nSummary: ${report.ingested} ingested, ${report.skipped} skipped, ${report.errors.length} errors` +
-                (dryRun ? ' (DRY RUN — no writes)' : '')
-            );
-            break;
-        }
-        case 'boost-from-git': {
-            const opts = {};
-            for (let i = 0; i < args.length; i++) {
-                if (args[i] === '--limit' && args[i+1]) { opts.limit = parseInt(args[++i], 10); }
-                else if (args[i] === '--dry-run') { opts.dryRun = true; }
-            }
-            const boostReport = await manager.boostFromGitLog(opts);
-            console.log('category\tid\tkeywords\tcommits\told→new');
-            for (const entry of boostReport.boosted) {
-                console.log([
-                    entry.category,
-                    entry.id,
-                    entry.keywords.join(','),
-                    entry.commits.join(' | '),
-                    `${entry.oldConf.toFixed(3)}→${entry.newConf.toFixed(3)}`
-                ].join('\t'));
-            }
-            console.log(`\nScanned: ${boostReport.scanned}, Boosted: ${boostReport.boosted.length}, Skipped: ${boostReport.skipped.length}${opts.dryRun ? ' (DRY RUN — no writes)' : ''}`);
-            if (boostReport.error) console.error('Error:', boostReport.error);
-            break;
-        }
-        default:
-            console.log(`
-Memory Manager (JSON + SQLite FTS5)
-====================================
-
-Usage:
-  node memory-manager.js create <category> <id> <content>
-  node memory-manager.js read <category> <id>
-  node memory-manager.js list <category>
-  node memory-manager.js search <term>
-  node memory-manager.js report
-  node memory-manager.js rebuild-index
-  node memory-manager.js decay-report
-  node memory-manager.js boost-from-git [--limit N] [--dry-run]
-  node memory-manager.js lint
-  node memory-manager.js ingest <path> [--dry-run]
-    Ingest auto-memory .md files (YAML frontmatter + body) into the
-    JSON store. Path may be a single file or a directory (walked recursively).
-    type → category: feedback/pattern → patterns, constraint → constraints,
-    decision → decisions, workflow → workflows, rejected-approach → rejected-approaches.
-
-Categories: patterns, constraints, decisions, workflows, rejected-approaches
-Storage: docs/.output/memories/ (JSON) + memories.db (SQLite FTS5)
-            `);
-    }
-}
-
-if (require.main === module) {
-    main().catch(err => { console.error(err.message); process.exit(1); });
-}
-
 module.exports = MemoryManager;
+
+// Direct invocation forwards to the CLI module (Task #11 split).
+// Existing callers running `node .claude/core/memory-manager.js <cmd>` still work.
+// Export MUST be above this block — the CLI requires ./memory-manager back, and
+// circular-require sees {} if module.exports is assigned after the CLI kicks off.
+if (require.main === module) {
+    require('./memory-manager-cli').main().catch(err => {
+        console.error(err.message);
+        process.exit(1);
+    });
+}

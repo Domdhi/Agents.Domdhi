@@ -21,6 +21,21 @@ const fs = require('fs');
 const path = require('path');
 const DailyLog = require('../core/daily-log');
 
+// Anchor writes to the repo root — not the caller's CWD. Without this, a prior
+// `cd src && ...` in the same shell session leaves the hook's CWD at `src/`,
+// and a subsequent /compact dumps the snapshot into `src/docs/.output/sessions/`
+// and the daily log into `src/docs/.output/memories/daily/`. Match the
+// convention used by command-usage-logger.cjs, gate.js, and ~10 other core
+// scripts: CLAUDE_PROJECT_DIR env var first, else resolve from __dirname
+// (hook lives at .claude/hooks/, so ../../ is repo root).
+//
+// Resolved lazily (not at module load) so in-process tests can set
+// CLAUDE_PROJECT_DIR per test case via beforeEach/afterEach without having to
+// reload the module.
+function getProjectRoot() {
+    return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+}
+
 function readStdin() {
     return new Promise((resolve) => {
         let data = '';
@@ -32,7 +47,7 @@ function readStdin() {
     });
 }
 
-function buildSnapshot(cwd, log, trigger) {
+function buildSnapshot(projectRoot, log, trigger) {
     const now = new Date();
     const timestamp = now.toISOString().slice(0, 19).replace('T', ' ');
 
@@ -44,7 +59,7 @@ function buildSnapshot(cwd, log, trigger) {
 
     // Read handoff context if available
     let handoffContext = '';
-    const handoffPath = path.join(cwd, 'docs', '__handoff.md');
+    const handoffPath = path.join(projectRoot, 'docs', '__handoff.md');
     if (fs.existsSync(handoffPath)) {
         try {
             const handoffContent = fs.readFileSync(handoffPath, 'utf8');
@@ -61,7 +76,7 @@ function buildSnapshot(cwd, log, trigger) {
 
     // Read recent agent updates if available
     let agentUpdates = '';
-    const updatesPath = path.join(cwd, 'docs', '.output', 'agent-updates.md');
+    const updatesPath = path.join(projectRoot, 'docs', '.output', 'agent-updates.md');
     if (fs.existsSync(updatesPath)) {
         try {
             const updatesContent = fs.readFileSync(updatesPath, 'utf8');
@@ -103,27 +118,29 @@ ${sessionContext}`;
 
 function processEvent(parsedJson) {
     const trigger = parsedJson?.trigger || 'unknown';
-    const cwd = parsedJson?.cwd || process.cwd();
+    // Ignore parsedJson.cwd — relying on the event's cwd field (or process.cwd())
+    // was the source bug this hook had to fix. See getProjectRoot() comment above.
+    const projectRoot = getProjectRoot();
 
-    const log = new DailyLog(cwd);
+    const log = new DailyLog(projectRoot);
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toISOString().slice(11, 16).replace(':', '');
 
-    const snapshot = buildSnapshot(cwd, log, trigger);
+    const snapshot = buildSnapshot(projectRoot, log, trigger);
 
-    const sessionsDir = path.join(cwd, 'docs', '.output', 'sessions', dateStr);
+    const sessionsDir = path.join(projectRoot, 'docs', '.output', 'sessions', dateStr);
     fs.mkdirSync(sessionsDir, { recursive: true });
 
     const snapshotPath = path.join(sessionsDir, `${timeStr}-pre-compaction.md`);
     fs.writeFileSync(snapshotPath, snapshot, 'utf8');
 
-    process.stderr.write(`\n  Pre-compaction snapshot saved: ${path.relative(cwd, snapshotPath)}\n\n`);
+    process.stderr.write(`\n  Pre-compaction snapshot saved: ${path.relative(projectRoot, snapshotPath)}\n\n`);
 
     // Write daily log entry via shared utility
     try {
         const { logPath } = log.capture('Pre-Compaction');
-        process.stderr.write(`  Daily log entry appended: ${path.relative(cwd, logPath)}\n\n`);
+        process.stderr.write(`  Daily log entry appended: ${path.relative(projectRoot, logPath)}\n\n`);
     } catch {
         // Graceful degradation — daily log failure does not affect snapshot or exit code
     }

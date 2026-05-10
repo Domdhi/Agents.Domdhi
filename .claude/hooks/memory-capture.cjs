@@ -22,6 +22,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
 const { isAtLeast } = require('../core/profile');
+const { readHookInput } = require('../core/_lib/hook-input');
+const { spawnDailyLogCapture } = require('../core/_lib/hook-spawners');
 
 const DEDUP_MINUTES = 30;
 
@@ -31,8 +33,7 @@ function getProjectDir() {
 }
 
 function getDailyLogPath() {
-    const today = new Date().toISOString().slice(0, 10);
-    return path.join(getProjectDir(), 'docs', '.output', 'memories', 'daily', `${today}.md`);
+    return require('../core/_lib/daily-log-paths').getDailyLogPath(new Date(), getProjectDir());
 }
 
 /**
@@ -52,20 +53,10 @@ function shouldCapture() {
 
 /**
  * Spawn daily-log.js capture asynchronously (fire and forget).
- * Does NOT block the calling process.
+ * Does NOT block the calling process. Thin wrapper over the shared helper.
  */
 function spawnCapture(trigger) {
-    const projectDir = getProjectDir();
-    const child = spawn('node', [
-        path.join(projectDir, '.claude', 'core', 'daily-log.js'),
-        'capture',
-        '--trigger', trigger
-    ], {
-        stdio: 'ignore',
-        cwd: projectDir,
-        windowsHide: true
-    });
-    child.unref();
+    spawnDailyLogCapture(getProjectDir(), trigger);
 }
 
 /**
@@ -178,7 +169,10 @@ function handleBashPostToolUse(input) {
         const log = new DailyLog(projectDir);
         log.captureCommit(hash, subject, filesChanged, insertions, deletions);
     } catch {
-        // Fallback: direct append (preserves behavior when daily-log.js is unavailable)
+        // Fallback path — keep format in sync with DailyLog.captureCommit() in core/daily-log.js.
+        // Direct append preserves behavior when daily-log.js is unavailable; if the primary
+        // captureCommit() output format changes, update this block to match so the two paths
+        // don't silently drift.
         const now = new Date();
         const timeLabel = now.toISOString().slice(11, 16);
         const diffstatLine = (Number.isFinite(insertions) && Number.isFinite(deletions))
@@ -239,20 +233,19 @@ module.exports = {
 // Main — determine event type and route
 // ---------------------------------------------------------------------------
 
-function readStdin() {
-    return new Promise((resolve) => {
-        let data = '';
-        process.stdin.setEncoding('utf8');
-        process.stdin.on('data', (chunk) => { data += chunk; });
-        process.stdin.on('end', () => resolve(data));
-        setTimeout(() => resolve(data), 500);
-    });
-}
-
 if (require.main === module) {
+    // P1.7 — hook duration instrumentation (A4/Section-D blind-spot).
+    // emitHookEvent appends one JSONL line to docs/.output/telemetry/hook-events.jsonl
+    // on every run. The try/catch around emit keeps the hook from ever failing
+    // because of a telemetry write — telemetry is observability, not correctness.
+    const { startHookTiming, emitHookEvent } = require('../core/_lib/hook-telemetry');
+    const _hookToken = startHookTiming('memory-capture');
+    let _hookOutcome = 'success';
+
     (async () => {
         try {
-            const raw = await readStdin();
+            // Preserve memory-capture's historical 500ms timeout.
+            const raw = await readHookInput({ timeoutMs: 500 });
 
             let parsedJson = null;
             if (raw && raw.trim().length > 0) {
@@ -266,8 +259,10 @@ if (require.main === module) {
             processEvent(parsedJson);
         } catch {
             // Never block Claude Code — exit cleanly on any error
+            _hookOutcome = 'failure';
         }
 
+        try { emitHookEvent(_hookToken, _hookOutcome); } catch { /* never fail on telemetry */ }
         process.exit(0);
     })();
 }

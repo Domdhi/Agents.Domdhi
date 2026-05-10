@@ -1,0 +1,309 @@
+// AC→source map (session-start-prime, structured-memory source):
+//   - parseMemory: parses JSON memory; handles missing fields; returns null on bad JSON
+//   - rankConcepts: orders by decayed_confidence × recency × log(1+usage_count)
+//   - renderOutput: returns '<project_memory>...' XML block with slug/conf/summary lines
+//   - processEvent: profile gate (minimal → null); missing memoriesDir → null; with memories → output string
+//   - processEvent: CLAUDE_PROJECT_DIR env var controls source path
+//   - processEvent: reads from memories/{category}/*.json, ignores memories/concepts/
+
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
+const { createTmpDir } = require('../../core/__tests__/_helpers/tmp-dir');
+const { createMemory } = require('../../core/__tests__/_helpers/memory-fixture');
+
+const { processEvent, rankConcepts, renderOutput, parseMemory } = require('../session-start-prime.cjs');
+
+// ---------------------------------------------------------------------------
+// Env save/restore
+// ---------------------------------------------------------------------------
+const origProjectDir = process.env.CLAUDE_PROJECT_DIR;
+const origMemoryProfile = process.env.MEMORY_PROFILE;
+const origPrimeCount = process.env.MEMORY_PRIME_COUNT;
+
+let tmp;
+
+beforeEach(() => {
+    tmp = createTmpDir({ prefix: 'session-start-prime-' });
+    process.env.MEMORY_PROFILE = 'standard';
+    delete process.env.MEMORY_PRIME_COUNT;
+});
+
+afterEach(() => {
+    tmp.cleanup();
+    process.env.MEMORY_PROFILE = origMemoryProfile ?? 'standard';
+    if (origPrimeCount === undefined) delete process.env.MEMORY_PRIME_COUNT;
+    else process.env.MEMORY_PRIME_COUNT = origPrimeCount;
+});
+
+afterAll(() => {
+    if (origProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = origProjectDir;
+});
+
+// ---------------------------------------------------------------------------
+// parseMemory
+// ---------------------------------------------------------------------------
+
+describe('parseMemory', () => {
+    it('parseMemory_validJson_returnsMemoryObject', () => {
+        const json = JSON.stringify({
+            id: 'test-pattern',
+            category: 'patterns',
+            updated: '2026-04-19T00:00:00.000Z',
+            usage_count: 3,
+            content: { description: 'Use pattern X when Y happens' },
+            metadata: { confidence: 0.8 },
+        });
+        const result = parseMemory(json, 'patterns', 'test-pattern.json');
+        expect(result).not.toBeNull();
+        expect(result.slug).toBe('test-pattern');
+        expect(result.category).toBe('patterns');
+        expect(result.confidence).toBe(0.8);
+        expect(result.updated).toBe('2026-04-19T00:00:00.000Z');
+        expect(result.usage_count).toBe(3);
+        expect(result.summary).toBe('Use pattern X when Y happens');
+    });
+
+    it('parseMemory_invalidJson_returnsNull', () => {
+        const result = parseMemory('not json {{{', 'patterns', 'bad.json');
+        expect(result).toBeNull();
+    });
+
+    it('parseMemory_missingOptionalFields_usesDefaults', () => {
+        const json = JSON.stringify({
+            id: 'minimal',
+            content: { description: 'Some lesson' },
+        });
+        const result = parseMemory(json, 'constraints', 'minimal.json');
+        expect(result).not.toBeNull();
+        expect(result.confidence).toBe(0.6);
+        expect(result.usage_count).toBe(1);
+        expect(result.updated).toBeNull();
+        expect(result.summary).toBe('Some lesson');
+    });
+
+    it('parseMemory_zeroUsage_floorsAtOne', () => {
+        const json = JSON.stringify({
+            id: 'unused',
+            content: { description: 'A memory nobody has touched' },
+            usage_count: 0,
+            metadata: { confidence: 1 },
+        });
+        const result = parseMemory(json, 'patterns', 'unused.json');
+        expect(result.usage_count).toBe(1);
+    });
+
+    it('parseMemory_missingId_fallsBackToFilename', () => {
+        const json = JSON.stringify({
+            content: { description: 'No id field' },
+        });
+        const result = parseMemory(json, 'patterns', 'filename-slug.json');
+        expect(result.slug).toBe('filename-slug');
+    });
+
+    it('parseMemory_longSummary_truncates', () => {
+        const longText = 'x'.repeat(500);
+        const json = JSON.stringify({
+            id: 'long',
+            content: { description: longText },
+        });
+        const result = parseMemory(json, 'patterns', 'long.json');
+        expect(result.summary.length).toBeLessThanOrEqual(160);
+        expect(result.summary.endsWith('...')).toBe(true);
+    });
+
+    it('parseMemory_contentStringShape_extracted', () => {
+        // Some hand-created memories store content as a plain string
+        const json = JSON.stringify({
+            id: 'string-content',
+            content: 'Short lesson text',
+            metadata: { confidence: 0.7 },
+        });
+        const result = parseMemory(json, 'patterns', 'string-content.json');
+        expect(result.summary).toBe('Short lesson text');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// rankConcepts
+// ---------------------------------------------------------------------------
+
+describe('rankConcepts', () => {
+    it('rankConcepts_ordersByDecayedTimesRecencyTimesUsage', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = {
+            calculateDecayedConfidence: vi.fn(({ metadata }) => metadata.confidence)
+        };
+        const concepts = [
+            { slug: 'low-conf', confidence: 0.3, updated: today, usage_count: 10, category: 'patterns' },
+            { slug: 'high-conf', confidence: 0.9, updated: today, usage_count: 10, category: 'patterns' },
+            { slug: 'stale', confidence: 0.9, updated: '2025-01-01', usage_count: 10, category: 'patterns' },
+        ];
+        const ranked = rankConcepts(concepts, stubManager);
+        expect(ranked[0].slug).toBe('high-conf');
+        expect(ranked[0].slug).not.toBe('stale');
+    });
+
+    it('rankConcepts_mutatesConceptsWithScore', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = {
+            calculateDecayedConfidence: vi.fn(() => 0.7)
+        };
+        const concepts = [
+            { slug: 'a', confidence: 0.7, updated: today, usage_count: 5, category: 'patterns' }
+        ];
+        rankConcepts(concepts, stubManager);
+        expect(typeof concepts[0].score).toBe('number');
+        expect(concepts[0].score).toBeGreaterThan(0);
+    });
+
+    it('rankConcepts_managerDecayFailure_fallsBackToStoredConfidence', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = {
+            calculateDecayedConfidence: vi.fn(() => { throw new Error('db error'); })
+        };
+        const concepts = [
+            { slug: 'fallback', confidence: 0.75, updated: today, usage_count: 2, category: 'patterns' }
+        ];
+        expect(() => rankConcepts(concepts, stubManager)).not.toThrow();
+        expect(typeof concepts[0].score).toBe('number');
+    });
+
+    it('rankConcepts_returnsSameArrayReference', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = { calculateDecayedConfidence: vi.fn(() => 0.5) };
+        const concepts = [
+            { slug: 'x', confidence: 0.5, updated: today, usage_count: 1, category: 'patterns' }
+        ];
+        const result = rankConcepts(concepts, stubManager);
+        expect(result).toBe(concepts);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// renderOutput
+// ---------------------------------------------------------------------------
+
+describe('renderOutput', () => {
+    it('renderOutput_producesProjectMemoryXmlBlock', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const topConcepts = [
+            { slug: 'my-memory', decayed: 0.82, summary: 'A test summary', category: 'patterns', updated: today }
+        ];
+        const output = renderOutput(topConcepts, 5);
+        expect(output).toContain('<project_memory>');
+        expect(output).toContain('</project_memory>');
+        expect(output).toContain('my-memory');
+        expect(output).toContain('0.82');
+        expect(output).toContain('A test summary');
+    });
+
+    it('renderOutput_includesTotalCountInHeader', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const topConcepts = [
+            { slug: 'a', decayed: 0.9, summary: 'Summary A', category: 'patterns', updated: today }
+        ];
+        const output = renderOutput(topConcepts, 42);
+        expect(output).toContain('42');
+    });
+
+    it('renderOutput_includesCategoryTag', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const topConcepts = [
+            { slug: 'a', decayed: 0.9, summary: 'Summary A', category: 'constraints', updated: today }
+        ];
+        const output = renderOutput(topConcepts, 1);
+        expect(output).toContain('[constraints]');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// processEvent
+// ---------------------------------------------------------------------------
+
+describe('processEvent', () => {
+    it('processEvent_profileMinimal_returnsOutputNull', () => {
+        process.env.MEMORY_PROFILE = 'minimal';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        const result = processEvent({});
+        expect(result).toEqual({ output: null });
+    });
+
+    it('processEvent_missingMemoriesDir_returnsOutputNull', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        const result = processEvent({});
+        expect(result).toEqual({ output: null });
+    });
+
+    it('processEvent_emptyCategoryDirs_returnsOutputNull', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        tmp.mkdir('docs/.output/memories/patterns');
+        tmp.mkdir('docs/.output/memories/constraints');
+        const result = processEvent({});
+        expect(result).toEqual({ output: null });
+    });
+
+    it('processEvent_withMemories_returnsProjectMemoryOutput', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        createMemory(tmp, 'patterns', 'test-pattern', {
+            description: 'Wave plans should enumerate file ownership to enable parallel dispatch',
+            confidence: 0.9,
+        });
+        const result = processEvent({});
+        expect(result).toHaveProperty('output');
+        expect(result.output).toContain('<project_memory>');
+        expect(result.output).toContain('test-pattern');
+        expect(result.output).toContain('Wave plans should enumerate');
+    });
+
+    it('processEvent_pullsFromMultipleCategories', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        createMemory(tmp, 'patterns', 'pat-one', { description: 'Pattern one' });
+        createMemory(tmp, 'constraints', 'con-one', { description: 'Constraint one' });
+        const result = processEvent({});
+        expect(result.output).toContain('pat-one');
+        expect(result.output).toContain('con-one');
+        expect(result.output).toContain('2'); // total count
+    });
+
+    it('processEvent_ignoresConceptsSubdir', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        // concepts/ is the old compaction-snapshot output — the new hook MUST ignore it
+        tmp.write(
+            'docs/.output/memories/concepts/decisions/old-noise.md',
+            '---\ntitle: Old Noise\nconfidence: 0.9\n---\n\n> [!abstract] Summary\n> Activity observed...\n'
+        );
+        const result = processEvent({});
+        expect(result).toEqual({ output: null });
+    });
+
+    it('processEvent_primecountEnvVar_limitsTopN', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        process.env.MEMORY_PRIME_COUNT = '1';
+        createMemory(tmp, 'patterns', 'm-1', { description: 'One', confidence: 0.9 });
+        createMemory(tmp, 'patterns', 'm-2', { description: 'Two', confidence: 0.8 });
+        createMemory(tmp, 'patterns', 'm-3', { description: 'Three', confidence: 0.7 });
+        const result = processEvent({});
+        const bulletLines = result.output.split('\n').filter(l => l.startsWith('- **'));
+        expect(bulletLines).toHaveLength(1);
+    });
+
+    it('processEvent_skipsNonJsonFiles', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        createMemory(tmp, 'patterns', 'valid', { description: 'Valid memory' });
+        tmp.write('docs/.output/memories/patterns/readme.md', '# Not a memory');
+        const result = processEvent({});
+        expect(result.output).toContain('valid');
+        expect(result.output).not.toContain('readme');
+    });
+});

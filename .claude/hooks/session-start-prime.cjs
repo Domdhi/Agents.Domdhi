@@ -34,13 +34,14 @@
 const fs = require('fs');
 const path = require('path');
 const { isAtLeast } = require('../core/profile');
+const CONSTANTS = require('../core/constants');
 
 const HARD_TIMEOUT_MS = 2000;
 const SOFT_BUDGET_MS = 500;
 const DEFAULT_N = 8;
 const MAX_N = 20;
 const SUMMARY_MAX = 160;
-const MEMORY_CATEGORIES = ['patterns', 'constraints', 'decisions', 'workflows', 'rejected-approaches'];
+const MEMORY_CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 
 function parseMemory(content, category, filename) {
     let json;

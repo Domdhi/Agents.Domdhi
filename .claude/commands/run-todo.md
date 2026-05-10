@@ -197,6 +197,13 @@ Each context package contains:
 6. Architecture constraints relevant to this story
 7. `DO NOT TOUCH` list — files owned by OTHER stories in this wave
 8. Interface contract — shared between dev and QA agent prompts (identical)
+9. **Wave N delta briefing (Wave 2+ only, conditional).** One-liner stating what a prior wave in the same epic *retired, deleted, or rewrote* when the current story's conceptual area overlaps with that prior wave. Agents only read files as-edited — they cannot see deleted content. Without this briefing, a sibling-wave agent can inherit a stale mental model from content that was removed minutes earlier and author prose or code referencing the retired behavior.
+
+   **When to emit:** the current wave touches the same skill / command / subsystem that a prior wave modified. Read the prior wave's commit message + the files it deleted / rewrote; summarize the delta in 1–2 sentences.
+
+   **Example (good):** `Wave 1 retired auto memory extraction — the session-handoff skill's Step 6 spawn block and the CLAUDE_MEMORY_AUTO_EXTRACT env gate no longer exist. The extractor CLI still exists but is now manual/brownfield-only. /remember no longer feeds structured memory; only the daily log.`
+
+   **Skip condition:** first wave, OR subsequent waves whose stories don't overlap conceptually with prior waves. Do not emit a `No delta` placeholder — it's noise.
 
 `TaskUpdate: "Wave {N}: Assemble context" → completed`
 

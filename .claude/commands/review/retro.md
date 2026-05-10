@@ -77,6 +77,7 @@ Use the Task tool with `subagent_type: "doc-writer"` to generate the retrospecti
 6. Instruction to analyze: what went well, what didn't, key decisions, metrics, recommendations
 7. Instruction to include a System Improvements section evaluating agent/skill/command/memory effectiveness
 8. Instruction to include the Doc Sync Summary from the check-sync findings
+9. **Output boundary (MUST include verbatim):** *"Your ONLY output is the retro markdown at the specified path. Do NOT create additional files. Do NOT write memories. Do NOT write to `.claude/agent-memory/`, `docs/.output/memories/`, or anywhere else. Main Agent handles memory extraction in Step 5."* The doc-writer (haiku) tends to over-deliver when it sees a multi-step workflow described in the prompt — without this boundary, it has authored phantom memory directories outside its assigned task. Reference incident: 2026-04-20 retro MU dispatch.
 
 **Output template for the agent:**
 

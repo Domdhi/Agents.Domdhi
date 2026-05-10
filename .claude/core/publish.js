@@ -36,6 +36,7 @@ const path = require('path');
 // One-way dependency: publish.js uses template-updater's glob + copy utilities.
 // template-updater does NOT import from publish.js. Do not reverse this.
 const { globToRegex, matchesAnyGlob, copyFile } = require('./template-updater');
+const { runScaffold } = require('./scaffold');
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
 
@@ -58,6 +59,11 @@ const DEFAULT_EXCLUDES = [
     // Never publish project-local settings overrides
     '.claude/settings.local.json',
 
+    // push-guardrail.json is the workshop's per-project opt-out for the
+    // user-level push hook. Each adopter decides their own opt-out;
+    // shipping ours would silently approve their pushes.
+    '.claude/push-guardrail.json',
+
     // Agent memory stores — runtime artifacts generated per-project by
     // memory-manager.js. Every adopter generates their own; the template
     // must never ship one project's agent learnings to another.
@@ -67,10 +73,14 @@ const DEFAULT_EXCLUDES = [
     '.git/**',
     'node_modules/**',
 
-    // Test scaffolding is local-only per template-updater's ALWAYS_SKIP_DIRS
-    '.claude/core/__tests__/**',
-    '.claude/hooks/__tests__/**',
-    '**/_helpers/**',
+    // Test sources DO ship — adopters can run `npm test` to exercise the
+    // suite (829 tests against core/hooks). Shared fixture builders live
+    // under `__tests__/_helpers/`; tests import from them, so they ship
+    // too — excluding _helpers would make the suite fail to load.
+
+    // Test results / coverage are per-machine output, never ship.
+    '**/coverage/**',
+    '**/test-results/**',
 ];
 
 // Directory names skipped at walk-time (perf — avoids touching thousands of
@@ -80,6 +90,44 @@ const WALK_SKIP_DIRS = new Set(['.git', 'node_modules']);
 // Paths skipped at walk-time, relative to projectRoot (normalized forward-slash).
 // docs/.output/ can be huge; short-circuit rather than filter file-by-file.
 const WALK_SKIP_PATHS = new Set(['docs/.output']);
+
+// ── Path remaps ─────────────────────────────────────────────────────────────
+//
+// Source-to-target path rewrites applied AFTER manifest filtering. The system's
+// meta-documentation (concepts, guides, reference, getting-started, READMEs)
+// lives at `docs/` in this workshop repo so authoring tools can edit it freely,
+// but adopter projects need their `docs/` for project planning artifacts (brief,
+// requirements, architecture, etc.). Remap these meta-docs into `.claude/.agents.docs/`
+// at publish time so the two never collide.
+//
+// Each entry: { match: prefix or exact path, replace: target prefix or exact path }
+// Longest-match-first ordering matters when prefixes nest.
+
+const PATH_REMAPS = [
+    { match: 'docs/concepts/',     replace: '.claude/.agents.docs/concepts/' },
+    { match: 'docs/guides/',       replace: '.claude/.agents.docs/guides/' },
+    { match: 'docs/reference/',    replace: '.claude/.agents.docs/reference/' },
+    { match: 'docs/README.md',     replace: '.claude/.agents.docs/README.md' },
+    { match: 'docs/CLAUDE.md',     replace: '.claude/.agents.docs/CLAUDE.md' },
+    { match: 'docs/getting-started.md', replace: '.claude/.agents.docs/getting-started.md' },
+];
+
+/**
+ * Apply path remaps to a normalized (forward-slash) relative path. Returns the
+ * remapped path or the original if no rule matches.
+ */
+function remapPath(relPath) {
+    for (const rule of PATH_REMAPS) {
+        if (rule.match.endsWith('/')) {
+            if (relPath.startsWith(rule.match)) {
+                return rule.replace + relPath.slice(rule.match.length);
+            }
+        } else if (relPath === rule.match) {
+            return rule.replace;
+        }
+    }
+    return relPath;
+}
 
 // ── Manifest ────────────────────────────────────────────────────────────────
 
@@ -201,19 +249,37 @@ function runPublish(targetPath, options) {
             stats.skipped++;
             continue;
         }
-        const destAbs = path.join(targetPath, rel);
+        const destRel = remapPath(rel);
+        const destAbs = path.join(targetPath, destRel);
+        const label = destRel === rel ? rel : `${rel} → ${destRel}`;
         if (options.dryRun) {
-            console.log(`  COPY     ${rel}`);
+            console.log(`  COPY     ${label}`);
             stats.copied++;
         } else {
             try {
                 copyFile(srcAbs, destAbs);
-                console.log(`  COPY     ${rel}`);
+                console.log(`  COPY     ${label}`);
                 stats.copied++;
             } catch (err) {
-                console.error(`  ERROR    ${rel} — ${err.message}`);
+                console.error(`  ERROR    ${label} — ${err.message}`);
                 stats.errors++;
             }
+        }
+    }
+
+    // After file copy, scaffold the target's docs/ working tree and root configs
+    // (.gitignore, .playwright/) from the just-published templates. Skipped on
+    // dry-run, when the publish itself errored, and when the target has no
+    // templates/ dir (e.g. minimal-manifest test fixtures).
+    const targetTemplatesDir = path.join(targetPath, '.claude', 'templates');
+    if (!options.dryRun && stats.errors === 0 && fs.existsSync(targetTemplatesDir)) {
+        try {
+            const scaffoldResults = runScaffold(targetPath, { silent: true });
+            stats.scaffolded = scaffoldResults.created.length;
+            stats.scaffoldDirs = scaffoldResults.directories.length;
+        } catch (err) {
+            console.error(`  SCAFFOLD ERROR — ${err.message}`);
+            stats.errors++;
         }
     }
 
@@ -222,6 +288,9 @@ function runPublish(targetPath, options) {
     console.log(`${options.dryRun ? 'Dry run complete (no files written)' : 'Publish complete'}`);
     console.log(`  Copied  : ${stats.copied}`);
     console.log(`  Skipped : ${stats.skipped}  (filtered by manifest or default excludes)`);
+    if (typeof stats.scaffolded === 'number') {
+        console.log(`  Scaffold: ${stats.scaffolded} files, ${stats.scaffoldDirs} dirs (target docs/ + root configs)`);
+    }
     if (stats.errors > 0) {
         console.log(`  Errors  : ${stats.errors}  ← check output above`);
     }
@@ -307,5 +376,7 @@ module.exports = {
     loadManifest,
     isAllowed,
     walkPublishableFiles,
+    remapPath,
     DEFAULT_EXCLUDES,
+    PATH_REMAPS,
 };

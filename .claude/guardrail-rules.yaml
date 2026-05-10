@@ -124,15 +124,86 @@ confirm_patterns:
 
 
 # ============================================================
-# PATH RULES
+# FOUR-TIER PATH SCHEMA (A3 — P2.5)
 # ============================================================
-# Reserved for future path-based access control.
-# The hook does not currently enforce these — they serve as
-# documented placeholders for upcoming path_rules enforcement.
+# Extended from PI Agent's damage-control four-tier model
+# (`docs/research/competitive/_hooks-and-core-scripts-comparison.md` §A3).
+# Operation-aware path tiers — the first matching tier wins.
 #
-# Future behavior:
-#   zero_access  — any Bash command touching these paths is blocked (exit 1)
-#   read_only    — write/delete commands targeting these paths are blocked (exit 1)
+#   zeroAccessPaths  — read AND write AND delete blocked
+#   readOnlyPaths    — read allowed; write AND delete blocked
+#   noDeletePaths    — read AND write allowed; delete blocked
+#
+# Integration status:
+#   Bash delete ops (rm / del / unlink / Remove-Item) — ENFORCED by hook.
+#   Edit / Write tool ops                            — RESERVED for a future
+#     PreToolUse:Edit/Write hook. `_lib/command-blocker.js` has the logic
+#     ready (`checkFreezeState` + `checkPathAccess`); only the wiring is
+#     pending.
+#
+# Globs: `path/` (directory prefix), `*` (non-slash wildcard), `name.ext`
+# (suffix match). No `**` support yet.
+# ============================================================
+
+# Tier 1 — zero-access: the guardrail blocks ALL operations.
+# Enforcement today: any `rm <path>` against these entries is blocked.
+zeroAccessPaths:
+  - .env                               # root .env (local secrets)
+  - .env.local                         # local override secrets
+  - .env.production                    # production secrets
+# .githooks/ removed 2026-05-09 — secret-scanner runs as a Claude Code
+# PreToolUse hook now (see .claude/hooks/secret-scanner.cjs); no git hook
+# is scaffolded by adopters, so a tier-1 rule here would be defending an
+# empty boundary.
+
+# Tier 2 — read-only: reads allowed, writes/deletes blocked.
+# Pre-populated (A6 from ECC — `everything-claude-code` §config-protection)
+# with linter/formatter/build-tool configs that should only be edited
+# intentionally, not by automation. Remove entries here if your project
+# needs automation to rewrite them (e.g. `npm init` regenerating package-lock).
+#
+# 2026-04-25 audit pass — first day with the PreToolUse:Edit/Write
+# path-guardrail hook live. Three entries removed because they break
+# legitimate /update-config + /create:project-architecture + Vitest tuning
+# workflows; the hook would block its own home file in the case of
+# .claude/settings.json. Kept entries are low-friction (rare edits + low
+# false-positive risk).
+readOnlyPaths:
+  - package-lock.json                  # lockfile — only npm manages this (Bash, not Edit/Write)
+  - .eslintrc*                         # ESLint config (A6 — ECC)
+  - .prettierrc*                       # Prettier config (A6 — ECC)
+  - tsconfig*.json                     # TypeScript config (A6 — ECC) — kept; project does not use TS so zero friction
+  - .editorconfig                      # EditorConfig (A6 — ECC)
+# Removed 2026-04-25:
+#   .claude/settings.json         — /update-config skill must be able to edit this
+#   docs/_project-architecture.md — /create:project-architecture + /review:update-docs write here
+#   vitest.config*                — test tuning during refactor work is routine; explicit handoff flag
+
+# Tier 3 — no-delete: reads/writes allowed, deletes blocked.
+# (Empty by default — populate with paths your workflow must not remove.)
+# Empty forms accepted (all equivalent): `noDeletePaths:` (no children),
+# `noDeletePaths: []`, or `noDeletePaths: {}`. See `_lib/yaml-parser.js` header.
+noDeletePaths:
+
+# ============================================================
+# DANGEROUS PATTERNS (A3 — bash-level hard block)
+# ============================================================
+# Parallel channel to block_patterns above — use this list when a pattern
+# comes from a competitor-adopted safety rule so provenance is visible.
+# Functionally identical to block_patterns (hard block). Keep both lists
+# populated where appropriate so the rule source is self-documenting.
+# ============================================================
+
+dangerousPatterns:
+
+# ============================================================
+# PATH RULES (LEGACY — RESERVED PRE-P2.5)
+# ============================================================
+# Kept for backward compatibility with downstream projects that loaded the
+# older schema. P2.5 (this file) introduced `zeroAccessPaths` / `readOnlyPaths` /
+# `noDeletePaths` above; those are the enforced tiers. `path_rules` is
+# documented placeholders only — neither `evaluate()` nor `checkPathAccess()`
+# act on it.
 # ============================================================
 
 path_rules:
@@ -143,7 +214,7 @@ path_rules:
     - .env                             # root .env (local secrets)
     - .env.local                       # local override secrets
     - .env.production                  # production secrets
-    - .githooks/                       # git hook scripts (security boundary)
+# .githooks/ removed 2026-05-09 — see zeroAccessPaths comment above.
 
   # Paths that can be read but must not be overwritten or deleted.
   read_only:

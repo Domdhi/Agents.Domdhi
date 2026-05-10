@@ -11,13 +11,14 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const { getTelemetryDir } = require('./_lib/telemetry-paths');
 
 const DEFAULT_DAYS = 30;
 
 async function cleanupLogs(maxAgeDays = DEFAULT_DAYS) {
     const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
     const logDirs = [
-        path.join(projectRoot, 'docs', '.output', 'telemetry', 'logs')
+        path.join(getTelemetryDir(projectRoot), 'logs')
     ];
 
     const cutoffDate = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);

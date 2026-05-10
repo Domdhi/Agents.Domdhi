@@ -15,12 +15,22 @@
  *   node memory-benchmark.js report                  Aggregate + print hit-rate
  */
 
-const { execSync } = require('child_process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const MemoryManager = require('./memory-manager');
-const MemoryCompiler = require('./memory-compiler');
+const {
+    parseDailyFile,
+    extractKeywords,
+} = require('./_lib/daily-log-parser');
+const {
+    checkClaudeCli,
+    invokeHaiku,
+    parseHaikuResult,
+    extractTokenCounts,
+} = require('./_lib/haiku-runner');
+const { appendJsonl } = require('./_lib/jsonl-writer');
+const { getTelemetryDir, getJsonlPath } = require('./_lib/telemetry-paths');
 
 const MAX_ENTRIES_PER_RUN = 10;
 const MIN_AGE_DAYS = 7;
@@ -41,21 +51,16 @@ class MemoryBenchmark {
         this.dailyDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'daily');
         this.conceptsDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'concepts');
         this.indexPath = path.join(this.conceptsDir, 'index.md');
-        this.telemetryDir = path.join(this.projectRoot, 'docs', '.output', 'telemetry');
-        this.jsonlPath = path.join(this.telemetryDir, 'memory-benchmark.jsonl');
+        this.telemetryDir = getTelemetryDir(this.projectRoot);
+        this.jsonlPath = getJsonlPath(this.projectRoot, 'memory-benchmark.jsonl');
     }
 
     // -------------------------------------------------------------------------
-    // Guards
+    // Guards (thin adapter over _lib/haiku-runner)
     // -------------------------------------------------------------------------
 
     checkClaudeCli() {
-        try {
-            execSync('claude --version', { stdio: 'ignore', timeout: 5000 });
-            return true;
-        } catch {
-            return false;
-        }
+        return checkClaudeCli();
     }
 
     readIndexMd() {
@@ -88,10 +93,9 @@ class MemoryBenchmark {
 
     /**
      * Parse every eligible daily-log file and return a flat array of entries.
-     * Reuses MemoryCompiler.parseDailyFile for shape compatibility.
+     * Uses the shared _lib/daily-log-parser — no MemoryCompiler instantiation required.
      */
     collectEntries() {
-        const compiler = new MemoryCompiler();
         const files = this.listEligibleFiles();
         const entries = [];
         for (const file of files) {
@@ -102,7 +106,7 @@ class MemoryBenchmark {
             } catch {
                 continue;
             }
-            const parsed = compiler.parseDailyFile(content, date);
+            const parsed = parseDailyFile(content, date);
             for (const e of parsed) {
                 entries.push(e);
             }
@@ -166,69 +170,33 @@ Rules:
     }
 
     invokeHaiku(prompt) {
-        const escapedPrompt = prompt.replace(/'/g, "'\\''");
-        try {
-            const result = execSync(
-                `claude -p '${escapedPrompt}' --model claude-haiku-4-5 --allowedTools Read --output-format json --bare`,
-                {
-                    encoding: 'utf8',
-                    timeout: 90000,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    maxBuffer: 10 * 1024 * 1024,
-                    windowsHide: true,
-                }
-            );
-            return result;
-        } catch (e) {
-            process.stderr.write(`[memory-benchmark] Haiku invocation failed: ${e.message}\n`);
-            return null;
-        }
+        return invokeHaiku(prompt, {
+            cwd: this.projectRoot,
+            timeout: 90000,
+            logTag: 'memory-benchmark',
+        });
     }
 
     parseHaikuResult(raw) {
-        if (!raw) return null;
-        let envelope;
+        // Benchmark originally had an expected_slug-specific fallback for the edge
+        // case where Haiku returned the payload directly instead of an envelope.
+        // Preserve by chaining: try shared envelope parser, then fall back to
+        // treating the whole string as the payload.
+        const primary = parseHaikuResult(raw);
+        if (primary) return primary;
         try {
-            envelope = JSON.parse(raw);
-        } catch {
-            return this.tryParseInnerJson(raw);
-        }
-        let text = null;
-        if (typeof envelope === 'string') text = envelope;
-        else if (envelope && typeof envelope === 'object') {
-            text = envelope.result || envelope.text || envelope.output || null;
-            if (!text && Array.isArray(envelope.content)) {
-                text = envelope.content.map(c => c.text || '').join('');
-            }
-        }
-        if (text) return this.tryParseInnerJson(text);
-        return envelope && envelope.expected_slug !== undefined ? envelope : null;
+            const envelope = JSON.parse(raw);
+            if (envelope && envelope.expected_slug !== undefined) return envelope;
+        } catch { /* ignore */ }
+        return null;
     }
 
     tryParseInnerJson(text) {
-        if (typeof text !== 'string') return null;
-        const stripped = text.trim()
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim();
-        try {
-            return JSON.parse(stripped);
-        } catch {
-            return null;
-        }
+        return require('./_lib/haiku-runner').tryParseInnerJson(text);
     }
 
     extractTokenCounts(raw) {
-        try {
-            const envelope = JSON.parse(raw);
-            if (envelope && envelope.usage) {
-                return {
-                    input: envelope.usage.input_tokens || 0,
-                    output: envelope.usage.output_tokens || 0
-                };
-            }
-        } catch {}
-        return { input: 0, output: 0 };
+        return extractTokenCounts(raw);
     }
 
     // -------------------------------------------------------------------------
@@ -237,11 +205,10 @@ Rules:
 
     /**
      * Build a keyword query string from an entry.
-     * Wraps MemoryCompiler.extractKeywords (which takes {rawText} shape).
+     * Uses the shared _lib/daily-log-parser — no MemoryCompiler instantiation.
      */
     keywordQuery(entry) {
-        const compiler = new MemoryCompiler();
-        const keywords = compiler.extractKeywords(entry);
+        const keywords = extractKeywords(entry);
         const arr = Array.from(keywords).slice(0, MAX_KEYWORDS_FOR_QUERY);
         return arr.join(' ');
     }
@@ -262,24 +229,15 @@ Rules:
     }
 
     // -------------------------------------------------------------------------
-    // JSONL append + tail-rotation (copied verbatim from command-usage-logger.cjs:96-102)
+    // JSONL append + tail-rotation (thin adapter over _lib/jsonl-writer)
     // -------------------------------------------------------------------------
 
     appendJsonl(record) {
-        try {
-            fsSync.mkdirSync(this.telemetryDir, { recursive: true });
-            fsSync.appendFileSync(this.jsonlPath, JSON.stringify(record) + '\n', 'utf8');
-
-            // Tail-sample if over limit
-            const content = fsSync.readFileSync(this.jsonlPath, 'utf8');
-            const lines = content.split('\n').filter(l => l.trim());
-            if (lines.length > MAX_JSONL_LINES) {
-                const trimmed = lines.slice(-TAIL_KEEP_LINES).join('\n') + '\n';
-                fsSync.writeFileSync(this.jsonlPath, trimmed, 'utf8');
-            }
-        } catch (e) {
-            process.stderr.write(`[memory-benchmark] JSONL write failed: ${e.message}\n`);
-        }
+        appendJsonl(this.jsonlPath, record, {
+            maxLines: MAX_JSONL_LINES,
+            tailKeep: TAIL_KEEP_LINES,
+            onError: (msg) => process.stderr.write(`[memory-benchmark] JSONL write failed: ${msg}\n`),
+        });
     }
 
     // -------------------------------------------------------------------------

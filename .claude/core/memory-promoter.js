@@ -15,9 +15,12 @@
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
-const { MEMORY_DECAY } = require('./constants');
+const CONSTANTS = require('./constants');
+const { calculateDecayedConfidence, createActiveDaysResolver } = require('./_lib/memory-decay');
+const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
+const { readConcepts } = require('./_lib/concept-reader');
 
-const CATEGORIES = ['patterns', 'constraints', 'decisions', 'workflows', 'rejected-approaches'];
+const CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 
 // Target suggestions by category
 const TARGET_SUGGESTIONS = {
@@ -33,6 +36,7 @@ class MemoryPromoter {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
         this.memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
         this.conceptsDir = path.join(this.memoriesDir, 'concepts');
+        this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
     }
 
     /**
@@ -45,7 +49,7 @@ class MemoryPromoter {
         const handCurated = await this.loadHandCreatedMemories();
         const concepts = [...compiledConcepts, ...handCurated];
         if (concepts.length === 0) {
-            console.log('No concept articles found. Run `node memory-compiler.js compile` first.');
+            console.log('No concept articles found. Run `node memory-extractor.js extract` (manual Haiku) or create memories via `memory-manager.js create`.');
             return [];
         }
 
@@ -225,58 +229,17 @@ class MemoryPromoter {
 
     /**
      * Load all concept articles from disk.
+     * Thin adapter over _lib/concept-reader.js; strips the `content` field
+     * that the shared reader includes but promoter doesn't need.
      */
     async loadConcepts() {
-        const concepts = [];
-
-        for (const category of CATEGORIES) {
-            const catDir = path.join(this.conceptsDir, category);
-            let files;
-            try {
-                files = await fs.readdir(catDir);
-            } catch {
-                continue; // category dir may not exist
-            }
-
-            for (const file of files) {
-                if (!file.endsWith('.md')) continue;
-                try {
-                    const filePath = path.join(catDir, file);
-                    const content = await fs.readFile(filePath, 'utf-8');
-                    const fm = this.parseFrontmatter(content);
-                    if (!fm) continue;
-
-                    const slug = file.replace('.md', '');
-                    const confidence = parseFloat(fm.confidence) || 0.6;
-                    const updated = fm.updated || new Date().toISOString();
-                    const sources = fm.sources || [];
-
-                    // Calculate decayed confidence using category-specific rate
-                    const daysSinceUpdate = (Date.now() - new Date(updated)) / (1000 * 60 * 60 * 24);
-                    const rate = MEMORY_DECAY.RATES[category] || MEMORY_DECAY.DEFAULT_RATE;
-                    let decayed = confidence * Math.pow(rate, daysSinceUpdate);
-                    decayed += MEMORY_DECAY.USAGE_BOOST * (parseInt(fm.usage_count) || 0);
-                    if (daysSinceUpdate < MEMORY_DECAY.RECENT_UPDATE_DAYS) decayed += MEMORY_DECAY.RECENT_UPDATE_BOOST;
-                    decayed = Math.min(decayed, 1.0);
-
-                    concepts.push({
-                        slug,
-                        title: fm.title || slug,
-                        category,
-                        confidence,
-                        decayedConfidence: decayed,
-                        sources,
-                        usageCount: parseInt(fm.usage_count) || 0,
-                        promotedTo: fm.promoted_to || null,
-                        updated
-                    });
-                } catch {
-                    // skip unreadable files
-                }
-            }
-        }
-
-        return concepts;
+        const concepts = await readConcepts({
+            conceptsDir: this.conceptsDir,
+            categories: CATEGORIES,
+            activeDaysResolver: this._activeDaysResolver,
+        });
+        // eslint-disable-next-line no-unused-vars
+        return concepts.map(({ content, ...rest }) => rest);
     }
 
     /**
@@ -313,13 +276,13 @@ class MemoryPromoter {
                     const updated = memory.updated || new Date().toISOString();
                     const usageCount = parseInt(memory.usage_count) || 0;
 
-                    // Same decay calc as loadConcepts (lines 196-202)
-                    const daysSinceUpdate = (Date.now() - new Date(updated)) / (1000 * 60 * 60 * 24);
-                    const rate = MEMORY_DECAY.RATES[category] || MEMORY_DECAY.DEFAULT_RATE;
-                    let decayed = confidence * Math.pow(rate, daysSinceUpdate);
-                    decayed += MEMORY_DECAY.USAGE_BOOST * usageCount;
-                    if (daysSinceUpdate < MEMORY_DECAY.RECENT_UPDATE_DAYS) decayed += MEMORY_DECAY.RECENT_UPDATE_BOOST;
-                    decayed = Math.min(decayed, 1.0);
+                    const decayed = calculateDecayedConfidence({
+                        confidence,
+                        category,
+                        usageCount,
+                        updated,
+                        activeDays: this._activeDaysResolver.getActiveDaysSince(updated),
+                    });
 
                     const title = slug
                         .split('-')
@@ -362,34 +325,10 @@ class MemoryPromoter {
 
     /**
      * Parse YAML frontmatter from a markdown file.
-     * Same logic as memory-compiler.js parseFrontmatter().
+     * Thin adapter over _lib/frontmatter.js.
      */
     parseFrontmatter(content) {
-        const match = content.match(/^---\n([\s\S]*?)\n---/);
-        if (!match) return null;
-
-        const raw = match[1];
-        const result = {};
-        let inSources = false;
-        const sourcesList = [];
-
-        for (const line of raw.split('\n')) {
-            if (line.startsWith('sources:')) {
-                inSources = true;
-                continue;
-            }
-            if (inSources && line.startsWith('  - ')) {
-                sourcesList.push(line.replace('  - ', '').trim());
-                continue;
-            }
-            inSources = false;
-
-            const kv = line.match(/^([\w_]+):\s*(.+)$/);
-            if (kv) result[kv[1]] = kv[2].trim();
-        }
-
-        if (sourcesList.length > 0) result.sources = sourcesList;
-        return result;
+        return parseFm(content);
     }
 }
 

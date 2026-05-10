@@ -1,39 +1,59 @@
 #!/usr/bin/env node
 
-// Command Usage Logger Hook
-//
-// PostToolUse hook — logs slash-command invocations and gate runs to a local
-// JSONL file for telemetry. Feeds /retro with actual usage data.
-//
-// Despite the previous name ("command-usage-logger"), this does NOT track skill
-// invocations. Skills are markdown files auto-loaded into agent context via
-// frontmatter — there is no "skill invoked" event to hook. What this logs is:
-//
-//   PostToolUse:Skill — when a /command is invoked (exact command name from tool_input.skill)
-//   PostToolUse:Bash  — when gate.js is run (build/test gate signal)
-//
-// Output: docs/.output/telemetry/command-usage.jsonl
-//
-// Exit codes:
-//   0 = always (PostToolUse hooks cannot block)
+/**
+ * Command Usage Logger Hook
+ *
+ * PostToolUse hook — logs slash-command invocations and gate runs to a local
+ * JSONL file for telemetry. Feeds /retro with actual usage data.
+ *
+ * Despite the previous name ("command-usage-logger"), this does NOT track skill
+ * invocations. Skills are markdown files auto-loaded into agent context via
+ * frontmatter — there is no "skill invoked" event to hook. What this logs is:
+ *
+ *   PostToolUse:Skill — when a /command is invoked (exact command name from tool_input.skill)
+ *   PostToolUse:Bash  — when gate.js is run (build/test gate signal)
+ *
+ * Output: docs/.output/telemetry/command-usage.jsonl
+ *
+ * Exit codes:
+ *   0 = always (PostToolUse hooks cannot block)
+ *
+ * Event schema (A4 enrichment — adopted from gstack:
+ *   docs/research/competitive/_hooks-and-core-scripts-comparison.md A4):
+ *
+ * @typedef {Object} TelemetryEvent
+ * @property {string} timestamp - ISO 8601
+ * @property {'command_invocation'|'gate_run'} type
+ * @property {string} command - skill name or gate type ('gate:build'|'gate:test')
+ * @property {number|null} duration_ms - Event duration if available (null until P1.6)
+ * @property {'success'|'failure'|'unknown'} outcome - Success/failure signal; 'unknown' when no exit_code and no summary
+ */
 
 const fs = require('fs');
 const path = require('path');
+const { appendJsonl: appendJsonlLib } = require('../core/_lib/jsonl-writer');
+const { readHookInput } = require('../core/_lib/hook-input');
+const { getJsonlPath } = require('../core/_lib/telemetry-paths');
+const { readSummary } = require('../core/_lib/gate-summary');
+
+// Anchor telemetry writes to the repo root — not the caller's CWD. Without this,
+// a prior `cd src && ...` in the same shell session leaves the Bash tool's CWD at
+// `src/`, and the next PostToolUse hook dumps telemetry into `src/docs/.output/`
+// instead of the real `docs/.output/`. Match the convention used by gate.js,
+// memory-benchmark.js, decision-viz.js, and ~10 other core scripts:
+// CLAUDE_PROJECT_DIR env var first, else resolve from __dirname (hook lives at
+// .claude/hooks/, so ../../ is repo root).
+//
+// Resolved lazily (not at module load) so in-process tests can set
+// CLAUDE_PROJECT_DIR per test case via beforeEach/afterEach without having to
+// reload the module. The real hook invocation path is unaffected — the env var
+// is either set by Claude Code or the __dirname fallback kicks in.
+function getProjectRoot() {
+    return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+}
 
 const MAX_JSONL_LINES = 1000;
 const TAIL_KEEP_LINES = 500;
-
-function readStdin() {
-    return new Promise((resolve) => {
-        if (process.stdin.isTTY) { resolve(''); return; }
-        let data = '';
-        process.stdin.setEncoding('utf8');
-        process.stdin.on('data', (chunk) => { data += chunk; });
-        process.stdin.on('end', () => resolve(data));
-        process.stdin.on('error', () => resolve(''));
-        setTimeout(() => resolve(data), 1000);
-    });
-}
 
 /**
  * Infer whether a bash command is a gate.js invocation and return the gate type.
@@ -59,51 +79,34 @@ function inferGateRun(command) {
  * Without this fallback every gate_run telemetry entry logs outcome:fail —
  * surfaced as a 3-strikes finding across TDD-3, TDD-5, and TDD-6 retros.
  *
- * @param {string} cwd - Project root
  * @returns {{ overall: boolean } | null} Parsed summary, or null on any read/parse failure
  */
-function readGateSummary(cwd) {
-    try {
-        const summaryPath = path.join(cwd, 'docs', '.output', 'telemetry', '_latest-summary.json');
-        const content = fs.readFileSync(summaryPath, 'utf8');
-        const parsed = JSON.parse(content);
-        return typeof parsed.overall === 'boolean' ? parsed : null;
-    } catch {
-        return null;
-    }
+function readGateSummary() {
+    return readSummary(getProjectRoot());
 }
 
 /**
- * Append a JSONL entry to the given path. Creates parent directories if needed.
- * Tail-rotates to TAIL_KEEP_LINES when the file exceeds MAX_JSONL_LINES.
- * Silent on any error (telemetry must not block the workflow).
+ * Append a JSONL entry. Thin adapter over _lib/jsonl-writer; preserves the
+ * module-level export shape for backward compatibility with existing tests.
  *
  * @param {string} jsonlPath - Absolute path to the JSONL file
  * @param {object} event - The event object to append
  */
 function appendJsonl(jsonlPath, event) {
-    try {
-        fs.mkdirSync(path.dirname(jsonlPath), { recursive: true });
-
-        // Append event
-        fs.appendFileSync(jsonlPath, JSON.stringify(event) + '\n', 'utf8');
-
-        // Tail-sample if over limit
-        const content = fs.readFileSync(jsonlPath, 'utf8');
-        const lines = content.split('\n').filter(l => l.trim());
-        if (lines.length > MAX_JSONL_LINES) {
-            const trimmed = lines.slice(-TAIL_KEEP_LINES).join('\n') + '\n';
-            fs.writeFileSync(jsonlPath, trimmed, 'utf8');
-        }
-    } catch {
-        // Graceful degradation — never block on telemetry failure
-    }
+    appendJsonlLib(jsonlPath, event, {
+        maxLines: MAX_JSONL_LINES,
+        tailKeep: TAIL_KEEP_LINES,
+    });
 }
 
 /**
  * Process a PostToolUse event and append a telemetry entry if relevant.
  *
- * @param {object} parsedJson - { tool_name, tool_input, tool_output, tool_response, cwd }
+ * The output path is resolved from CLAUDE_PROJECT_DIR (or __dirname fallback);
+ * `parsedJson.cwd` is intentionally ignored — relying on the caller's CWD was
+ * the source bug this hook had to fix.
+ *
+ * @param {object} parsedJson - { tool_name, tool_input, tool_output, tool_response }
  * @returns {null} Always returns null
  */
 function processEvent(parsedJson) {
@@ -116,6 +119,7 @@ function processEvent(parsedJson) {
             timestamp: new Date().toISOString(),
             type: 'command_invocation',
             command: skillName,
+            duration_ms: null,
         };
     }
 
@@ -130,32 +134,36 @@ function processEvent(parsedJson) {
         //   2. _latest-summary.json from gate.js (current production path —
         //      Claude Code's PostToolUse:Bash payload does NOT include exit_code,
         //      so without this fallback every gate_run logged 'fail')
-        //   3. Default 'fail' — safer to under-report success than to claim a
-        //      green gate that never actually happened
+        //   3. 'unknown' — no exit_code AND no summary; previously defaulted to
+        //      'fail' but that masked the absence of any signal (A4 schema)
         const exitCode = parsedJson?.tool_response?.exit_code ?? parsedJson?.tool_output?.exit_code ?? null;
-        const cwdForSummary = parsedJson?.cwd || process.cwd();
 
         let outcome;
         if (exitCode !== null) {
-            outcome = exitCode === 0 ? 'pass' : 'fail';
+            outcome = exitCode === 0 ? 'success' : 'failure';
         } else {
-            const summary = readGateSummary(cwdForSummary);
-            outcome = summary?.overall === true ? 'pass' : 'fail';
+            const summary = readGateSummary();
+            if (summary === null) {
+                outcome = 'unknown';
+            } else {
+                outcome = summary.overall === true ? 'success' : 'failure';
+            }
         }
 
         event = {
             timestamp: new Date().toISOString(),
             type: 'gate_run',
             command: gateCommand,
+            duration_ms: null,
             outcome,
         };
     }
 
     if (!event) { return null; }
 
-    // Write to JSONL
-    const cwd = parsedJson?.cwd || process.cwd();
-    const jsonlPath = path.join(cwd, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+    // Write to JSONL — always under the resolved project root, regardless of
+    // caller CWD or anything in the event payload.
+    const jsonlPath = getJsonlPath(getProjectRoot(), 'command-usage.jsonl');
 
     appendJsonl(jsonlPath, event);
 
@@ -163,7 +171,7 @@ function processEvent(parsedJson) {
 }
 
 async function main() {
-    const input = await readStdin();
+    const input = await readHookInput();
     if (!input) { process.exit(0); }
 
     let data;
@@ -178,6 +186,16 @@ async function main() {
 }
 
 if (require.main === module) {
+    // P1.7 — hook duration instrumentation (Section-D blind-spot).
+    // process.on('exit') handler fires synchronously on every exit path in
+    // main() (three of them — empty input, JSON parse failure, normal run).
+    // Telemetry write is wrapped in try/catch so a JSONL append failure
+    // never surfaces as a hook error — observability is optional.
+    const { startHookTiming, emitHookEvent } = require('../core/_lib/hook-telemetry');
+    const _hookToken = startHookTiming('command-usage-logger');
+    process.on('exit', () => {
+        try { emitHookEvent(_hookToken, 'success'); } catch { /* never fail on telemetry */ }
+    });
     main().catch(() => process.exit(0));
 }
 

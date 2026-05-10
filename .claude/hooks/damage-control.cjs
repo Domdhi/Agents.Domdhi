@@ -11,19 +11,7 @@
  * Exit: Always 0 — this hook informs, it does not block.
  */
 
-function readStdin() {
-    return new Promise((resolve) => {
-        if (process.stdin.isTTY) {
-            resolve('');
-            return;
-        }
-        let data = '';
-        process.stdin.setEncoding('utf8');
-        process.stdin.on('data', chunk => { data += chunk; });
-        process.stdin.on('end', () => resolve(data));
-        process.stdin.on('error', () => resolve(''));
-    });
-}
+const { readHookInput } = require('../core/_lib/hook-input');
 
 /**
  * Classify the result of a Bash tool invocation.
@@ -113,7 +101,8 @@ function processEvent(parsedJson) {
 }
 
 async function run() {
-    const input = await readStdin();
+    // Historical behavior: no stdin timeout — rely on 'end'/'error' event firing.
+    const input = await readHookInput({ timeoutMs: null });
     if (!input) process.exit(0);
 
     let data;
@@ -131,6 +120,17 @@ async function run() {
 }
 
 if (require.main === module) {
+    // P1.7 — hook duration instrumentation (Section-D blind-spot).
+    // process.on('exit') is the minimal-diff shim: run()'s internal
+    // process.exit(0) calls fire this handler synchronously before the
+    // process terminates, so we emit timing without restructuring run()'s
+    // existing exit paths. The try/catch keeps telemetry failures from
+    // surfacing as hook errors.
+    const { startHookTiming, emitHookEvent } = require('../core/_lib/hook-telemetry');
+    const _hookToken = startHookTiming('damage-control');
+    process.on('exit', () => {
+        try { emitHookEvent(_hookToken, 'success'); } catch { /* never fail on telemetry */ }
+    });
     run();
 }
 

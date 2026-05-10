@@ -1,0 +1,380 @@
+// AC→source map (P2.2 / agent-merger):
+//   Exports: parseAgentSections(content), mergeFrontmatter(src, dst), mergeAgentFile(srcPath, dstPath, opts)
+//   parseAgentSections — returns { frontmatter, soulZone, skillsZone, projectCtx }
+//   mergeFrontmatter — src wins, but preserves nickname: and aliases: from dst
+//   mergeAgentFile — if dst missing: copy; if personalized: preserve soulZone + projectCtx; skills always from src
+//   mergeAgentFile returns { changed: boolean, diff?: string }
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const fs = require('node:fs');
+const path = require('node:path');
+const { createTmpDir } = require('../../__tests__/_helpers/tmp-dir');
+const { parseAgentSections, mergeFrontmatter, mergeAgentFile } = require('../agent-merger');
+
+let tmp;
+
+beforeEach(() => {
+    tmp = createTmpDir({ prefix: 'agent-merger-test-' });
+});
+
+afterEach(() => {
+    tmp.cleanup();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fixtures
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FIXTURE_PERSONALIZED = `---
+name: general-purpose
+nickname: Forge
+model: sonnet
+---
+
+# Forge — General Purpose Developer
+
+I am the one who builds.
+
+## Skills
+
+No default skills.
+
+## Project Context
+
+This project uses React and TypeScript.
+`;
+
+const FIXTURE_GENERIC = `---
+name: code-reviewer
+model: sonnet
+---
+
+# Code Reviewer
+
+I review code thoroughly.
+
+## Skills
+
+code-reviewer, code-review-playbook
+`;
+
+const FIXTURE_NO_PROJECT_CTX = `---
+name: doc-writer
+model: haiku
+---
+
+# Doc Writer
+
+I document things.
+
+## Skills
+
+documentation
+`;
+
+const FIXTURE_NO_FRONTMATTER = `# Bare Agent
+
+Just some content without a frontmatter block.
+
+## Skills
+
+some-skill
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// parseAgentSections
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('parseAgentSections', () => {
+    it('extracts frontmatter (without --- delimiters)', () => {
+        const result = parseAgentSections(FIXTURE_PERSONALIZED);
+        expect(result.frontmatter).toContain('name: general-purpose');
+        expect(result.frontmatter).toContain('nickname: Forge');
+        expect(result.frontmatter).not.toContain('---');
+    });
+
+    it('extracts soulZone (heading + body, excludes ## Skills)', () => {
+        const result = parseAgentSections(FIXTURE_PERSONALIZED);
+        expect(result.soulZone).toContain('# Forge — General Purpose Developer');
+        expect(result.soulZone).toContain('I am the one who builds');
+        expect(result.soulZone).not.toContain('## Skills');
+    });
+
+    it('extracts skillsZone (## Skills heading + body, excludes ## Project Context)', () => {
+        const result = parseAgentSections(FIXTURE_PERSONALIZED);
+        expect(result.skillsZone).toContain('## Skills');
+        expect(result.skillsZone).toContain('No default skills');
+        expect(result.skillsZone).not.toContain('## Project Context');
+    });
+
+    it('extracts projectCtx (## Project Context to end)', () => {
+        const result = parseAgentSections(FIXTURE_PERSONALIZED);
+        expect(result.projectCtx).toContain('## Project Context');
+        expect(result.projectCtx).toContain('React and TypeScript');
+    });
+
+    it('returns empty projectCtx when section absent', () => {
+        const result = parseAgentSections(FIXTURE_NO_PROJECT_CTX);
+        expect(result.projectCtx).toBe('');
+    });
+
+    it('returns empty frontmatter when no --- block present', () => {
+        const result = parseAgentSections(FIXTURE_NO_FRONTMATTER);
+        expect(result.frontmatter).toBe('');
+    });
+
+    it('treats entire non-frontmatter body as soulZone when no --- present', () => {
+        const result = parseAgentSections(FIXTURE_NO_FRONTMATTER);
+        expect(result.soulZone).toContain('# Bare Agent');
+        expect(result.soulZone).toContain('Just some content');
+    });
+
+    it('still parses skillsZone when there is no frontmatter', () => {
+        const result = parseAgentSections(FIXTURE_NO_FRONTMATTER);
+        expect(result.skillsZone).toContain('## Skills');
+        expect(result.skillsZone).toContain('some-skill');
+    });
+
+    it('normalizes CRLF line endings', () => {
+        const crlf = FIXTURE_PERSONALIZED.replace(/\n/g, '\r\n');
+        const result = parseAgentSections(crlf);
+        expect(result.frontmatter).toContain('nickname: Forge');
+        expect(result.skillsZone).toContain('## Skills');
+    });
+
+    it('has a blank line between --- and soul zone heading (regression)', () => {
+        // Standard markdown: `---\n\n# Heading`, not `---\n# Heading`
+        const result = parseAgentSections(FIXTURE_GENERIC);
+        // soulZone starts with the two newlines so reassembly gives `---\n\n# Heading`
+        expect(result.soulZone.startsWith('\n\n# Code Reviewer')).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeFrontmatter
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeFrontmatter', () => {
+    it('uses src lines as the base', () => {
+        const src = 'name: general-purpose\nmodel: sonnet';
+        const dst = 'name: general-purpose\nmodel: haiku';
+        const result = mergeFrontmatter(src, dst);
+        // model comes from src
+        expect(result).toContain('model: sonnet');
+        expect(result).not.toContain('model: haiku');
+    });
+
+    it('preserves nickname from dst when present', () => {
+        const src = 'name: general-purpose\nmodel: sonnet';
+        const dst = 'name: general-purpose\nnickname: Forge\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst);
+        expect(result).toContain('nickname: Forge');
+    });
+
+    it('preserves aliases from dst when present', () => {
+        const src = 'name: doc-writer\nmodel: haiku';
+        const dst = 'name: doc-writer\nnickname: Penny\naliases: [penny, doc]\nmodel: haiku';
+        const result = mergeFrontmatter(src, dst);
+        expect(result).toContain('aliases: [penny, doc]');
+    });
+
+    it('inserts nickname from dst after name line when src had no nickname line', () => {
+        const src = 'name: general-purpose\nmodel: sonnet';
+        const dst = 'name: general-purpose\nnickname: Forge\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst);
+        const lines = result.split('\n');
+        const nameIdx = lines.findIndex(l => /^name\s*:/.test(l));
+        const nickIdx = lines.findIndex(l => /^nickname\s*:/.test(l));
+        expect(nickIdx).toBe(nameIdx + 1);
+    });
+
+    it('does not add nickname when dst has none', () => {
+        const src = 'name: general-purpose\nmodel: sonnet';
+        const dst = 'name: general-purpose\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst);
+        expect(result).not.toContain('nickname');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeAgentFile
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeAgentFile', () => {
+    it('copies the file when destPath does not exist', () => {
+        const srcPath = tmp.write('src/agents/forge.md', FIXTURE_PERSONALIZED);
+        const destPath = path.join(tmp.root, 'dest/agents/forge.md');
+
+        const result = mergeAgentFile(srcPath, destPath);
+
+        expect(result.changed).toBe(true);
+        expect(fs.existsSync(destPath)).toBe(true);
+        expect(fs.readFileSync(destPath, 'utf8')).toContain('# Forge — General Purpose Developer');
+    });
+
+    it('preserves soulZone and projectCtx when dest is personalized', () => {
+        const srcContent = `---
+name: general-purpose
+model: sonnet
+---
+
+# Forge — Updated Template Soul
+
+New soul from template.
+
+## Skills
+
+updated-skill-list
+`;
+        const destContent = `---
+name: general-purpose
+nickname: Forge
+model: sonnet
+---
+
+# Forge — My Custom Soul Zone
+
+Custom description written by Dom.
+
+## Skills
+
+old-skill-list
+
+## Project Context
+
+This is my project context.
+`;
+        const srcPath = tmp.write('src/agents/general-purpose.md', srcContent);
+        const destPath = tmp.write('dest/agents/general-purpose.md', destContent);
+
+        const result = mergeAgentFile(srcPath, destPath);
+
+        const merged = fs.readFileSync(destPath, 'utf8');
+        // Soul preserved from dest
+        expect(merged).toContain('Custom description written by Dom');
+        expect(merged).not.toContain('New soul from template');
+        // Skills from src
+        expect(merged).toContain('updated-skill-list');
+        expect(merged).not.toContain('old-skill-list');
+        // Project context preserved
+        expect(merged).toContain('## Project Context');
+        expect(merged).toContain('This is my project context');
+        // nickname preserved
+        expect(merged).toContain('nickname: Forge');
+        expect(result.changed).toBe(true);
+    });
+
+    it('overwrites soulZone when dest is not personalized', () => {
+        const srcContent = `---
+name: code-reviewer
+model: sonnet
+---
+
+# Code Reviewer (NEW TEMPLATE)
+
+Updated reviewer soul.
+
+## Skills
+
+code-reviewer-v2
+`;
+        const destContent = `---
+name: code-reviewer
+model: sonnet
+---
+
+# Code Reviewer (OLD)
+
+Old reviewer soul.
+
+## Skills
+
+code-reviewer-v1
+`;
+        const srcPath = tmp.write('src/agents/code-reviewer.md', srcContent);
+        const destPath = tmp.write('dest/agents/code-reviewer.md', destContent);
+
+        mergeAgentFile(srcPath, destPath);
+
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('NEW TEMPLATE');
+        expect(merged).not.toContain('OLD');
+        expect(merged).toContain('code-reviewer-v2');
+    });
+
+    it('produces a blank line between --- and soul zone heading after merge (regression)', () => {
+        const content = `---
+name: architect
+model: inherit
+---
+
+# Mason — System Architect
+
+Body content here.
+
+## Skills
+
+- architecture-writer
+`;
+        const srcPath = tmp.write('src/agents/architect.md', content);
+        const destPath = tmp.write('dest/agents/architect.md', content);
+
+        mergeAgentFile(srcPath, destPath);
+
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('---\n\n# Mason — System Architect');
+        expect(merged).not.toContain('---\n# Mason — System Architect');
+    });
+
+    it('returns changed=false when content is identical', () => {
+        const srcPath = tmp.write('src/agents/identical.md', FIXTURE_GENERIC);
+        const destPath = tmp.write('dest/agents/identical.md', FIXTURE_GENERIC);
+
+        const result = mergeAgentFile(srcPath, destPath);
+
+        // unchanged file — changed must be false
+        expect(result.changed).toBe(false);
+    });
+
+    it('preserves nickname and aliases in frontmatter during merge', () => {
+        const srcContent = `---
+name: doc-writer
+model: haiku
+---
+
+# Doc Writer
+
+Write docs.
+
+## Skills
+
+documentation
+`;
+        const destContent = `---
+name: doc-writer
+nickname: Penny
+aliases: [penny, doc]
+model: haiku
+---
+
+# Penny — Doc Writer
+
+Custom doc writer.
+
+## Skills
+
+old-docs
+`;
+        const srcPath = tmp.write('src/agents/doc-writer.md', srcContent);
+        const destPath = tmp.write('dest/agents/doc-writer.md', destContent);
+
+        mergeAgentFile(srcPath, destPath);
+
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('nickname: Penny');
+        expect(merged).toContain('aliases: [penny, doc]');
+    });
+});

@@ -68,11 +68,16 @@ module.exports = {
     },
 
     // Memory categories
+    // Key insertion order is load-bearing: `Object.values(MEMORY_CATEGORIES)` is
+    // the canonical iteration order consumed by memory-manager, memory-curator,
+    // memory-promoter, decision-viz, session-start-prime hook,
+    // and test fixtures. Changing this order changes the section order of the
+    // compiled concept index (docs/.output/memories/concepts/index.md).
     MEMORY_CATEGORIES: {
         PATTERNS: 'patterns',
-        WORKFLOWS: 'workflows',
         CONSTRAINTS: 'constraints',
         DECISIONS: 'decisions',
+        WORKFLOWS: 'workflows',
         REJECTED_APPROACHES: 'rejected-approaches',  // AMEM-5.1: approaches that were tried and abandoned
     },
 

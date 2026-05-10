@@ -32,6 +32,22 @@ const {
     readStdin,
 } = require('./secret-patterns.cjs');
 
+// Anchor git subprocess invocations to the repo root — not the caller's CWD.
+// Without this, a prior `cd src && ...` in the same shell session leaves the
+// scanner's CWD at `src/`, and `git diff --cached`/`git show :<file>` either
+// fail or return results scoped to a nested repo. Match the convention used by
+// gate.js, command-usage-logger.cjs, memory-benchmark.js, and the other core
+// scripts: CLAUDE_PROJECT_DIR env var first, else resolve from __dirname (hook
+// lives at .claude/hooks/, so ../../ is repo root).
+//
+// Resolved lazily (not at module load) so in-process tests can set
+// CLAUDE_PROJECT_DIR per test case via beforeEach/afterEach without having to
+// reload the module. The real hook/CLI invocation path is unaffected — the env
+// var is either set by Claude Code or the __dirname fallback kicks in.
+function getProjectRoot() {
+    return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+}
+
 // ============================================
 // Testable core functions
 // ============================================
@@ -134,7 +150,7 @@ async function runGitPrecommit() {
     try {
         stagedFiles = execFileSync(
             'git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'],
-            { encoding: 'utf8', windowsHide: true }
+            { cwd: getProjectRoot(), encoding: 'utf8', windowsHide: true }
         ).trim().split('\n').filter(Boolean);
     } catch {
         console.error('Failed to get staged files');
@@ -151,7 +167,7 @@ async function runGitPrecommit() {
         try {
             content = execFileSync(
                 'git', ['show', `:${file}`],
-                { encoding: 'utf8', windowsHide: true }
+                { cwd: getProjectRoot(), encoding: 'utf8', windowsHide: true }
             );
         } catch {
             continue; // File might be binary or deleted

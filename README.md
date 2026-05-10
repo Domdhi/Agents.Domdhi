@@ -23,7 +23,7 @@ A portable `.claude/` directory that turns Claude Code into a full development l
 ├── agents/                  11 agent definitions (extensible)
 ├── commands/                Slash commands — setup, build loop, review
 ├── skills/                  26 domain-knowledge modules
-├── hooks/                   11 event-driven hooks
+├── hooks/                   12 event-driven hooks
 ├── core/                    Runtime scripts (gate, scaffold, memory, status)
 ├── templates/               Blank doc templates with marker convention
 └── settings.json            Permissions, hook wiring, plan directory

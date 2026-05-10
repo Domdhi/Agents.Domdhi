@@ -81,7 +81,8 @@ Agent(
   5. Map every file each proposed change would touch
   6. Identify overlaps — which files appear in multiple changes?
   7. Build dependency graph — which changes must complete before others?
-  8. Compute wave groupings (zero file overlap within a wave)
+  8. **Hotspot detection:** identify any file that would be touched by 3+ stories. If ALL stories share a single hotspot file, flag the TODO as single-hotspot — Main Agent will apply the collapse shape in Phase 3.
+  9. Compute candidate wave groupings under both shapes: (a) file-overlap partitioning (zero overlap per wave) and (b) functional grouping for single-hotspot collapse. Leave the final shape decision to Main Agent.
 
   Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-codebase.md
   """,
@@ -179,18 +180,25 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 
 ## Wave Plan
 
-### Wave 1 (all independent — no file overlap)
+**Shape:** {role-based | single-hotspot collapsed | file-overlap partitioned} — {one-sentence justification. If single-hotspot collapsed, also include: "Collapsed N original stories into M bundled stories by functional grouping."}
+
+### Wave 1 — {Tests | functional bundle name | independent stories}
 | Story | Agent Type | Files Owned | Needs QA? |
 |-------|-----------|-------------|-----------|
 | {ID} | general-purpose | {files} | Yes/No |
 
-### Wave 2 (depends on Wave 1)
+### Wave 2 — {Code | next bundle | next independent group} (depends on Wave 1)
+| Story | Agent Type | Files Owned | Needs QA? |
+|-------|-----------|-------------|-----------|
+| {ID} | general-purpose | {files} | Yes/No |
+
+### Wave 3 — {Verify | final bundle | ...} (depends on Wave 2)
 | Story | Agent Type | Files Owned | Needs QA? |
 |-------|-----------|-------------|-----------|
 | {ID} | general-purpose | {files} | Yes/No |
 
 ### Shared Hotspot Files
-- **{file}** — touched by stories {X, Y}, must be in different waves
+- **{file}** — touched by stories {X, Y}. In file-overlap shape: must be in different waves. In single-hotspot shape: expected (this is the hotspot that drove collapse).
 
 ---
 
@@ -207,11 +215,41 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 3. **Every story has Research notes** — what exists now, patterns to follow, gotchas
 4. **Every story has an Estimate** — XS (< 30 min), S (30-60 min), M (1-2 hr), L (2-4 hr)
 5. **Story Index with wave column** — `/run-todo` reads this to know execution order
-6. **Wave Plan with file ownership and QA flag** — `/run-todo` reads this directly
-7. **Zero file overlap within a wave** — verified against research, not assumed
+6. **Wave Plan with file ownership, QA flag, and Shape line** — `/run-todo` reads this directly. Shape line is required (see Wave Shape Decision below).
+7. **File overlap constraint depends on the Shape** — in `file-overlap partitioned` shape, zero overlap per wave is mandatory. In `single-hotspot collapsed` shape, the hotspot file appears across waves *by design*. In `role-based` shape, overlap is allowed at the role-wave level but stories within a role-wave have zero overlap when dispatched in parallel.
 8. **Dependency Graph** — ASCII art showing what blocks what
 9. **No code blocks** — file paths and descriptions only. Implementation is the dev agent's job
 10. **AC bullets are NEVER stripped or summarized** — they flow verbatim into `/do` and `/run-todo`
+
+---
+
+### Wave Shape Decision (Main Agent — apply before writing the Wave Plan)
+
+Wave shape is not always file-overlap partitioning. Choose the shape that minimizes ceremony for the TODO's story composition, then fill in file ownership as a constraint within each wave.
+
+Evaluate in this order and pick the first that fits:
+
+**Shape A — Single-hotspot collapsed (check first).** Triggers when ALL stories would touch the same hotspot file AND no story is > M AND dependencies are strictly linear (story N depends on N−1). Collapse adjacent small stories into bundled M-size stories until there are at most 3 waves, ordered by **functional grouping** (e.g., "Layout + card shell" / "Form chrome" / "Footer + E2E coverage"), not by arbitrary story count.
+
+  - Target: 2–3 bundled stories, 2–3 waves.
+  - **Required warning line in the Executive Summary:** `Wave shape: single-hotspot collapsed — collapsed {N_original} stories into {M_bundled} bundled stories by functional grouping. File-overlap partitioning would have produced {N_original} forced-serial waves.`
+  - Why: under pure file-overlap partitioning, one-hotspot TODOs force `waves = stories`. That pays full per-wave machinery (commits, handoff regen, gate runs, review cycles) for zero parallelism benefit. Field-measured cost on a 6-story single-hotspot TODO: ~30 min total, ~15 min pure ceremony, ~80k context on orchestration, and no offsetting speedup.
+
+**Shape B — Role-based (Tests / Code / Verify) — the default for heterogeneous TODOs.** When stories span multiple files and conceptual areas and none of them qualifies for Shape A, organize as three role-scoped waves:
+  - **Wave 1 — Tests:** one story per eventual feature that authors failing tests from AC. These stories have no file-overlap with each other (one test file per feature) and dispatch in parallel.
+  - **Wave 2 — Code:** implementation stories that make the Wave 1 tests pass. Zero file-overlap within the wave; parallel dispatch.
+  - **Wave 3 — Verify:** AC verification, E2E coverage, code review, and final commit.
+
+  This replaces the old "file-overlap is the only partitioning rule" default. `/run-todo`'s per-wave TDD rhythm (Step 2b) still applies *within* each role-wave, but redundancy is minimized because Wave 1 is explicitly and solely about tests.
+
+**Shape C — File-overlap partitioned (fallback).** Use when neither A nor B fits — deeply interdependent stories spanning many files where role-splitting creates artificial couplings, or where story-level AC is so heterogeneous that bundling under roles would lose reviewability. Historical default; remains available.
+
+**Always declare the chosen shape in the Wave Plan heading** so `/run-todo` and human reviewers can see the intent:
+- `## Wave Plan` + `**Shape:** single-hotspot collapsed — ...`
+- `## Wave Plan` + `**Shape:** role-based (Tests / Code / Verify) — ...`
+- `## Wave Plan` + `**Shape:** file-overlap partitioned — ...`
+
+If the research agent flagged single-hotspot in Phase 2 and you chose a different shape anyway, the Executive Summary must include a one-sentence rationale (e.g., "Single-hotspot detected but not collapsed because two stories are M and exceed the collapse threshold").
 
 ---
 
@@ -228,7 +266,10 @@ Before handing off to external review, Main Agent scans its own output for plan 
 - [ ] Any story is missing Research notes
 - [ ] Any story is missing an Estimate
 - [ ] Any story references an undefined story ID in Dependencies
-- [ ] Wave Plan has file overlap within a wave
+- [ ] Wave Plan is missing the **Shape** line (role-based | single-hotspot collapsed | file-overlap partitioned) — required for every TODO
+- [ ] In `file-overlap partitioned` shape: any wave has file overlap between stories (must be zero)
+- [ ] In `single-hotspot collapsed` shape: Executive Summary is missing the required warning line (collapsed N → M stories) OR any bundled story is larger than M
+- [ ] Research Agent 1 flagged single-hotspot but Main Agent chose a different shape without a one-sentence rationale in the Executive Summary
 - [ ] Story Index is missing stories that appear in the body
 
 **This is a 30-second scan that catches 3-5 issues every time.** Do not skip it.
