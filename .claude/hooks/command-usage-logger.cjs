@@ -18,6 +18,37 @@
  * Exit codes:
  *   0 = always (PostToolUse hooks cannot block)
  *
+ * KNOWN COVERAGE GAP — user-typed slash commands (audited 2026-05-10):
+ *   This hook only captures `command_invocation` events when Claude Code
+ *   actually invokes the Skill tool. Empirically (verified by tailing the
+ *   JSONL after a fresh /prime in this very session), USER-TYPED slash
+ *   commands like `/prime`, `/run-todo`, `/do` do NOT fire PostToolUse:Skill
+ *   in current Claude Code 2.x — the command markdown is expanded directly
+ *   into the user message instead of being routed through the Skill tool.
+ *
+ *   What still gets captured:
+ *     - `session-handoff` — invoked programmatically by /end and /run-todo
+ *     - `find-skills`     — invoked programmatically when Claude searches skills
+ *     - any Skill tool call Claude makes itself
+ *     - all gate_run events (PostToolUse:Bash fires reliably)
+ *
+ *   Symptom in telemetry: `/run-todo` runs an entire epic to completion, but
+ *   command-usage.jsonl shows only `gate_run` entries and the trailing
+ *   `session-handoff` from the embedded /end. The `/run-todo` invocation
+ *   itself is absent.
+ *
+ *   This is platform behavior, not a hook bug — there is no PostToolUse event
+ *   to hook for user-typed slash commands. Adding fallback field reads here
+ *   (e.g., tool_input.name, tool_input.command) would not help; the hook
+ *   simply isn't being called for those events.
+ *
+ *   Fix path (when/if needed): wait for Claude Code to emit a
+ *   PostUserSlashCommand or equivalent event, or instrument the slash
+ *   commands themselves to write a telemetry entry from their preamble.
+ *
+ *   Retro reference: `docs/.output/reviews/retro-platform-alignment-may-2026.md`
+ *   System Improvements row "Telemetry coverage".
+ *
  * Event schema (A4 enrichment — adopted from gstack:
  *   docs/research/competitive/_hooks-and-core-scripts-comparison.md A4):
  *

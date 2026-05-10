@@ -244,6 +244,61 @@ describe('memory-manager', () => {
 
   }); // searchMemories
 
+  // ── buildFtsQuery ──────────────────────────────────────────────────────────
+
+  describe('buildFtsQuery', () => {
+    const { buildFtsQuery } = MemoryManager;
+
+    it('buildFtsQuery_singleWord_passesThrough', () => {
+      expect(buildFtsQuery('publish')).toBe('publish');
+    });
+
+    it('buildFtsQuery_multipleWords_orJoins', () => {
+      expect(buildFtsQuery('publish tooling refactor')).toBe('publish OR tooling OR refactor');
+    });
+
+    it('buildFtsQuery_dropsShortTokens', () => {
+      // "to", "a" filtered (length <= 1 not strictly — "to" is len 2, "a" is len 1)
+      expect(buildFtsQuery('a tooling x refactor')).toBe('tooling OR refactor');
+    });
+
+    it('buildFtsQuery_explicitOR_passesThrough', () => {
+      expect(buildFtsQuery('foo OR bar')).toBe('foo OR bar');
+    });
+
+    it('buildFtsQuery_quotedPhrase_passesThrough', () => {
+      expect(buildFtsQuery('"key files"')).toBe('"key files"');
+    });
+
+    it('buildFtsQuery_specialChars_strippedFromTokens', () => {
+      // path-like input becomes OR-joined word tokens
+      expect(buildFtsQuery('publish tooling tools/ refactor PATH_REMAPS'))
+        .toBe('publish OR tooling OR tools OR refactor OR PATH_REMAPS');
+    });
+
+    it('buildFtsQuery_emptyOrNull_returnsAsIs', () => {
+      expect(buildFtsQuery('')).toBe('');
+      expect(buildFtsQuery(null)).toBe(null);
+    });
+
+    it.skipIf(!hasSqlite)('buildFtsQuery_orDefaultRetrievesMultiWordHits', async () => {
+      // End-to-end: a query whose terms span multiple memories should hit
+      // BOTH (one per term). Pre-fix this returned [] under FTS5 AND-default
+      // because no single memory contained every term.
+      // Terms must be plain alphanumeric — FTS5's default unicode61 tokenizer
+      // splits on hyphens, so hyphenated test strings are unreliable.
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'memalpha', { description: 'xenonmarker word' });
+      await manager.createMemory('patterns', 'membeta', { description: 'yttriummarker word' });
+
+      const results = await manager.searchMemories('xenonmarker yttriummarker');
+
+      // OR-join means BOTH memories should match, since each contains one term
+      expect(results.length).toBeGreaterThanOrEqual(2);
+    });
+
+  }); // buildFtsQuery
+
   // ── calculateDecayedConfidence ─────────────────────────────────────────────
 
   describe('calculateDecayedConfidence', () => {

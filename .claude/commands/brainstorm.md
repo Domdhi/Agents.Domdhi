@@ -1,5 +1,5 @@
 ---
-description: Guided brainstorming session to explore problem space and solution ideas
+description: Run a guided brainstorming session to explore the problem space and surface solution ideas
 argument-hint: [topic or problem statement]
 ---
 
@@ -27,17 +27,17 @@ INPUT: $ARGUMENTS
 
 ### 2. Interview (main agent — if no INPUT or new project)
 
-Use AskUserQuestion to gather:
+Ask the user three short rounds of **free-form** questions. These expect paragraph answers — do NOT use `AskUserQuestion`, which is reserved for closed-choice questions with finite options. Use plain conversational prompts and read the user's prose responses.
 
-**Round 1: Problem Discovery**
+**Round 1: Problem Discovery** *(free-form)*
 - "What problem are you trying to solve? (1-2 sentences)"
 - "Who experiences this problem? (specific roles or user types)"
 
-**Round 2: Context**
+**Round 2: Context** *(free-form)*
 - "What solutions exist today? What's wrong with them?"
 - "What does success look like?"
 
-**Round 3: Constraints**
+**Round 3: Constraints** *(free-form)*
 - "Any hard constraints? (timeline, budget, tech, regulatory)"
 - "What's the simplest version that would still be valuable?"
 

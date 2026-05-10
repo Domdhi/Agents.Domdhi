@@ -7,8 +7,13 @@
  * Creates the docs/ structure if it doesn't exist. Skips files that already
  * exist (safe to re-run).
  *
- * Usage: node .claude/core/scaffold.js [--force]
- *   --force  Overwrite existing files (default: skip)
+ * Usage: node .claude/core/scaffold.js [--force] [--set key=value ...]
+ *   --force          Overwrite existing files (default: skip)
+ *   --set key=value  Pre-substitute a known template placeholder. Repeatable.
+ *                    See KNOWN_SCAFFOLD_VARS below for allowed keys.
+ *                    Example: --set project_name=Foo --set repo_url=https://github.com/x/y
+ *                    Substitution applies only to NEWLY copied files; pre-existing
+ *                    targets are skipped per the standard scaffold semantics.
  *
  * Output structure:
  *   docs/
@@ -55,6 +60,137 @@ const DEFAULT_PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ||
 const TEMPLATE_RENAMES = {
     gitignore: { dest: '.gitignore', merge: true },
 };
+
+// ── --set <key>=<value> non-interactive template substitution ───────────────
+//
+// R10 (2026-05-10): adopters running scaffold in CI / scripted setups can
+// pre-fill well-known template placeholders without editing files manually.
+//
+// The allowlist is HARDCODED — adopters cannot extend it via flags or config.
+// This mirrors the safety pattern used by publish.js DEFAULT_EXCLUDES: user
+// config can pick values for keys we've vetted, but cannot introduce new keys.
+// Prevents `--set arbitrary_field=anything` injection scenarios.
+//
+// Each entry maps one CLI key to one or more template placeholder forms (the
+// templates use Title Case With Spaces in some places and snake_case in
+// others). The validate function returns true on success, or a string error
+// message on failure. parseSetArgs surfaces the message in the thrown Error.
+
+const KNOWN_SCAFFOLD_VARS = [
+    {
+        key: 'project_name',
+        placeholders: ['{Project Name}', '{project_name}'],
+        validate: (v) => (v.length > 0 && v.length < 200) || 'project_name must be 1-199 chars',
+    },
+    {
+        key: 'repo_url',
+        placeholders: ['{repo URL}', '{repo_url}'],
+        validate: (v) => /^https?:\/\/[^\s]+$/.test(v) || 'repo_url must be an http(s) URL',
+    },
+    {
+        key: 'phase',
+        placeholders: ['{current phase}', '{phase}'],
+        validate: (v) => (v.length > 0 && v.length < 100) || 'phase must be 1-99 chars',
+    },
+    {
+        key: 'date',
+        placeholders: ['{YYYY-MM-DD}'],
+        validate: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) || 'date must be YYYY-MM-DD',
+    },
+];
+
+function _allowedKeysList() {
+    return KNOWN_SCAFFOLD_VARS.map(v => v.key).join(', ');
+}
+
+function _findVar(key) {
+    return KNOWN_SCAFFOLD_VARS.find(v => v.key === key) || null;
+}
+
+/**
+ * Parse `--set key=value` (and `--set=key=value`) flags out of an argv array.
+ * Returns a `{key: value}` object. Throws if any key is not in the allowlist
+ * or any value fails its key's validate function.
+ *
+ * Tolerates two forms:
+ *   --set key=value         (space-separated, current convention)
+ *   --set=key=value         (equals form, some users prefer)
+ *
+ * Other flags in argv are ignored — only --set pairs are extracted.
+ *
+ * @param {string[]} argv - Argument array (typically process.argv.slice(2))
+ * @returns {Object<string, string>} key→value map of parsed substitutions
+ */
+function parseSetArgs(argv) {
+    const result = {};
+    for (let i = 0; i < argv.length; i++) {
+        const tok = argv[i];
+        let kv;
+
+        if (tok === '--set') {
+            const next = argv[i + 1];
+            if (next === undefined) {
+                throw new Error('--set requires a key=value argument');
+            }
+            kv = next;
+            i++; // consume the value token
+        } else if (tok && tok.startsWith('--set=')) {
+            kv = tok.slice('--set='.length);
+        } else {
+            continue;
+        }
+
+        const eqIdx = kv.indexOf('=');
+        if (eqIdx <= 0) {
+            throw new Error(`--set value must be of form key=value, got: ${kv}`);
+        }
+        const key = kv.slice(0, eqIdx);
+        const value = kv.slice(eqIdx + 1);
+
+        const varDef = _findVar(key);
+        if (!varDef) {
+            throw new Error(
+                `--set: unknown key "${key}". Allowed keys: ${_allowedKeysList()}.`
+            );
+        }
+        const valid = varDef.validate(value);
+        if (valid !== true) {
+            const msg = typeof valid === 'string' ? valid : `invalid value for ${key}`;
+            throw new Error(`--set ${key}: ${msg}`);
+        }
+
+        result[key] = value;
+    }
+    return result;
+}
+
+/**
+ * Apply the substitutions returned by parseSetArgs to a file's text content.
+ *
+ * Iterates KNOWN_SCAFFOLD_VARS in declaration order; for each var with a
+ * value in `substitutions`, runs `String.prototype.replaceAll` against each
+ * declared placeholder form. Empty `substitutions` is a no-op.
+ *
+ * Pure function — no fs reads, no fs writes. Safe for unit testing.
+ *
+ * @param {string} content - File text to substitute into
+ * @param {Object<string, string>} substitutions - Output of parseSetArgs
+ * @returns {string} Content with substitutions applied
+ */
+function applySubstitutions(content, substitutions) {
+    if (!content || !substitutions || Object.keys(substitutions).length === 0) {
+        return content;
+    }
+    let result = content;
+    for (const varDef of KNOWN_SCAFFOLD_VARS) {
+        const value = substitutions[varDef.key];
+        if (value === undefined) continue;
+        for (const placeholder of varDef.placeholders) {
+            result = result.split(placeholder).join(value);
+        }
+    }
+    return result;
+}
 
 const MANAGED_START = '# === Domdhi.Agents managed block — do not edit between markers ===';
 const MANAGED_END = '# === End Domdhi.Agents managed block ===';
@@ -111,15 +247,23 @@ function applyManagedBlock(targetPath, templateContent) {
 /**
  * Recursively copy a source directory to a destination, skipping excludes.
  *
+ * When `substitutions` is non-empty, file contents are read as utf8 and
+ * passed through `applySubstitutions` before write. Otherwise the legacy
+ * `copyFileSync` path is used (preserves binary safety + speed).
+ *
  * @param {string} srcDir     - Absolute path to source directory
  * @param {string} destDir    - Absolute path to destination directory
  * @param {string[]} [excludes] - Entry names to skip at the top level
  * @param {{ created: string[], skipped: string[], directories: string[] }} results - Accumulator
  * @param {boolean} [force]   - Overwrite existing files when true
  * @param {string} [projectDir] - Project root used to compute relative paths in results
+ * @param {Object<string, string>} [substitutions] - --set key=value map; when non-empty,
+ *   triggers content-aware copy with placeholder substitution
  */
-function scaffoldDir(srcDir, destDir, excludes, results, force, projectDir) {
+function scaffoldDir(srcDir, destDir, excludes, results, force, projectDir, substitutions) {
     const reportRoot = projectDir || DEFAULT_PROJECT_DIR;
+    const subs = substitutions || {};
+    const hasSubs = Object.keys(subs).length > 0;
 
     if (!fs.existsSync(destDir)) {
         fs.mkdirSync(destDir, { recursive: true });
@@ -135,11 +279,16 @@ function scaffoldDir(srcDir, destDir, excludes, results, force, projectDir) {
         const destPath = path.join(destDir, entry.name);
 
         if (entry.isDirectory()) {
-            // Recursive call: no top-level excludes, pass results + force through
-            scaffoldDir(srcPath, destPath, [], results, force, reportRoot);
+            // Recursive call: no top-level excludes, pass results + force + subs through
+            scaffoldDir(srcPath, destPath, [], results, force, reportRoot, subs);
         } else {
             if (fs.existsSync(destPath) && !force) {
                 results.skipped.push(path.relative(reportRoot, destPath));
+            } else if (hasSubs) {
+                // Content-aware copy: read template, apply substitutions, write.
+                const content = fs.readFileSync(srcPath, 'utf8');
+                fs.writeFileSync(destPath, applySubstitutions(content, subs));
+                results.created.push(path.relative(reportRoot, destPath));
             } else {
                 fs.copyFileSync(srcPath, destPath);
                 results.created.push(path.relative(reportRoot, destPath));
@@ -152,7 +301,7 @@ function scaffoldDir(srcDir, destDir, excludes, results, force, projectDir) {
  * Run the scaffold against an arbitrary project directory.
  *
  * @param {string} [projectDir] - Target project root (defaults to CLAUDE_PROJECT_DIR or this repo)
- * @param {{ force?: boolean, silent?: boolean }} [opts]
+ * @param {{ force?: boolean, silent?: boolean, substitutions?: Object<string,string> }} [opts]
  * @returns {{ created: string[], skipped: string[], directories: string[] }}
  */
 function runScaffold(projectDir, opts) {
@@ -160,6 +309,7 @@ function runScaffold(projectDir, opts) {
     const options = opts || {};
     const force = !!options.force;
     const silent = !!options.silent;
+    const substitutions = options.substitutions || {};
 
     const templatesDir = path.join(target, '.claude', 'templates');
     const docsDir = path.join(target, 'docs');
@@ -177,7 +327,7 @@ function runScaffold(projectDir, opts) {
     const results = { created: [], skipped: [], directories: [] };
 
     // Scaffold docs/ from templates (exclude root/ — those go to project root)
-    scaffoldDir(templatesDir, docsDir, ['root'], results, force, target);
+    scaffoldDir(templatesDir, docsDir, ['root'], results, force, target, substitutions);
 
     // Create additional directories that don't have templates
     const extraDirs = [
@@ -205,8 +355,9 @@ function runScaffold(projectDir, opts) {
     if (fs.existsSync(rootTemplatesDir)) {
         const renameKeys = Object.keys(TEMPLATE_RENAMES);
         // Standard recursive copy first, but skip the renamed entries — those
-        // are handled below with merge-aware logic.
-        scaffoldDir(rootTemplatesDir, target, renameKeys, results, force, target);
+        // are handled below with merge-aware logic. Substitutions thread through
+        // so root-level templates also benefit from --set values.
+        scaffoldDir(rootTemplatesDir, target, renameKeys, results, force, target, substitutions);
 
         for (const [srcName, rule] of Object.entries(TEMPLATE_RENAMES)) {
             const srcPath = path.join(rootTemplatesDir, srcName);
@@ -267,8 +418,18 @@ function runScaffold(projectDir, opts) {
  * for the default project (CLAUDE_PROJECT_DIR or this repo root).
  */
 function main() {
-    const force = process.argv.includes('--force');
-    runScaffold(DEFAULT_PROJECT_DIR, { force });
+    const argv = process.argv.slice(2);
+    const force = argv.includes('--force');
+
+    let substitutions;
+    try {
+        substitutions = parseSetArgs(argv);
+    } catch (err) {
+        console.error(`ERROR: ${err.message}`);
+        process.exit(1);
+    }
+
+    runScaffold(DEFAULT_PROJECT_DIR, { force, substitutions });
 }
 
 if (require.main === module) {
@@ -279,6 +440,9 @@ module.exports = {
     scaffoldDir,
     runScaffold,
     applyManagedBlock,
+    parseSetArgs,
+    applySubstitutions,
+    KNOWN_SCAFFOLD_VARS,
     TEMPLATE_RENAMES,
     MANAGED_START,
     MANAGED_END,

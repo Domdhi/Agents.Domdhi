@@ -1,5 +1,5 @@
 ---
-description: Gate check before implementation — validates all planning docs are complete and consistent
+description: Validate that all planning docs are complete and consistent before implementation
 ---
 
 # Check Implementation Readiness
@@ -39,6 +39,20 @@ Check each document exists AND is not a template (no `<!-- @@template -->` marke
 If any **required** doc is missing or is a template → **FAIL** immediately with instructions.
 
 **Detect UI project**: If any design file exists (non-template), treat all design files as expected.
+
+### 1.5. Detect Epic File Overlap (main agent)
+
+After confirming `_backlog.md` exists, run the epic-overlap CLI:
+
+```bash
+node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
+```
+
+- Exit 0 (no overlaps) → proceed to step 2
+- Exit 1 (overlaps found) → check whether `_backlog.md` contains a `## Acknowledged Overlaps` section that lists every reported pair. If yes → proceed (overlaps are explicitly intentional). If no → this is a **FAIL** finding for the readiness check; record overlap details in the verdict and ask the user to either fix the overlap or document it.
+- Exit 2 (CLI tool error — e.g., parser crash, malformed backlog the parser can't read) → report the error and halt the readiness check; do **not** treat as a gate decision. The overlap signal is unknown, not pass/fail. Surface the CLI's stderr in the verdict so the user can fix the underlying issue (typically a malformed `_backlog.md`) and re-run.
+
+This catches silent merge conflicts before `/run-todo` dispatches parallel agents into the same files.
 
 ### 2. Delegate Completeness Checks (main agent → domain agents)
 

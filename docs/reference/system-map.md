@@ -230,7 +230,8 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `gate.js` | Build/test gate with auto-detection. Output: `docs/.output/telemetry/` |
 | `constants.js` | System-wide constants, phase artifacts, doc chain, memory decay config |
 | `scaffold.js` | Copies templates → `docs/` and root configs |
-| `memory-manager.js` | Memory CRUD + search + active-day decay + linting (JSON + SQLite FTS5) |
+| `memory-manager.js` | Memory CRUD + search + active-day decay + linting (JSON + SQLite FTS5) + inbox pattern (`inboxList/Promote/Discard`) + `deleteMemory` for /review:memory-defrag merge operations |
+| `memory-manager-cli.js` | CLI dispatcher for memory-manager — adds `delete <category> <id>`, `inbox-list`, `inbox-promote <id> [--category <c>] [--id <i>]`, `inbox-discard <id>` |
 | `memory-compiler.js` | Daily log → concept article compilation pipeline + cross-references (retired 2026-04-20 — preserved as backward-compat module; not prescribed in new pipeline) |
 | `memory-extractor.js` | Haiku-powered structured extraction from daily logs via `claude -p` |
 | `memory-curator.js` | Haiku-powered dedup/contradiction/merge analyzer — runs on Stop when `MEMORY_PROFILE=strict` |
@@ -246,6 +247,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `gen-timeline.js` | Weekly commit history generator → `docs/_project-timeline.md` |
 | `profile.js` | Memory profile resolver (`MEMORY_PROFILE=minimal\|standard\|strict`). Hooks call `isAtLeast()` to gate expensive work |
 | `memory-benchmark.js` | Weekly recall hit-rate benchmark — Haiku picks expected slug per daily-log entry, compared against `searchMemories()` top-5 |
+| `_lib/epic-overlap.js` | Parses `_backlog.md` for per-epic file ownership and reports cross-epic overlaps. CLI used by `/create:project-epics` (warning) and `/review:check-readiness` (gate, with `## Acknowledged Overlaps` escape hatch) |
 
 ### Hooks (`.claude/hooks/`)
 

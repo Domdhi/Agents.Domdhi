@@ -154,7 +154,19 @@ Ask: *"Will the next session need to read this file's full contents to do step 1
 
 After writing Decisions & Context, read your own bullets with fresh eyes and ask: would a future agent — either resuming this project next month or starting a brand-new project using this template — benefit from knowing this? If you find 1–3 bullets that meet that bar, write them to the memory store now. If you find zero, that is the correct and common answer. Do not manufacture memories to fill a quota — this is a judgment call, not a checkbox.
 
-### When a bullet qualifies
+### Step 6a: Check the inbox first
+
+Sub-agents may have flagged drafts to `docs/.output/memories/_inbox/` during the session (per the Memory Inbox Protocol in `.claude/agents/*.md`). The dispatch templates in `/do` and `/run-todo` are supposed to curate per-dispatch — but if a session was interrupted, or a curation step was skipped, drafts can survive into handoff time.
+
+Run the listing:
+
+```bash
+node .claude/core/memory-manager-cli.js inbox-list
+```
+
+For each entry, decide promote (`inbox-promote <id>`) or discard (`inbox-discard <id>`) using the same qualification rules described below. The inbox is for transient capture; do not leave drafts lingering across sessions. If the inbox is empty, this step is a no-op — proceed to Step 6b.
+
+### Step 6b: When a bullet qualifies
 
 A Decisions & Context bullet qualifies as a reusable memory if it describes:
 

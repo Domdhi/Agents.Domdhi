@@ -9,6 +9,7 @@ const {
     shouldSkipPath,
     formatFindings,
     redact,
+    redactSecretsInText,
 } = require('../secret-patterns.cjs');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -406,4 +407,73 @@ describe('redact', () => {
         const result = redact(val);
         expect(result).toContain('...');
     });
+});
+
+// ─── redactSecretsInText (R7 — tool-output secret redaction) ──────────────────
+
+describe('redactSecretsInText', () => {
+
+    it('redactSecretsInText_secretInContent_replacedWithToken', () => {
+        // AC1: secret detected in content → replaced with <REDACTED:PatternName>
+        const fakeKey = fakeAwsKey();
+        const content = `export const key = "${fakeKey}";`;
+        const result = redactSecretsInText(content);
+
+        expect(result).not.toContain(fakeKey);
+        expect(result).toContain('<REDACTED:AWS Access Key>');
+    });
+
+    it('redactSecretsInText_multipleSecrets_allReplaced', () => {
+        // AC1: multi-pattern coverage — AWS + Anthropic in one blob, both replaced
+        const aws = fakeAwsKey();
+        const ant = fakeAnthropicKey();
+        const content = `aws=${aws}\nant=${ant}\n`;
+        const result = redactSecretsInText(content);
+
+        expect(result).not.toContain(aws);
+        expect(result).not.toContain(ant);
+        expect(result).toContain('<REDACTED:AWS Access Key>');
+        expect(result).toContain('<REDACTED:Anthropic Key>');
+    });
+
+    it('redactSecretsInText_placeholderNotRedacted', () => {
+        // AC2: Password Assignment with placeholder value → unchanged
+        const content = 'password = "changeme"';
+        const result = redactSecretsInText(content);
+
+        expect(result).toBe(content);
+    });
+
+    it('redactSecretsInText_placeholderEnvVarNotRedacted', () => {
+        // AC2: ${VARIABLE} placeholder → unchanged
+        const content = 'api_key = "${API_KEY}"';
+        const result = redactSecretsInText(content);
+
+        expect(result).toBe(content);
+    });
+
+    it('redactSecretsInText_cleanContent_unchanged', () => {
+        // AC1 negative: no patterns match → content returned as-is
+        const content = 'const x = 42;\nconsole.log(x);\n';
+        const result = redactSecretsInText(content);
+
+        expect(result).toBe(content);
+    });
+
+    it('redactSecretsInText_emptyContent_returnsEmpty', () => {
+        // Edge case: empty input
+        expect(redactSecretsInText('')).toBe('');
+    });
+
+    it('redactSecretsInText_preservesSurroundingText', () => {
+        // Substitution must not damage surrounding non-secret content
+        const fakeKey = fakeAwsKey();
+        const content = `before\nkey="${fakeKey}"\nafter`;
+        const result = redactSecretsInText(content);
+
+        expect(result).toMatch(/^before\n/);
+        expect(result).toMatch(/\nafter$/);
+        expect(result).toContain('<REDACTED:AWS Access Key>');
+    });
+
 });

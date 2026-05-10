@@ -360,6 +360,28 @@ After creating any component, verify the wiring:
 
 ---
 
+## Don't Duplicate Claude Code Platform Primitives
+
+Before designing a command, check whether Claude Code already provides the verb. The platform's surface grew significantly in 2.1.x — what felt like a gap a few months ago may now be covered.
+
+- **Scheduling/recurrence**: use `/loop {interval} /<command>` (Claude Code 2.1.x). Don't build bespoke timers, cron, or hook re-trigger loops. Layer custom logic INSIDE the wrapped command, not around the scheduling.
+- **Project state cleanup**: Anthropic owns `claude project purge [path]` (Claude Code 2.1.126+). When designing /sunset or any cleanup command, scope it to PRODUCT-level deprecation rituals (CHANGELOG, migration guide, archival commit) — not Claude Code state.
+
+Ask "is the verb already in Claude Code?" before authoring. If yes, your command layers on top, not parallel to.
+
+---
+
+## Parser Patterns
+
+When a command or library parses markdown structures (bullet lists, headings, fence blocks, key:value labels), the regex patterns must tolerate variable indentation:
+
+- **Use `\s*` (zero-or-more) for leading whitespace, not `\s+` (one-or-more)** — unless indentation is structurally significant. Markdown authors and dispatched agents both produce mixed indentation; `\s+` silently misses zero-indent occurrences with no error, so the parser returns clean-looking empty results when it should be matching.
+- **Verify the source-of-truth template emits the structure your parser keys off** — if a parser reads `**Files:**` blocks under stories, the skill template that generates the markdown MUST include those blocks. A parser dispatched without this verification step ships correct against fixtures and useless against real artifacts.
+
+Both rules apply at *dispatch time* — a parser-implementing story's prompt should explicitly require both checks.
+
+---
+
 ## Related Skills
 
 For deeper methodology on writing effective skills and commands:

@@ -148,6 +148,31 @@ Use these when facilitating a brainstorm session:
    - "Who needs to approve this?"
    - "What's the timeline pressure?"
 
+## Question-Type Self-Check (for command authors)
+
+When a command needs to ask the user something, classify each question as **closed-choice** or **free-form** before writing the prompt. Mismatching the type to the tool produces a worse interview than not asking at all — `AskUserQuestion` on a free-form ask forces an artificial menu; plain prose on a closed-choice ask wastes a round parsing free text into a category.
+
+Run this checklist before merging any new command (or any edit to an existing command's interview/decision step):
+
+- [ ] **Each user question is classified explicitly** as either closed-choice (finite options exist) or free-form (paragraph/sentence prose expected).
+- [ ] **Closed-choice questions use `AskUserQuestion`** with 2–4 concrete options. Each option has both a label and a description. The first option is the recommendation when one exists.
+- [ ] **Free-form questions use plain conversational prompts.** They are NOT wrapped in `AskUserQuestion` — that tool is for menus, not paragraph capture.
+- [ ] **Free-form questions are explicitly marked** in the command file so a future editor doesn't migrate them to `AskUserQuestion` by mistake. Acceptable markers: `*(free-form)*`, `(free-form prose answer)`, or an inline note like "ask the user to describe X (free-form)".
+- [ ] **No question with truly open-ended scope is forced into `AskUserQuestion`** (e.g., "describe your problem" should never be a 4-option menu — that's worse than not asking).
+- [ ] **Mixed-type rounds split the questions visually** (per-question annotation) so readers can see at a glance which line uses which tool.
+
+Borderline cases:
+
+| Question | Closed or Free-form? | Why |
+|---|---|---|
+| "What's the project name?" | Free-form | One specific string; no finite menu. Default proposal is fine but the answer is an arbitrary name. |
+| "What's the scale?" | Closed-choice | Small / Medium / Enterprise are well-defined buckets that drive routing. |
+| "What's the tech stack?" | Free-form (usually) | Combinatoric — "Node + Postgres + React" is a sentence, not a menu. Becomes closed-choice only when you've narrowed to 2–4 specific stacks to compare. |
+| "Should we extend X or build new Y?" | Closed-choice | Two pre-defined options with explicit trade-offs. Classic AskUserQuestion fit. |
+| "How would you measure success?" | Free-form | Open exploration — wrong shape for a menu. |
+
+When in doubt, run the question through this filter: *"Could a reasonable user respond with something I haven't anticipated?"* If yes → free-form. If no → closed-choice.
+
 ## Cross-References
 - Produces: feature-scoped output goes to `docs/app/{feature}/brainstorm.md` or `docs/app/{feature}/research.md`; project-wide output goes to `docs/.output/research/{date}-{slug}.md`
 - Feeds into: `docs/_project-brief.md` (via `/create:project-brief`)

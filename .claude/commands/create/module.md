@@ -1,5 +1,5 @@
 ---
-description: Module lifecycle — brainstorm, decide, document, plan, and generate TODO for a new module
+description: Scaffold a new module — brainstorm, decide, document, plan, and generate its TODO
 argument-hint: [module description]
 ---
 

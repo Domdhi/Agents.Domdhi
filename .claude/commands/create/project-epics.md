@@ -82,11 +82,24 @@ After the agent completes, verify the output:
 - Stories have acceptance criteria and size estimates?
 - If issues found, delegate back to the agent to fix
 
-### 6. Commit (main agent)
+### 6. Detect File Overlap (main agent)
+
+Run the epic-overlap CLI against the new `_backlog.md` to surface any inadvertent file-ownership overlaps between epics. The wave-based execution model in `/run-todo` requires zero file overlap within a wave — overlaps that aren't explicitly acknowledged will produce silent merge conflicts during parallel dispatch.
+
+```bash
+node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
+```
+
+- Exit 0 (no overlaps) → continue to commit step
+- Exit 1 (overlaps found) → surface in the report as a warning. Overlaps may be intentional (shared interface, cross-cutting refactor); if intentional, the user should add a `## Acknowledged Overlaps` section to `_backlog.md` listing each pair and the rationale. `/review:check-readiness` will then accept the overlap as documented.
+
+This is a warning, not a failure — `/create:project-epics` does not block on overlaps.
+
+### 7. Commit (main agent)
 
 Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command and commit with a descriptive message.
 
-### 7. Report (main agent)
+### 8. Report (main agent)
 
 ```markdown
 ## Epics Complete

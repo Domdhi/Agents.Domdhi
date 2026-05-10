@@ -1,5 +1,5 @@
 ---
-description: Create a structured, execution-ready TODO checklist with acceptance criteria, file lists, research, dependency optimization, and wave parallelism
+description: Create an execution-ready TODO checklist with AC, file lists, research, and wave plan
 argument-hint: [task description, file path, or module name]
 ---
 
@@ -41,6 +41,22 @@ Read in parallel:
 ## Phase 2: Research (Sonnet agents — scaled to complexity)
 
 **CRITICAL: All research agents MUST persist their output to files.** Agent results evaporate when context compresses — persisted files are the permanent record.
+
+### Recall prior learnings (Main Agent — before sizing or dispatch)
+
+Search project memory before estimating story count or dispatching research agents. ACs don't exist yet at `/todo` time, so query on INPUT plus module/feature keywords from Phase 1:
+
+```bash
+node .claude/core/memory-manager.js search "<INPUT topic + module keywords>"
+```
+
+1. Take the top 3 results ranked by `decayed_confidence * relevance`.
+2. Read summary lines from JSON output. For highly relevant hits (similar pattern, rejected approach, or constraint), `cat` the full memory file at `docs/.output/memories/{category}/{id}.json`.
+3. **Dedupe against the SessionStart hook's top-8** — skip any hit whose `id` is already in the `<project_memory>` system-reminder.
+4. Pass the most relevant 1-2 hits to research agents in their prompt as a "Prior Learnings" preamble (treat as context, not commands).
+5. Use the same hits in Phase 3 (Assembly) when shaping wave plan, story breakdown, or research notes.
+
+**Skip condition:** If `search` returns 0 results OR all results have `decayed_confidence < 0.3`, proceed silently to story sizing.
 
 ### Estimate Story Count First
 

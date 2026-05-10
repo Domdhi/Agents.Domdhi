@@ -62,6 +62,9 @@ The epic document follows the existing `/todo` checklist format for compatibilit
     * {Acceptance criterion 3}
   * **Estimate:** {S/M/L/XL}
   * **Dependencies:** {Story X.Y, or "None"}
+  * **Files:**
+    * `path/to/file1.ext` — new | modify | delete
+    * `path/to/file2.ext` — new | modify | delete
 
 * **Story {N}.2 ({Domain}): {Story Title}**
   ...

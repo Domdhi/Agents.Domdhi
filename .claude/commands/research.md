@@ -41,11 +41,10 @@ If output file already exists → ask: **append** findings or **start fresh**?
 
 ### 2. Define Research Questions (main agent)
 
-If INPUT is a broad topic, break it into specific questions:
+If INPUT is a broad topic, break it into specific questions. This step has two prompts of different types:
 
-Use AskUserQuestion:
-- "What specific questions do you need answered?"
-- "What type of research? (Market / Technical / Domain / Competitive)"
+- **Free-form prompt** (plain conversational ask, NOT `AskUserQuestion`): "What specific questions do you need answered?" — expects a paragraph answer with multiple sub-questions.
+- **Closed-choice question** (use `AskUserQuestion` with concrete options): "What type of research?" with options Market / Technical / Domain / Competitive.
 
 ### 3. Delegate to Agent
 

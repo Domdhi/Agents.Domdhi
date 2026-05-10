@@ -65,21 +65,21 @@ WARNING: Filled planning docs detected. Proceeding with --yolo — existing docs
 
 ### 3. Welcome & Quick Interview
 
-Use AskUserQuestion in three short rounds. Keep answers — they feed every sub-command below.
+Ask three short rounds. Each question is marked **free-form** (plain conversational ask) or **closed-choice** (use `AskUserQuestion` with concrete options). Keep answers — they feed every sub-command below.
 
 **Round 1: The Elevator Pitch**
-- "What are you building? (1-2 sentences)"
-- "Who is it for? (target users)"
-- "What should we call this project?" — default to the current directory basename; accept user override.
+- *(free-form)* "What are you building? (1-2 sentences)"
+- *(free-form)* "Who is it for? (target users)"
+- *(free-form)* "What should we call this project?" — default to the current directory basename; accept user override.
 
 **Round 2: Tech & Scope**
-- "What's the tech stack? (or should I recommend one?)"
-- "What's the scale? (small tool, medium app, enterprise platform)"
-- "Does this project have a user interface?"
+- *(free-form)* "What's the tech stack? (or should I recommend one?)" — paragraph answer; user may name a stack or defer.
+- *(closed-choice — `AskUserQuestion`)* "What's the scale?" with options: Small tool / Medium app / Enterprise platform.
+- *(closed-choice — `AskUserQuestion`)* "Does this project have a user interface?" with options: Yes / No.
 
 **Round 3: Constraints**
-- "Any hard constraints? (deadline, budget, compliance, existing infrastructure)"
-- "What's the deployment target? (cloud, on-prem, SaaS)"
+- *(free-form)* "Any hard constraints? (deadline, budget, compliance, existing infrastructure)"
+- *(closed-choice — `AskUserQuestion`)* "What's the deployment target?" with options: Cloud / On-prem / SaaS / Hybrid.
 
 #### 3a. Persist interview answers (BEFORE any sub-command runs)
 

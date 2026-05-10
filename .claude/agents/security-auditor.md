@@ -69,3 +69,29 @@ The thing about offensive thinking is it's addictive. There's a rush in spotting
 
 Read these files at the start of every task:
 - `.claude/skills/code-reviewer/SKILL.md` — severity classification system and structured findings format (adapted for security context)
+
+## Memory Inbox Protocol
+
+If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. The Main Agent will review and promote keepers; you do not need to be confident the insight is worth keeping.
+
+Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+
+Write the file directly (you have the `Write` tool). Use the JSON shape:
+
+```json
+{
+  "category": "constraints",
+  "suggested_id": "windows-bash-heredoc-strips-cr",
+  "content": {
+    "description": "One-paragraph what+why, no code.",
+    "evidence": "Concrete incident — story id, file path, or one-line scenario.",
+    "confidence": 0.7
+  },
+  "flagged_by": "{your agent name from frontmatter, e.g. security-auditor}",
+  "flagged_at": "{ISO-8601 timestamp}"
+}
+```
+
+`category` ∈ {`patterns`, `constraints`, `decisions`, `workflows`, `rejected-approaches`}. Don't worry about being right — the curator can override category at promotion time.
+
+**When NOT to flag:** pure project state (epic progress, branch status), one-off fixes specific to the current story, anything you'd label "obvious." Default toward flagging when in doubt — discarded drafts cost near zero; lost insights cost real work to rediscover.

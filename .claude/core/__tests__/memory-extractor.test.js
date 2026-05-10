@@ -254,10 +254,28 @@ describe('markProcessed', () => {
 // ---------------------------------------------------------------------------
 
 describe('invokeHaiku', () => {
+  // R-C (2026-05-11): schema migrated from {category, title, content, confidence}
+  // to {category, suggested_id, content: {description, evidence?, confidence}}.
+  // Categories changed from singular (pattern) to canonical plural (patterns).
+  // See docs/.output/plans/2026-05-11-do-r-c-single-pass-extraction.md.
+
+  function makeLearning(overrides = {}) {
+    return {
+      category: 'patterns',
+      suggested_id: 'sample-learning',
+      content: {
+        description: 'A short rationale.',
+        evidence: 'sample anchor',
+        confidence: 0.7,
+      },
+      ...overrides,
+    };
+  }
+
   it('invokeHaiku_cannedJsonArray_returnsFilteredLearnings', () => {
     const extractor = new MemoryExtractor();
     const cannedLearnings = [
-      { category: 'pattern', title: 'Test pattern', content: 'A short rationale.', confidence: 0.8 }
+      makeLearning({ category: 'patterns', suggested_id: 'test-pattern' }),
     ];
     // Raw JSON string — no envelope wrapping (extractor uses --bare flag)
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
@@ -270,39 +288,41 @@ describe('invokeHaiku', () => {
   it('invokeHaiku_multipleLearnings_returnsAll', () => {
     const extractor = new MemoryExtractor();
     const cannedLearnings = [
-      { category: 'pattern', title: 'First pattern', content: 'Description one.', confidence: 0.7 },
-      { category: 'decision', title: 'Key decision', content: 'We chose approach B.', confidence: 0.9 },
-      { category: 'constraint', title: 'Hard limit', content: 'Cannot exceed 10.', confidence: 0.8 },
+      makeLearning({ category: 'patterns', suggested_id: 'first-pattern' }),
+      makeLearning({ category: 'decisions', suggested_id: 'key-decision', content: { description: 'We chose approach B.', evidence: 'PR-42', confidence: 0.85 } }),
+      makeLearning({ category: 'constraints', suggested_id: 'hard-limit', content: { description: 'Cannot exceed 10.', evidence: 'limit assertion', confidence: 0.8 } }),
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
     const result = extractor.invokeHaiku('multi-learning entry');
 
     expect(result).toHaveLength(3);
-    expect(result[0].title).toBe('First pattern');
-    expect(result[1].title).toBe('Key decision');
-    expect(result[2].title).toBe('Hard limit');
+    expect(result[0].suggested_id).toBe('first-pattern');
+    expect(result[1].suggested_id).toBe('key-decision');
+    expect(result[2].suggested_id).toBe('hard-limit');
   });
 
   it('invokeHaiku_filtersItemsMissingRequiredFields', () => {
     const extractor = new MemoryExtractor();
     const rawLearnings = [
-      { category: 'pattern', title: 'Valid', content: 'Good item.', confidence: 0.8 },
-      { category: 'pattern', title: 'Missing confidence' }, // missing content + confidence
-      { title: 'No category', content: 'text', confidence: 0.5 }, // missing category
+      makeLearning({ category: 'patterns', suggested_id: 'valid-entry' }),
+      // Missing content.description
+      { category: 'patterns', suggested_id: 'missing-desc', content: { confidence: 0.7 } },
+      // Missing category
+      { suggested_id: 'no-category', content: { description: 'text', confidence: 0.5 } },
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(rawLearnings)));
 
     const result = extractor.invokeHaiku('entry text');
 
     expect(result).toHaveLength(1);
-    expect(result[0].title).toBe('Valid');
+    expect(result[0].suggested_id).toBe('valid-entry');
   });
 
   it('invokeHaiku_wrappedInLearningsKey_returnsLearningsArray', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
-      { category: 'workflow', title: 'Wrapped workflow', content: 'Use this flow.', confidence: 0.75 }
+      makeLearning({ category: 'workflows', suggested_id: 'wrapped-workflow', content: { description: 'Use this flow.', evidence: 'session-handoff Step 6a', confidence: 0.75 } }),
     ];
     const wrapped = { learnings };
     setExecSyncImpl(makeMockExecSync(JSON.stringify(wrapped)));
@@ -315,7 +335,7 @@ describe('invokeHaiku', () => {
   it('invokeHaiku_wrappedInResultsKey_returnsResultsArray', () => {
     const extractor = new MemoryExtractor();
     const results = [
-      { category: 'pattern', title: 'Results key pattern', content: 'Via results key.', confidence: 0.6 }
+      makeLearning({ category: 'patterns', suggested_id: 'results-key-pattern', content: { description: 'Via results key.', confidence: 0.6 } }),
     ];
     const wrapped = { results };
     setExecSyncImpl(makeMockExecSync(JSON.stringify(wrapped)));
@@ -328,7 +348,7 @@ describe('invokeHaiku', () => {
   it('invokeHaiku_jsonWithMarkdownFences_parsedSuccessfully', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
-      { category: 'pattern', title: 'Fenced result', content: 'Came through fences.', confidence: 0.7 }
+      makeLearning({ category: 'patterns', suggested_id: 'fenced-result', content: { description: 'Came through fences.', evidence: 'unit test', confidence: 0.7 } }),
     ];
     // Simulate model returning JSON inside markdown fences (despite --bare)
     const fenced = '```json\n' + JSON.stringify(learnings) + '\n```';
@@ -337,6 +357,69 @@ describe('invokeHaiku', () => {
     const result = extractor.invokeHaiku('entry text');
 
     expect(result).toEqual(learnings);
+  });
+
+  // R-C new tests: validate the strict schema rules
+
+  it('invokeHaiku_singularCategoryForm_filtered', () => {
+    // Old singular form (pattern, not patterns) is no longer valid — adopters
+    // re-running after R-C will see legacy entries filtered.
+    const extractor = new MemoryExtractor();
+    const learnings = [
+      { category: 'pattern', suggested_id: 'old-form', content: { description: 'old shape.', confidence: 0.7 } },
+      makeLearning({ category: 'patterns', suggested_id: 'new-form' }),
+    ];
+    setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
+
+    const result = extractor.invokeHaiku('entry text');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].suggested_id).toBe('new-form');
+  });
+
+  it('invokeHaiku_nonKebabSuggestedId_filtered', () => {
+    const extractor = new MemoryExtractor();
+    const learnings = [
+      { category: 'patterns', suggested_id: 'BadID With Spaces', content: { description: 'bad slug.', confidence: 0.7 } },
+      { category: 'patterns', suggested_id: 'has_underscores_too', content: { description: 'also bad.', confidence: 0.7 } },
+      makeLearning({ category: 'patterns', suggested_id: 'good-kebab-slug' }),
+    ];
+    setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
+
+    const result = extractor.invokeHaiku('entry text');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].suggested_id).toBe('good-kebab-slug');
+  });
+
+  it('invokeHaiku_confidenceOutOfRange_filtered', () => {
+    const extractor = new MemoryExtractor();
+    const learnings = [
+      // Below 0.5 — extracted memories should not start that low
+      { category: 'patterns', suggested_id: 'too-uncertain', content: { description: 'low conf.', confidence: 0.3 } },
+      // Above 0.9 — extracted memories should not start at retro-validated levels
+      { category: 'patterns', suggested_id: 'too-confident', content: { description: 'high conf.', confidence: 0.95 } },
+      makeLearning({ category: 'patterns', suggested_id: 'in-range', content: { description: 'fine.', confidence: 0.7 } }),
+    ];
+    setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
+
+    const result = extractor.invokeHaiku('entry text');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].suggested_id).toBe('in-range');
+  });
+
+  it('invokeHaiku_evidenceOptional_acceptedWhenAbsent', () => {
+    const extractor = new MemoryExtractor();
+    const learnings = [
+      { category: 'patterns', suggested_id: 'no-evidence', content: { description: 'evidence missing but valid.', confidence: 0.7 } },
+    ];
+    setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
+
+    const result = extractor.invokeHaiku('entry text');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].suggested_id).toBe('no-evidence');
   });
 
   // ---------------------------------------------------------------------------
@@ -545,7 +628,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     ]);
 
     const cannedLearnings = [
-      { category: 'pattern', title: 'Test pattern', content: 'A short rationale.', confidence: 0.8 }
+      { category: 'patterns', suggested_id: 'test-pattern', content: { description: 'A short rationale.', evidence: 'integration test', confidence: 0.8 } }
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
@@ -562,7 +645,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     ]);
 
     const cannedLearnings = [
-      { category: 'pattern', title: 'Test pattern', content: 'A short rationale.', confidence: 0.8 }
+      { category: 'patterns', suggested_id: 'test-pattern', content: { description: 'A short rationale.', evidence: 'integration test', confidence: 0.8 } }
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
@@ -583,7 +666,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     ]);
 
     const cannedLearnings = [
-      { category: 'pattern', title: 'Written pattern', content: 'Verifying file write.', confidence: 0.85 }
+      { category: 'patterns', suggested_id: 'written-pattern', content: { description: 'Verifying file write.', evidence: 'integration test', confidence: 0.85 } }
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
@@ -602,7 +685,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     expect(payload).toHaveProperty('sourceDate');
     expect(payload.count).toBe(1);
     expect(Array.isArray(payload.learnings)).toBe(true);
-    expect(payload.learnings[0].title).toBe('Written pattern');
+    expect(payload.learnings[0].suggested_id).toBe('written-pattern');
   });
 
   it('extract_liveModeHaikuReturnsEmpty_marksProcessedAndCountsIt', async () => {

@@ -1,5 +1,5 @@
 ---
-description: Security audit — OWASP compliance, vulnerability detection, secret scanning, and threat modeling
+description: Audit code for OWASP compliance, vulnerabilities, secrets, and threat surface
 argument-hint: [file path, PR number, git diff range, or directory]
 ---
 

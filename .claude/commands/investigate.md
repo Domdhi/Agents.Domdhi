@@ -1,5 +1,5 @@
 ---
-description: Structured debug investigation with root cause analysis before fixes
+description: Investigate a bug with root cause analysis before applying fixes
 argument-hint: [error message, file path, or "last failure"]
 ---
 

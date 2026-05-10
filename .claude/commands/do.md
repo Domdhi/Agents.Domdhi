@@ -75,6 +75,29 @@ Read in parallel:
 
 ---
 
+## Step 3.5: Recall prior learnings (Main Agent — both paths)
+
+Before planning, search project memory for relevant prior decisions, patterns, and rejected approaches:
+
+```bash
+node .claude/core/memory-manager.js search "<story title + AC keywords>"
+```
+
+1. Take the top 3 results ranked by `decayed_confidence * relevance`.
+2. For each, read the summary line in the JSON output.
+3. If a result looks load-bearing, read the full memory file:
+   ```bash
+   cat docs/.output/memories/{category}/{id}.json
+   ```
+4. **Dedupe against the SessionStart hook's top-8** — that injection is already in your context as a `<project_memory>` system-reminder. Skip any hit whose `id` appears there.
+5. Carry the most relevant 1-2 hits forward into Step 4 (Plan) — call them out by id when they shape a decision.
+
+**Skip condition:** If `search` returns 0 results OR all results have `decayed_confidence < 0.3`, skip silently and proceed to Step 4. Do not log "no memories found".
+
+**Why both paths:** Path B (delegate) already runs FTS5 search at B2a to ground the dispatched agent. This step grounds Main Agent itself before planning, regardless of whether implementation gets delegated. Same query, same ranking, same skip condition.
+
+---
+
 ## Step 4: Plan (Main Agent — never delegate planning) — PERSIST BEFORE PROCEEDING
 
 `TaskUpdate: "Write plan" → in_progress`
@@ -389,6 +412,29 @@ Regardless of status, review what the agent produced:
 - **Good decisions** — agent discovered something useful not in the plan
 
 If misalignment: fix it directly (Main Agent), and log the issue for docs/.output/agent-updates.md (Step 8).
+
+#### B6. Inbox curation — promote sub-agent memory drafts
+
+Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). Before proceeding to the gate:
+
+1. List the inbox:
+   ```bash
+   node .claude/core/memory-manager-cli.js inbox-list
+   ```
+2. For each entry, read the draft and decide:
+   - **Promote** if the insight is reusable across stories or projects (matches the rules in `session-handoff` skill Step 6):
+     ```bash
+     node .claude/core/memory-manager-cli.js inbox-promote <id>
+     ```
+     Use `--category <override>` if the agent picked the wrong category, or `--id <override>` to rename the slug.
+   - **Discard** if the insight is project-state, story-specific, or duplicates an existing memory:
+     ```bash
+     node .claude/core/memory-manager-cli.js inbox-discard <id>
+     ```
+3. Curation is mandatory before commit — drafts left in `_inbox/` will be flagged by `session-handoff` Step 6 at next handoff write.
+4. List promoted memory IDs in the completion report so the user can spot over-promotion.
+
+**Belt-and-suspenders:** even if the inbox is empty, briefly check whether the sub-agent's reply text contained anything notable that wasn't flagged (a flake disclaimer, a surprising tool behavior, a workaround). If so, capture it via `/remember` or direct write before proceeding.
 
 `TaskUpdate: "Implement" → completed`
 

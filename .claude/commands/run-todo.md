@@ -1,5 +1,5 @@
 ---
-description: Execute an entire TODO checklist end-to-end using wave-based parallel agents with AC verification gates and automatic commits
+description: Execute an entire TODO end-to-end using wave-based parallel agents with AC gates and auto-commits
 argument-hint: [path to TODO file, or leave blank to auto-discover]
 ---
 
@@ -366,6 +366,29 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 | 8 | Agent added unrequested features | Remove the extras | Yes |
 
 **Main Agent fixes these directly — do not re-dispatch agents for alignment issues.**
+
+**4c. Inbox curation — promote sub-agent memory drafts (Path B only).**
+
+Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). After fixing misalignments, before the gate:
+
+1. List the inbox:
+   ```bash
+   node .claude/core/memory-manager-cli.js inbox-list
+   ```
+2. For each entry, read the draft and decide:
+   - **Promote** if reusable across stories or projects:
+     ```bash
+     node .claude/core/memory-manager-cli.js inbox-promote <id>
+     ```
+     Use `--category <override>` if the agent picked the wrong category.
+   - **Discard** if project-state, story-specific, or duplicates an existing memory:
+     ```bash
+     node .claude/core/memory-manager-cli.js inbox-discard <id>
+     ```
+3. Curation is mandatory before the wave commit. Drafts left in `_inbox/` will be flagged by `session-handoff` Step 6 at the wave handoff write.
+4. List promoted memory IDs in the wave summary so the user can spot over-promotion.
+
+**Belt-and-suspenders:** even when the inbox is empty, scan agent replies for unflagged surprises (flake disclaimers, surprising tool behavior, workarounds) and capture via `/remember` or direct write.
 
 `TaskUpdate: "Wave {N}: Story {ID}" → completed` (for each story, after fixes)
 

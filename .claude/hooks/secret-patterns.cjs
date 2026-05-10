@@ -236,6 +236,44 @@ function redact(value) {
     return value.substring(0, 8) + '...' + value.substring(value.length - 4);
 }
 
+/**
+ * Replace every detected secret in `content` with a `<REDACTED:PatternName>`
+ * marker. Used by post-read-scrubber.cjs to rewrite tool output before Claude
+ * sees it (PostToolUse `hookSpecificOutput.updatedToolOutput`).
+ *
+ * Same placeholder filter as scanContent — Password/Secret Assignment matches
+ * whose value is a known placeholder (changeme, ${VAR}, etc.) are NOT redacted.
+ *
+ * Pattern ordering: PATTERNS is iterated in declaration order; each pattern
+ * does a global replaceAll. Once a match is wrapped in `<REDACTED:...>`, later
+ * patterns won't re-match the marker text. Test case
+ * `redactSecretsInText_multipleSecrets_allReplaced` pins this.
+ *
+ * @param {string} content - Original tool output to scan and redact
+ * @returns {string} Content with detected secrets replaced; unchanged if no findings
+ */
+function redactSecretsInText(content) {
+    if (!content) return content;
+
+    let result = content;
+    for (const pattern of PATTERNS) {
+        // Reset regex state — patterns are declared with /g, which carries
+        // lastIndex across calls if reused. Use replaceAll with a fresh regex
+        // built from the source to avoid lastIndex pitfalls.
+        const re = new RegExp(pattern.regex.source, pattern.regex.flags);
+        result = result.replace(re, (match) => {
+            // Same placeholder filter scanContent uses for these two patterns
+            if ((pattern.name === 'Password Assignment' ||
+                 pattern.name === 'Secret Assignment') &&
+                isPlaceholderValue(match)) {
+                return match;
+            }
+            return `<REDACTED:${pattern.name}>`;
+        });
+    }
+    return result;
+}
+
 function formatFindings(findings) {
     if (findings.length === 0) return null;
 
@@ -294,6 +332,7 @@ module.exports = {
     isHighRiskFile,
     scanContent,
     redact,
+    redactSecretsInText,
     formatFindings,
     readStdin,
 };

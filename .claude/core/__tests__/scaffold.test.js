@@ -13,7 +13,13 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
-const { scaffoldDir } = require('../scaffold');
+const {
+    scaffoldDir,
+    runScaffold,
+    parseSetArgs,
+    applySubstitutions,
+    KNOWN_SCAFFOLD_VARS,
+} = require('../scaffold');
 const { createTmpDir } = require('./_helpers/tmp-dir');
 
 // ---------------------------------------------------------------------------
@@ -451,4 +457,209 @@ describe('scaffold module — require safety', () => {
         expect(mod).toHaveProperty('scaffoldDir');
         expect(typeof mod.scaffoldDir).toBe('function');
     });
+});
+
+// ─── R10 — --set <key>=<value> non-interactive substitution ──────────────────
+
+describe('parseSetArgs (R10)', () => {
+
+    it('parseSetArgs_singleFlag_returnsOneEntry', () => {
+        const result = parseSetArgs(['--set', 'project_name=Foo']);
+        expect(result).toEqual({ project_name: 'Foo' });
+    });
+
+    it('parseSetArgs_multipleFlags_accumulates', () => {
+        const result = parseSetArgs([
+            '--set', 'project_name=Foo',
+            '--set', 'phase=Discovery',
+        ]);
+        expect(result).toEqual({ project_name: 'Foo', phase: 'Discovery' });
+    });
+
+    it('parseSetArgs_equalsForm_accepted', () => {
+        const result = parseSetArgs(['--set=project_name=Foo']);
+        expect(result).toEqual({ project_name: 'Foo' });
+    });
+
+    it('parseSetArgs_valueWithEquals_handledCorrectly', () => {
+        // URL with query string contains additional `=` signs
+        const url = 'https://example.com/?key=value&other=thing';
+        const result = parseSetArgs(['--set', `repo_url=${url}`]);
+        expect(result).toEqual({ repo_url: url });
+    });
+
+    it('parseSetArgs_unknownKey_throwsWithAllowlist', () => {
+        expect(() => parseSetArgs(['--set', 'arbitrary_key=anything']))
+            .toThrow(/arbitrary_key/);
+        // Error message should include allowlist
+        try {
+            parseSetArgs(['--set', 'arbitrary_key=anything']);
+        } catch (e) {
+            expect(e.message).toMatch(/project_name/);
+            expect(e.message).toMatch(/repo_url/);
+        }
+    });
+
+    it('parseSetArgs_invalidUrl_throwsValidationMessage', () => {
+        expect(() => parseSetArgs(['--set', 'repo_url=not-a-url']))
+            .toThrow(/repo_url/);
+    });
+
+    it('parseSetArgs_invalidDate_throwsValidationMessage', () => {
+        expect(() => parseSetArgs(['--set', 'date=tomorrow']))
+            .toThrow(/date/);
+    });
+
+    it('parseSetArgs_emptyArgv_returnsEmptyObject', () => {
+        expect(parseSetArgs([])).toEqual({});
+    });
+
+    it('parseSetArgs_noSetFlagMixedWithOthers_returnsEmptyObject', () => {
+        // Other flags are ignored — only --set pairs are extracted
+        expect(parseSetArgs(['--force', '--verbose'])).toEqual({});
+    });
+
+    it('parseSetArgs_setFlagWithoutValue_throws', () => {
+        // --set with no following arg, or an arg that doesn't match key=value
+        expect(() => parseSetArgs(['--set'])).toThrow();
+        expect(() => parseSetArgs(['--set', 'no-equals-here'])).toThrow();
+    });
+
+});
+
+describe('applySubstitutions (R10)', () => {
+
+    it('applySubstitutions_singleVar_bothPlaceholdersReplaced', () => {
+        const content = 'Project: {Project Name}\nKey: {project_name}';
+        const result = applySubstitutions(content, { project_name: 'Foo' });
+        expect(result).toBe('Project: Foo\nKey: Foo');
+    });
+
+    it('applySubstitutions_repoUrl_bothFormsReplaced', () => {
+        const content = 'See {repo URL} or {repo_url} for details.';
+        const result = applySubstitutions(content, { repo_url: 'https://example.com' });
+        expect(result).toBe('See https://example.com or https://example.com for details.');
+    });
+
+    it('applySubstitutions_noSubstitutions_returnsContentUnchanged', () => {
+        const content = 'Project: {Project Name}';
+        expect(applySubstitutions(content, {})).toBe(content);
+    });
+
+    it('applySubstitutions_unknownKey_silentlyIgnored', () => {
+        // Defensive: never reachable via parseSetArgs (which validates), but the
+        // pure function should no-op rather than throw on stray keys.
+        const content = 'unchanged: {Project Name}';
+        const result = applySubstitutions(content, { not_in_allowlist: 'x' });
+        expect(result).toBe(content);
+    });
+
+    it('applySubstitutions_emptyContent_returnsEmpty', () => {
+        expect(applySubstitutions('', { project_name: 'Foo' })).toBe('');
+    });
+
+});
+
+describe('KNOWN_SCAFFOLD_VARS (R10)', () => {
+
+    it('KNOWN_SCAFFOLD_VARS_exported_andValidShape', () => {
+        expect(Array.isArray(KNOWN_SCAFFOLD_VARS)).toBe(true);
+        expect(KNOWN_SCAFFOLD_VARS.length).toBeGreaterThan(0);
+
+        for (const entry of KNOWN_SCAFFOLD_VARS) {
+            expect(entry).toHaveProperty('key');
+            expect(typeof entry.key).toBe('string');
+            expect(entry).toHaveProperty('placeholders');
+            expect(Array.isArray(entry.placeholders)).toBe(true);
+            expect(entry.placeholders.length).toBeGreaterThan(0);
+            expect(entry).toHaveProperty('validate');
+            expect(typeof entry.validate).toBe('function');
+        }
+    });
+
+    it('KNOWN_SCAFFOLD_VARS_includesCoreKeys', () => {
+        const keys = KNOWN_SCAFFOLD_VARS.map(v => v.key);
+        expect(keys).toContain('project_name');
+        expect(keys).toContain('repo_url');
+        expect(keys).toContain('phase');
+        expect(keys).toContain('date');
+    });
+
+});
+
+describe('runScaffold with substitutions (R10 end-to-end)', () => {
+
+    function makeMinimalTemplateTree(tmpRoot) {
+        // Create a minimal templates/ tree mirroring the real scaffold structure
+        // enough that runScaffold can exercise substitution end-to-end.
+        const templatesDir = path.join(tmpRoot, '.claude', 'templates');
+        fs.mkdirSync(templatesDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(templatesDir, '_project-context.md'),
+            '<!-- @@template -->\n# Project: {Project Name}\nPhase: {current phase}\nDate: {YYYY-MM-DD}\n'
+        );
+    }
+
+    it('runScaffold_withSubstitutions_filesContainSubstitutedValues', () => {
+        // Arrange
+        makeMinimalTemplateTree(tmp.root);
+
+        // Act
+        runScaffold(tmp.root, {
+            substitutions: { project_name: 'Foo', phase: 'Discovery', date: '2026-05-10' },
+            silent: true,
+        });
+
+        // Assert — scaffolded file has substitutions applied
+        const written = fs.readFileSync(
+            path.join(tmp.root, 'docs', '_project-context.md'),
+            'utf8'
+        );
+        expect(written).toContain('# Project: Foo');
+        expect(written).toContain('Phase: Discovery');
+        expect(written).toContain('Date: 2026-05-10');
+        expect(written).not.toContain('{Project Name}');
+        expect(written).not.toContain('{current phase}');
+    });
+
+    it('runScaffold_substitutionsButTargetExists_doesNotModify', () => {
+        // Arrange — pre-existing target with custom user content
+        makeMinimalTemplateTree(tmp.root);
+        fs.mkdirSync(path.join(tmp.root, 'docs'), { recursive: true });
+        const userCustomized = '# My Custom Project\nDo not overwrite this.\n';
+        fs.writeFileSync(
+            path.join(tmp.root, 'docs', '_project-context.md'),
+            userCustomized
+        );
+
+        // Act
+        runScaffold(tmp.root, {
+            substitutions: { project_name: 'Foo' },
+            silent: true,
+        });
+
+        // Assert — pre-existing file untouched (existing skip semantics preserved)
+        const written = fs.readFileSync(
+            path.join(tmp.root, 'docs', '_project-context.md'),
+            'utf8'
+        );
+        expect(written).toBe(userCustomized);
+        expect(written).not.toContain('Foo');
+    });
+
+    it('runScaffold_noSubstitutions_currentBehaviorPreserved', () => {
+        // Regression guard — without --set, placeholders remain as-is
+        makeMinimalTemplateTree(tmp.root);
+
+        runScaffold(tmp.root, { silent: true });
+
+        const written = fs.readFileSync(
+            path.join(tmp.root, 'docs', '_project-context.md'),
+            'utf8'
+        );
+        expect(written).toContain('{Project Name}');
+        expect(written).toContain('{current phase}');
+        expect(written).toContain('{YYYY-MM-DD}');
+    });
+
 });

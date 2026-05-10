@@ -1,11 +1,30 @@
 #!/usr/bin/env node
 
 /**
- * Memory Extractor - Processes daily logs through Haiku for structured learning extraction
+ * Memory Extractor — Brownfield-only Haiku-driven daily-log → memory extraction
  *
- * Reads daily logs from docs/.output/memories/daily/{YYYY-MM-DD}.md
- * Invokes claude -p with Haiku model to extract structured learnings
- * Writes extracted learnings to docs/.output/memories/extracted/{date}/
+ * Reads daily logs from docs/.output/memories/daily/{YYYY-MM-DD}.md and runs each
+ * unprocessed entry through Haiku (single-pass extraction, Mem0 v2.0.0-aligned)
+ * for structured learning candidates. Output goes to docs/.output/memories/extracted/{date}/
+ * for adopter review.
+ *
+ * **Brownfield-only.** Per `docs/.output/reviews/2026-04-20-adr-memory-unification.md`,
+ * this CLI is NOT wired into in-process command flows. The in-process path uses
+ * Main-Agent-authored memories at session-handoff time. The extractor exists for
+ * adopters onboarding Domdhi.Agents with legacy daily logs they want to backfill
+ * structured memories from.
+ *
+ * Single-pass output schema (R-C, 2026-05-11) matches the canonical memory content
+ * shape used by `memory-manager-cli.js create` and the inbox pattern:
+ *
+ *   { category: 'patterns'|'constraints'|'decisions'|'workflows',
+ *     suggested_id: 'kebab-case-slug',
+ *     content: { description, evidence?, confidence } }
+ *
+ * Adopters can then either (a) review and copy fields into manual
+ * `memory-manager-cli.js create` calls, or (b) move the JSON entries into
+ * `docs/.output/memories/_inbox/` and run `inbox-promote` per draft for a unified
+ * curation flow.
  */
 
 const fs = require('fs');
@@ -64,15 +83,64 @@ class MemoryExtractor {
 
     /**
      * Invoke Haiku via claude -p to extract structured learnings from an entry.
-     * Returns array of { category, title, content, confidence }.
+     * Single-pass extraction (Mem0 v2.0.0-aligned shape, R-C 2026-05-11):
+     * one LLM call per entry, ADD-only output, schema matches the canonical
+     * memory content shape used by `memory-manager-cli.js create` and the
+     * inbox pattern (`docs/.output/memories/_inbox/*.json`).
+     *
+     * Returns array of {category, suggested_id, content: {description, evidence?, confidence}}.
      * Returns [] on failure (graceful degradation).
      */
     invokeHaiku(entryText) {
+        // Single concrete few-shot example beats stronger "JSON only" instructions.
+        // The example is what Haiku actually pattern-matches against; the system-style
+        // intro establishes the no-prose contract.
         const prompt = [
-            'Read this daily log entry. Extract structured learnings.',
-            'For each learning, output: category (pattern|constraint|decision|workflow),',
-            'title (3-5 words), content (1-2 sentences), confidence (0.5-0.9).',
-            'Output as JSON array only — no explanation, no markdown fences, just the JSON array.',
+            'You are a strict JSON extractor. Read the daily log entry below and extract durable, reusable learnings.',
+            'Output requirements:',
+            '  - VALID JSON ARRAY ONLY — no prose before, no prose after, no markdown fences.',
+            '  - If no extractable durable learning, output an empty array: []',
+            '  - Never output conversational hedging like "It looks like..." — output starts with "[".',
+            '',
+            'Each learning must have this shape:',
+            '  {',
+            '    "category": "patterns" | "constraints" | "decisions" | "workflows",',
+            '    "suggested_id": "kebab-case-slug",',
+            '    "content": {',
+            '      "description": "One paragraph: what + why, no code.",',
+            '      "evidence": "Concrete anchor — story id, commit hash, file path, or one-line scenario.",',
+            '      "confidence": 0.5 to 0.9 (extracted memories are not retro-validated; never start at 1.0)',
+            '    }',
+            '  }',
+            '',
+            'Use the canonical plural categories (patterns/constraints/decisions/workflows), not singular.',
+            'The `evidence` field is encouraged but optional — omit if no clear anchor exists.',
+            'Skip pure project-state (epic progress, story counts, branch status) — those are not durable.',
+            '',
+            '--- WORKED EXAMPLE ---',
+            'INPUT:',
+            '## 14:32 — fix: rename publish.js to tools/publish.js [extracted]',
+            '',
+            '`6f3e2a1` — Doc files referenced .claude/core/publish.js, but the script moved to tools/ during',
+            'the publish-workflow refactor. Two-repo workflow: this private workshop publishes to a public',
+            'storefront via tools/publish.js. Stale references caused publish:public to fail with module not',
+            'found. Updated 5 doc files; tests still green.',
+            '',
+            'EXPECTED OUTPUT:',
+            '[',
+            '  {',
+            '    "category": "constraints",',
+            '    "suggested_id": "publish-script-lives-in-tools",',
+            '    "content": {',
+            '      "description": "The two-repo publish workflow uses tools/publish.js (NOT .claude/core/publish.js). The script was moved to tools/ during the publish-workflow refactor. Doc references and any inter-script imports must use the tools/ path.",',
+            '      "evidence": "commit 6f3e2a1 — 5 doc files needed updating after the move; publish:public failed with module not found until references were corrected.",',
+            '      "confidence": 0.8',
+            '    }',
+            '  }',
+            ']',
+            '--- END EXAMPLE ---',
+            '',
+            'Now extract learnings from this entry. Output the JSON array only.',
             '',
             '--- ENTRY START ---',
             entryText,
@@ -104,19 +172,35 @@ class MemoryExtractor {
             return [];
         }
 
-        if (Array.isArray(parsed)) {
-            return parsed.filter(item =>
-                item &&
-                typeof item.category === 'string' &&
-                typeof item.title === 'string' &&
-                typeof item.content === 'string' &&
-                typeof item.confidence === 'number'
-            );
-        }
-        // If the model wrapped in an object, try to find the array
-        if (parsed && Array.isArray(parsed.learnings)) return parsed.learnings;
-        if (parsed && Array.isArray(parsed.results)) return parsed.results;
-        return [];
+        // Single-pass schema validator — matches the canonical memory content shape
+        // shared with memory-manager-cli.js create and the inbox pattern.
+        const VALID_CATEGORIES = ['patterns', 'constraints', 'decisions', 'workflows'];
+        const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+        const isValid = (item) => {
+            if (!item || typeof item !== 'object') return false;
+            if (!VALID_CATEGORIES.includes(item.category)) return false;
+            if (typeof item.suggested_id !== 'string' || !SLUG_RE.test(item.suggested_id)) return false;
+            if (!item.content || typeof item.content !== 'object') return false;
+            if (typeof item.content.description !== 'string' || item.content.description.length === 0) return false;
+            if (typeof item.content.confidence !== 'number') return false;
+            if (item.content.confidence < 0.5 || item.content.confidence > 0.9) return false;
+            // evidence is optional — if present, must be a non-empty string
+            if (item.content.evidence !== undefined &&
+                (typeof item.content.evidence !== 'string' || item.content.evidence.length === 0)) {
+                return false;
+            }
+            return true;
+        };
+
+        // Accept a raw array or a wrapper object — model might return either despite instructions
+        let array = null;
+        if (Array.isArray(parsed)) array = parsed;
+        else if (parsed && Array.isArray(parsed.learnings)) array = parsed.learnings;
+        else if (parsed && Array.isArray(parsed.results)) array = parsed.results;
+
+        if (!array) return [];
+        return array.filter(isValid);
     }
 
     /**
@@ -403,7 +487,21 @@ async function main() {
             await extractor.status();
             break;
         default:
-            console.log('Usage:\n  node memory-extractor.js extract [--dry-run]\n  node memory-extractor.js status');
+            console.log([
+                'Memory Extractor — brownfield-only daily-log → memory extraction',
+                '',
+                'Usage:',
+                '  node memory-extractor.js extract [--dry-run]',
+                '  node memory-extractor.js status',
+                '',
+                'Output schema (single-pass, Mem0 v2.0.0-aligned):',
+                '  { category, suggested_id, content: { description, evidence?, confidence } }',
+                '',
+                'Brownfield-only — not wired into in-process command flows (see ADR',
+                'docs/.output/reviews/2026-04-20-adr-memory-unification.md). Adopters review',
+                'the extracted/ output and create memories manually via memory-manager-cli.js,',
+                'or move entries to _inbox/ and use inbox-promote.',
+            ].join('\n'));
     }
 }
 

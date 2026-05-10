@@ -33,6 +33,31 @@ const PRUNE_THRESHOLD_PERCENT = 0.8;
 const PRUNE_MIN_AGE_DAYS = 30;
 const PRUNE_MIN_CONFIDENCE = 0.3;
 
+/**
+ * Convert a freeform search string into an FTS5 query.
+ *
+ * FTS5's default match mode is AND, which makes multi-word ad-hoc queries like
+ * "publish tooling refactor" return [] unless one memory contains every term.
+ * Callers (commands, agents) write multi-word topic queries expecting OR-style
+ * fuzzy match, so split-and-OR-join is the right default. Power users can still
+ * force phrase/AND/NEAR by writing FTS5 syntax explicitly.
+ *
+ * Pass-through cases (caller knows what they want):
+ *   - Contains FTS5 operators (OR, AND, NOT, NEAR)
+ *   - Contains quote/colon/caret/star/paren — explicit FTS5 syntax
+ *
+ * Otherwise: tokenize on non-word chars, drop tokens shorter than 2, OR-join.
+ * If 0-1 tokens survive, return the original string unchanged.
+ */
+function buildFtsQuery(searchTerm) {
+    if (!searchTerm || typeof searchTerm !== 'string') return searchTerm;
+    if (/[":^*()]/.test(searchTerm)) return searchTerm;
+    if (/\b(OR|AND|NOT|NEAR)\b/.test(searchTerm)) return searchTerm;
+    const tokens = searchTerm.split(/[^a-zA-Z0-9_-]+/).filter(t => t.length > 1);
+    if (tokens.length <= 1) return searchTerm;
+    return tokens.join(' OR ');
+}
+
 // Try to load built-in SQLite (stable in Node 24+; experimental with --experimental-sqlite in Node 22-23)
 let DatabaseSync = null;
 try {
@@ -342,7 +367,7 @@ class MemoryManager {
                     ORDER BY rank
                     LIMIT 20
                 `);
-                const rows = stmt.all(searchTerm);
+                const rows = stmt.all(buildFtsQuery(searchTerm));
                 if (rows.length > 0) {
                     return rows.map(row => {
                         // Reconstruct enough of the memory shape to compute decay
@@ -698,9 +723,181 @@ class MemoryManager {
 
         return report;
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Inbox pattern (R-A) — sub-agents flag draft memories to _inbox/, Main
+    // Agent promotes/discards on dispatch return. Plan:
+    // docs/.output/plans/2026-05-11-do-r-a-inbox-pattern.md
+    // ────────────────────────────────────────────────────────────────────────
+
+    _inboxDir() {
+        return path.join(this.memoriesDir, '_inbox');
+    }
+
+    /**
+     * List all draft memories in the inbox.
+     * @returns {Promise<Array<{id, file, mtime, content_preview, category, suggested_id, flagged_by, flagged_at}>>}
+     */
+    async inboxList() {
+        const dir = this._inboxDir();
+        let files;
+        try {
+            files = await fs.readdir(dir);
+        } catch (e) {
+            if (e.code === 'ENOENT') return [];
+            throw e;
+        }
+
+        const entries = [];
+        for (const file of files) {
+            if (!file.endsWith('.json')) continue;
+            const filePath = path.join(dir, file);
+            try {
+                const stat = await fs.stat(filePath);
+                const raw = await fs.readFile(filePath, 'utf-8');
+                const draft = JSON.parse(raw);
+                const id = file.replace(/\.json$/, '');
+                const description = draft.content?.description || '';
+                entries.push({
+                    id,
+                    file: filePath,
+                    mtime: stat.mtime.toISOString(),
+                    content_preview: description.slice(0, 120),
+                    category: draft.category,
+                    suggested_id: draft.suggested_id,
+                    flagged_by: draft.flagged_by,
+                    flagged_at: draft.flagged_at,
+                });
+            } catch {
+                // Skip unreadable / malformed entries — surface in promote step
+            }
+        }
+        // Lex-sort = chronological for {YYYY-MM-DD}-{HHMM}-{slug} naming
+        entries.sort((a, b) => a.id.localeCompare(b.id));
+        return entries;
+    }
+
+    /**
+     * Promote an inbox draft to a real memory: read draft, validate category,
+     * call createMemory, delete the inbox file. Errors return {promoted:false,error}
+     * rather than throw — matches existing pruneStaleMemories return shape.
+     *
+     * @param {string} id - inbox filename stem (without .json)
+     * @param {{categoryOverride?: string, idOverride?: string}} [opts]
+     * @returns {Promise<{promoted: true, category, id} | {promoted: false, error}>}
+     */
+    async inboxPromote(id, opts = {}) {
+        const filePath = path.join(this._inboxDir(), `${id}.json`);
+        let raw;
+        try {
+            raw = await fs.readFile(filePath, 'utf-8');
+        } catch (e) {
+            if (e.code === 'ENOENT') {
+                return { promoted: false, error: `Inbox draft not found: ${id}` };
+            }
+            return { promoted: false, error: `Failed to read inbox draft: ${e.message}` };
+        }
+
+        let draft;
+        try {
+            draft = JSON.parse(raw);
+        } catch (e) {
+            return { promoted: false, error: `Inbox draft has malformed JSON: ${e.message}` };
+        }
+
+        const category = opts.categoryOverride || draft.category;
+        const memoryId = opts.idOverride || draft.suggested_id;
+
+        if (!this.categories.includes(category)) {
+            return { promoted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
+        }
+        if (!memoryId || typeof memoryId !== 'string') {
+            return { promoted: false, error: 'Missing or invalid suggested_id (no idOverride supplied)' };
+        }
+
+        const created = await this.createMemory(category, memoryId, draft.content || {});
+        if (!created) {
+            return { promoted: false, error: `createMemory returned null (category limit reached?)` };
+        }
+
+        try {
+            await fs.unlink(filePath);
+        } catch {
+            // Memory was created; failure to unlink is non-fatal but worth a warning
+            console.error(`⚠ Promoted ${category}/${memoryId} but failed to unlink ${filePath}`);
+        }
+
+        return { promoted: true, category, id: memoryId };
+    }
+
+    /**
+     * Delete a memory: unlink JSON file + remove from SQLite + FTS5.
+     * Returns {deleted, error?} matching pruneStaleMemories' internal primitive
+     * but exposed as a top-level method (R-B — required for /review:memory-defrag
+     * merge operations).
+     *
+     * @param {string} category
+     * @param {string} id
+     * @returns {Promise<{deleted: boolean, error?: string}>}
+     */
+    async deleteMemory(category, id) {
+        if (!this.categories.includes(category)) {
+            return { deleted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
+        }
+
+        // Locate the JSON file — try both hyphenated and underscore IDs (createMemory
+        // converts underscores to hyphens at write time but accepts both at read time)
+        const hyphenated = MemoryManager.idToFilename(id);
+        const candidates = [
+            path.join(this.memoriesDir, category, `${hyphenated}.json`),
+            path.join(this.memoriesDir, category, `${id}.json`),
+        ];
+        let filePath = null;
+        for (const candidate of candidates) {
+            try {
+                await fs.access(candidate);
+                filePath = candidate;
+                break;
+            } catch { /* try next */ }
+        }
+        if (!filePath) {
+            return { deleted: false, error: `Memory not found: ${category}/${id}` };
+        }
+
+        try {
+            await fs.unlink(filePath);
+        } catch (e) {
+            return { deleted: false, error: `Failed to unlink ${filePath}: ${e.message}` };
+        }
+
+        // Deindex from SQLite (non-fatal if it fails; JSON file is already gone)
+        this.deindexMemory(id);
+
+        return { deleted: true };
+    }
+
+    /**
+     * Discard an inbox draft without promoting it.
+     *
+     * @param {string} id - inbox filename stem (without .json)
+     * @returns {Promise<{discarded: boolean, error?: string}>}
+     */
+    async inboxDiscard(id) {
+        const filePath = path.join(this._inboxDir(), `${id}.json`);
+        try {
+            await fs.unlink(filePath);
+            return { discarded: true };
+        } catch (e) {
+            if (e.code === 'ENOENT') {
+                return { discarded: false, error: `Inbox draft not found: ${id}` };
+            }
+            return { discarded: false, error: e.message };
+        }
+    }
 }
 
 module.exports = MemoryManager;
+module.exports.buildFtsQuery = buildFtsQuery;
 
 // Direct invocation forwards to the CLI module (Task #11 split).
 // Existing callers running `node .claude/core/memory-manager.js <cmd>` still work.

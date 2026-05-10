@@ -1,5 +1,5 @@
 ---
-description: Execute a manual/E2E testing checklist using parallel agents with screenshots, verification, and automated TODO updates
+description: Execute a manual/E2E testing checklist with parallel agents, screenshots, and TODO updates
 argument-hint: [path to testing TODO file]
 ---
 
@@ -30,6 +30,24 @@ Use mcp__claude-in-chrome__navigate to go to pages.
 Use mcp__claude-in-chrome__read_page to inspect content.
 Use mcp__claude-in-chrome__computer for clicks and interactions.
 ```
+
+## Repeated runs via `/loop`
+
+`/run-tests` is one-shot — it executes the checklist once and reports. For repeated execution (post-deploy verification, mid-day regression polling, pre-merge canary), wrap it with the built-in `/loop` primitive instead of re-implementing scheduling here:
+
+```
+/loop 10m /run-tests docs/app/{feature}/TODO_testing.md
+```
+
+`/loop` is session-scoped (lives until the session ends or 7 days — Claude Code 2.1.x) and fires the inner command on the chosen interval. Pick the cadence to match what you're watching for:
+
+| Cadence | Use case |
+|---------|----------|
+| `5m`–`15m` | Active deploy window — catch regressions immediately after each push |
+| `30m`–`1h` | Mid-day polling on a busy branch — smoke checklist re-run |
+| `2h`–`6h` | Background canary — broader checklist, low-frequency assurance |
+
+Each iteration writes a fresh report to `docs/.output/screenshots/{date}/{Task}/TEST-REPORT.md`, so subsequent loops overwrite prior reports for the same task. If you need history, vary the task slug per loop or copy reports out before the next fire. **Don't build a project-local `/canary` or `/run-tests --watch` flag** — those are just `/loop` wrappers, and re-implementing scheduling primitives we already have is duplication. The same applies to any future scheduled-command idea (cleanup, listen, monitor): start by trying `/loop /<command>` first.
 
 ## Persistent Test Output
 

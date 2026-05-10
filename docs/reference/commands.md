@@ -410,13 +410,16 @@ flowchart TD
     AGENT --> VALIDATE{Validate:\nEvery FR mapped?\nNo circular deps?\nPhase 0 = foundation?\nNo XL without split?\nMust-Have in early phases?}
     VALIDATE -->|Fail| FIX[Re-delegate to fix]
     FIX --> VALIDATE
-    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/todo/_backlog.md"]
+    VALIDATE -->|Pass| OVERLAP["Run epic-overlap.js:\nDetect cross-epic shared files\nWarning, not failure"]
 
-    COMMIT --> REPORT(["Report:\nPhases, epics, stories,\nsize breakdown,\nMust-Have coverage"])
+    OVERLAP --> COMMIT["Commit:\ndocs/todo/_backlog.md"]
+
+    COMMIT --> REPORT(["Report:\nPhases, epics, stories,\nsize breakdown,\nMust-Have coverage,\noverlap warnings (if any)"])
 
     style START fill:#4a9eff,color:#fff
     style STOP fill:#e74c3c,color:#fff
     style DELEGATE fill:#2ecc71,color:#fff
+    style OVERLAP fill:#f5a623,color:#fff
     style COMMIT fill:#2ecc71,color:#fff
     style REPORT fill:#888,color:#fff
 ```
@@ -1081,7 +1084,7 @@ flowchart TD
 
 ## /review:check-readiness
 
-Gate check before implementation begins. Verifies required docs exist (PRD, architecture, backlog), checks completeness against skill checklists, cross-document consistency, and scans for ambiguity. Produces a PASS / CONCERNS / FAIL verdict. Read-only — no commit.
+Gate check before implementation begins. Verifies required docs exist (PRD, architecture, backlog), runs the epic file-overlap detector against `_backlog.md` (with `## Acknowledged Overlaps` escape hatch), checks completeness against skill checklists, cross-document consistency, and scans for ambiguity. Produces a PASS / CONCERNS / FAIL verdict. Read-only — no commit.
 
 ```mermaid
 flowchart TD
@@ -1090,7 +1093,14 @@ flowchart TD
     DOCS --> MISSING{Any required\ndoc missing?}
     MISSING -->|Yes| FAIL_FAST(["FAIL:\nMissing docs listed\nInstructions to create"])
 
-    MISSING -->|No| COMPLETE["Check completeness\nper skill checklists:\nPRD → prd-writer\nArch → architecture-writer\nDesign → ux-designer\nEpics → epic-writer"]
+    MISSING -->|No| OVERLAP["Run epic-overlap.js on _backlog.md:\nflag any cross-epic shared files"]
+
+    OVERLAP --> ACK{Overlaps found?}
+    ACK -->|No| COMPLETE
+    ACK -->|Yes, all listed in\n## Acknowledged Overlaps| COMPLETE
+    ACK -->|Yes, unacknowledged| FAIL_OVERLAP(["FAIL:\nUnacknowledged overlaps\nlist pairs + suggest fixes"])
+
+    COMPLETE["Check completeness\nper skill checklists:\nPRD → prd-writer\nArch → architecture-writer\nDesign → ux-designer\nEpics → epic-writer"]
 
     COMPLETE --> CONSISTENCY["Cross-document consistency:\nTech stack matches epics?\nEvery Must-Have FR → story?\nNFRs in architecture?\nPRD entities in data design?\nSecurity reqs → auth section?"]
 
@@ -1103,6 +1113,7 @@ flowchart TD
 
     style START fill:#4a9eff,color:#fff
     style FAIL_FAST fill:#e74c3c,color:#fff
+    style FAIL_OVERLAP fill:#e74c3c,color:#fff
     style PASS fill:#2ecc71,color:#fff
     style CONCERNS fill:#f5a623,color:#fff
     style FAIL fill:#e74c3c,color:#fff
