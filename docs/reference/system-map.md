@@ -22,6 +22,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/create:project-epics` | project-planner | epic-writer | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
 | `/create:project-todo` | project-planner | epic-writer | `_backlog.md` | `TODO_{Project}.md` | needs backlog |
 | `/create:project-epics-todo` | project-planner | epic-writer | `_backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
+| `/create:new-project` | — (orchestrator) + chains all setup sub-commands | — (chains all setup skills) | user interview answers | full `docs/` scaffold + planning chain → `_project-context.md` | fresh project (no filled planning docs); `--yolo` bypass |
 
 ### Build Commands (daily loop)
 
@@ -230,7 +231,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `constants.js` | System-wide constants, phase artifacts, doc chain, memory decay config |
 | `scaffold.js` | Copies templates → `docs/` and root configs |
 | `memory-manager.js` | Memory CRUD + search + active-day decay + linting (JSON + SQLite FTS5) |
-| `memory-compiler.js` | Daily log → concept article compilation pipeline + cross-references |
+| `memory-compiler.js` | Daily log → concept article compilation pipeline + cross-references (retired 2026-04-20 — preserved as backward-compat module; not prescribed in new pipeline) |
 | `memory-extractor.js` | Haiku-powered structured extraction from daily logs via `claude -p` |
 | `memory-curator.js` | Haiku-powered dedup/contradiction/merge analyzer — runs on Stop when `MEMORY_PROFILE=strict` |
 | `memory-promoter.js` | Scan/rank/mark concepts for promotion to templates/skills |
@@ -258,7 +259,8 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `damage-control.cjs` | Post-Bash | Error analysis on failures — prevents retry spin loops |
 | `command-usage-logger.cjs` | Post-Read/Bash | Logs command invocations + gate runs to `docs/.output/telemetry/` |
 | `memory-guard.cjs` | Post-Write | Warns when memory category approaches limit |
-| `memory-capture.cjs` | Stop, PostToolUse:Bash | Auto-compound memory: daily log + compile + extract (opt-in) on Stop; commit enrichment on Bash |
-| `session-start-prime.cjs` | SessionStart | Injects top compiled memory concepts as system-reminder at session opening |
+| `memory-capture.cjs` | Stop, PostToolUse:Bash | Captures daily log on Stop + curates under strict profile; commit enrichment on Bash. Compile pipeline retired 2026-04-20. |
+| `session-start-prime.cjs` | SessionStart | Injects top structured memories (JSON from `memory-manager.js`) as system-reminder at session opening |
 | `edit-capture.cjs` | Post-Edit | Captures edits to canonical docs (CLAUDE.md, architecture, skills) as daily-log entries (`MEMORY_PROFILE=strict` only) |
+| `path-guardrail.cjs` | PreToolUse:Write/Edit/MultiEdit/NotebookEdit | Blocks write/edit ops via four-tier path schema (zeroAccessPaths/readOnlyPaths/noDeletePaths) and freeze-state |
 | `secret-patterns.cjs` | (shared module) | Secret/credential regex patterns — used by `secret-scanner.cjs` and git pre-commit hook |

@@ -9,7 +9,7 @@ When updating the template (via subtree, copy, or future update mechanism), some
 | `.claude/commands/**/*.md` | Template | **Overwrite** — commands are orchestration, never project-specific |
 | `.claude/core/*.js` | Template | **Overwrite** — scripts are project-agnostic |
 | `.claude/hooks/*.cjs` | Template | **Overwrite** — hooks are project-agnostic (project-specific hooks preserved) |
-| `.claude/skills/*/SKILL.md` | Template | **Overwrite** — except `brand-guidelines` (see below) |
+| `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below) |
 | `.claude/skills-optional/` | Template | **Overwrite** (gitignored — local-only aesthetic skills) |
 | `.claude/templates/` | Template | **Overwrite** |
 | `.claude/version.json` | Template | **Overwrite** — template version metadata |
@@ -69,8 +69,8 @@ Most skills are template content. One exception:
 
 | Skill | Zone | Notes |
 |-------|------|-------|
-| `brand-guidelines` | **Project** | Customized per-project with brand colors, typography, visual identity. Preserve on update. |
-| All others | Template | Overwrite on update |
+| `brand-guidelines/**` (whole tree) | **Project** | Customized per-project with brand colors, typography, visual identity, logo assets, palette files. Whole subtree preserved on update — any sub-docs added in the target stay project-owned. |
+| All others (including `references/`, `examples/`, sibling `.md`/`.ts`/`.dot`/`.sh`) | Template | Overwrite on update. SKILL.md **and** its sibling support files (anthropic-best-practices, graphviz-conventions, references/*, etc.) propagate together — they're authored as a unit in the template, so partial propagation leaves SKILL.md pointing at missing references. |
 
 ## Detection Heuristics
 

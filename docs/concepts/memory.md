@@ -6,19 +6,19 @@ It is deliberately not a database. There's no query language, no schema migratio
 
 ## The pipeline
 
-Each session runs memory through five stages, most of them automatic:
+Each session runs memory through five stages. The four-stage automated pipeline runs on hooks; **Acquire** is Main Agent's job at session-handoff time and lives outside the pipeline diagram below.
 
 ```
-┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
-│ capture │ -> │ compile │ -> │ curate  │ -> │ extract │ -> │ promote │
-└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
- daily logs     concept        dedup,        Haiku-powered    mark for
- from session   articles       merge,        structured       templates
- events         from logs      contradict    extraction       and skills
+┌─────────┐    ┌─────────────────┐    ┌──────────────────┐    ┌─────────┐
+│ capture │ -> │ curate (strict) │ -> │ extract (manual) │ -> │ promote │
+└─────────┘    └─────────────────┘    └──────────────────┘    └─────────┘
+ daily logs     dedup,                 Haiku-powered            mark for
+ from session   merge,                 structured               templates
+ events         contradict             extraction               and skills
 ```
 
 1. **Capture** — every session ends with `memory-capture.cjs` firing on the `Stop` hook. It writes a daily log entry summarizing what happened (tasks, commits, decisions). `pre-compaction-archive.cjs` also captures a log before context compaction, so work survives auto-compression. Opt-in: `edit-capture.cjs` records edits to canonical docs (CLAUDE.md, architecture, skills) as daily-log entries when `MEMORY_PROFILE=strict`.
-2. **Compile** — `memory-compiler.js` reads recent daily logs and produces concept articles in `docs/.output/memories/concepts/{category}/{slug}.md`. A concept needs at least 2 sources (the `sources >= 2` eligibility filter) to promote from "I noticed this once" to "I noticed this twice — worth a file."
+2. **Acquire** — Main Agent writes 0–3 structured memories per session via `memory-manager.js create`; the daily log feeds optional brownfield extraction (`memory-extractor.js extract`) for adopter projects.
 3. **Curate** — `memory-curator.js` runs on `Stop` when `MEMORY_PROFILE=strict`. Haiku analyzes the concept set for duplicates, contradictions, and merge candidates. Outside strict profile, this stage is skipped.
 4. **Extract** — `memory-extractor.js` pulls structured facts from daily logs via `claude -p` (Haiku). Manual/brownfield-only: no hook or command fires this automatically. Run it by hand via `node .claude/core/memory-extractor.js extract` when onboarding an existing project with historical daily logs, or via `/review:memory-health` which runs it as part of the periodic health check. In-process memory acquisition is owned by Main Agent at session-handoff time — see `docs/.output/reviews/2026-04-20-adr-memory-unification.md`.
 5. **Promote** — `memory-promoter.js scan` ranks concepts by their decayed confidence × recency × usage. High-ranked concepts get reviewed for promotion into templates, skills, or agent instructions — the point where a memory graduates from "knowledge the system remembers" to "knowledge the system enforces."
@@ -56,26 +56,28 @@ Workflows decay fastest because how a team works changes fastest. Architecture d
 
 Thresholds: below 0.3 is stale (still visible, but deprioritized in ranking). Below 0.1 is archive-candidate (hide from defaults, keep on disk for audit). `node .claude/core/memory-manager.js decay-report` lists the stalest memories first so you can prune or refresh them.
 
-## Compiled concepts vs hand-created memories
+### Memory data model — hand-created vs (retired) compiled
 
-Two paths into the system:
+The primary path into the memory system is hand-created:
 
-- **Compiled concepts** — `docs/.output/memories/concepts/{cat}/{slug}.md`. Produced by `memory-compiler.js` from daily logs. Needs 2+ sources to file. Represents observed reality.
-- **Hand-created memories** — `docs/.output/memories/{cat}/{slug}.json`. Produced by `memory-manager.js create`. No source-count filter. Represents deliberate human curation — use for rules, decisions, or context you want remembered whether or not it came up in session transcripts.
+- **Hand-created memories** — `docs/.output/memories/{cat}/{slug}.json`. Produced by `memory-manager.js create`. No source-count filter. Represents deliberate human curation — use for rules, decisions, or context you want remembered whether or not it came up in session transcripts. Main Agent writes 0–3 of these per session at handoff time.
+- **Compiled concepts (legacy)** — `docs/.output/memories/concepts/{cat}/{slug}.md`. Produced by `memory-compiler.js` from daily logs. Needed 2+ sources to file. Represents observed reality accumulated across sessions.
 
-Both paths feed the same ranking and decay pipeline. `memory-promoter.js scan` and `mark` operate on both. The distinction matters only when you're deciding how to add a new memory: observed something worth noting? Let the compiler catch it once it happens twice. Want to lock in a fact before it organically repeats? Create it by hand.
+Both paths feed the same ranking and decay pipeline. `memory-promoter.js scan` and `mark` operate on both. The distinction matters only when you're deciding how to add a new memory: want to lock in a fact now? Create it by hand via `memory-manager.js create`. Working from historical logs in an adopter project? Run `memory-extractor.js extract` (manual Haiku).
+
+Note: compiled concept articles produced by `memory-compiler.js` were retired 2026-04-20 — the file remains for backward compat in adopter projects but is not part of the active pipeline.
 
 ## Key scripts
 
 | Script | What it does |
 |--------|--------------|
 | `memory-manager.js` | CRUD + search + decay + 7-point health lint (SQLite FTS5 index) |
-| `memory-compiler.js` | Daily logs → concept articles (requires `sources >= 2`) |
+| `memory-compiler.js` | Daily logs → concept articles (retired 2026-04-20 — preserved for backward compat; not part of active pipeline) |
 | `memory-extractor.js` | Haiku-powered structured extraction from daily logs (manual/brownfield only — no auto-fire) |
 | `memory-curator.js` | Haiku-powered dedup / contradiction / merge analyzer (strict profile only) |
 | `memory-promoter.js` | Scan/rank/mark concepts for promotion to templates and skills |
 
-`memory-manager.js report` is the one-liner for "show me everything." `memory-manager.js search "topic"` hits the FTS5 index. `memory-compiler.js status` shows the daily-log + concept counts without re-running the pipeline. Running these by hand never hurts — the pipeline is idempotent.
+`memory-manager.js report` is the one-liner for "show me everything." `memory-manager.js search "topic"` hits the FTS5 index. `memory-manager.js decay-report` lists the stalest memories first. Running these by hand never hurts.
 
 The hook that drives the auto-compound is `memory-capture.cjs`, not a `memory-*.js` script — it lives under `.claude/hooks/`. See [`./hooks.md`](./hooks.md) for the full hook inventory.
 

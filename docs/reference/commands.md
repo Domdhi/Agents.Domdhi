@@ -1,6 +1,6 @@
 # Commands Reference
 
-Per-command reference for every slash command in the `.claude/` system. Thirty-eight commands as of today, grouped into four categories matching `CLAUDE.md:49-83`: **Setup**, **Build Loop**, **Supporting**, **Review**.
+Per-command reference for every slash command in the `.claude/` system. Thirty-nine commands as of today, grouped into four categories matching `CLAUDE.md:49-83`: **Setup**, **Build Loop**, **Supporting**, **Review**.
 
 This is the reference. For the conceptual framing — what a command *is*, how it relates to agents and skills, the orchestration pattern every command follows — read [`../concepts/commands.md`](../concepts/commands.md). For the rendered inventory across the whole system, see [`./system-map.md`](./system-map.md).
 
@@ -55,7 +55,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 ## Contents
 
-- [Setup](#setup) — 11 commands for project initialization
+- [Setup](#setup) — 12 commands for project initialization
 - [Build Loop](#build-loop) — 6 commands for the daily development cycle
 - [Supporting](#supporting) — 5 utility commands
 - [Review](#review) — 16 commands for quality, governance, and optimization
@@ -68,7 +68,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 # Setup
 
-Eleven commands for project initialization — from brainstorm through per-epic TODO generation, plus module scaffolding and component creation. Run them in roughly this order the first time you drop the template into a repo. The `/create:project-*` chain enforces hard gates.
+Twelve commands for project initialization — from brainstorm through per-epic TODO generation, plus module scaffolding, component creation, and the `/create:new-project` master orchestrator. Run them in roughly this order the first time you drop the template into a repo. The `/create:project-*` chain enforces hard gates.
 
 ## /brainstorm
 
@@ -538,6 +538,52 @@ No mermaid — the flow is linear and mostly interactive. The component template
 
 ---
 
+## /create:new-project
+
+Master orchestrator that walks a fresh clone from zero to implementation-ready. Scaffolds `docs/` from `.claude/templates/`, runs a 3-round interview (elevator pitch → tech & scope → constraints), classifies the project as simple/medium/complex, then chains the planning pipeline (`/create:project-brief` → `/create:project-requirements` → optional `/create:project-design` → `/create:project-architecture` → `/create:project-epics` → `/review:check-readiness`), specializes the generic agents for the new stack via `/review:specialize --fix`, and writes `docs/_project-context.md` as the quick-reference. Intended as the FIRST command an adopter runs after cloning the template.
+
+The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `_project-context.md` and the persisted interview scratch file at `docs/.output/work/{date}/new-project-interview.md`.
+
+```mermaid
+flowchart TD
+    START(["/create:new-project {name}"]) --> SCAFFOLD["Step 1: Scaffold docs/\nnode .claude/core/scaffold.js\n(idempotent — skips existing)"]
+    SCAFFOLD --> FRESH{Step 2: Fresh-project\ncheck}
+    FRESH -->|Filled planning docs found,\nno --yolo| EXIT["Exit — point user to\nindividual /create:project-*\ncommands"]
+    FRESH -->|Clean OR --yolo| INTERVIEW
+
+    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to .output/work/{date}/\nnew-project-interview.md"]
+
+    INTERVIEW --> ROUTE{Step 4: Phase routing\nfrom interview answers}
+    ROUTE -->|Simple| SIMPLE["PRD-min → Architecture → Epics"]
+    ROUTE -->|Medium| MEDIUM["Brief → PRD → Architecture → Epics"]
+    ROUTE -->|Complex| COMPLEX["Brainstorm → Brief → PRD →\nDesign → Architecture → Epics"]
+
+    SIMPLE --> PLAN
+    MEDIUM --> PLAN
+    COMPLEX --> PLAN
+
+    PLAN["Steps 5-7: Run sub-commands per tier\n(each sub-command auto-commits)\n→ /review:check-readiness"]
+
+    PLAN --> SPECIALIZE["Step 8: /review:specialize --fix\nAppend project context to default agents\nGenerate stack-specific agents from arch\nSeed memory with ADRs"]
+
+    SPECIALIZE --> CONTEXT["Step 9: Generate _project-context.md\nQuick-reference + implementation commands"]
+
+    CONTEXT --> COMMIT["Step 10: Wrap-up commit\nStage _project-context.md +\ninterview scratch file only"]
+
+    COMMIT --> REPORT(["Step 11: Final report\nDocs created table, specialization summary,\nreadiness verdict, recommended next commands"])
+
+    style START fill:#4a9eff,color:#fff
+    style EXIT fill:#e74c3c,color:#fff
+    style INTERVIEW fill:#f5a623,color:#fff
+    style SPECIALIZE fill:#7b68ee,color:#fff
+    style COMMIT fill:#2ecc71,color:#fff
+    style REPORT fill:#888,color:#fff
+```
+
+**Output:** `docs/_project-context.md` + the full planning chain (`_project-brief.md` per tier, `_project-requirements.md`, `_project-design.md` per UI flag, `_project-architecture.md`, `todo/_backlog.md`) + specialized `.claude/agents/*.md`. Each sub-command commits its own output; the orchestrator's wrap-up commit captures only the project-context file and the interview scratch.
+
+---
+
 # Build Loop
 
 Six commands used dozens of times per session. Every session starts with `/prime` and ends with `/end`. Between them, `/do` and `/run-todo` are the workhorses.
@@ -811,7 +857,7 @@ flowchart TD
     style DONE fill:#888,color:#fff
 ```
 
-> **`/recap` was removed** in v3. Memory now auto-compounds via the `memory-capture.cjs` Stop hook: daily-log capture → `memory-compiler.js compile` → optional `memory-extractor.js extract` (Haiku, opt-in via `CLAUDE_MEMORY_AUTO_EXTRACT=1`). See [`../concepts/memory.md`](../concepts/memory.md).
+> **`/recap` was removed** in v3. Memory now auto-compounds via the `memory-capture.cjs` Stop hook: daily-log capture (auto via Stop hook) → optional `memory-extractor.js extract` (manual Haiku, brownfield only) → `memory-manager.js create`. See [`../concepts/memory.md`](../concepts/memory.md).
 
 ---
 
@@ -916,7 +962,7 @@ Structured debug investigation with root-cause analysis *before* fixes. Enforces
 
 ## /remember
 
-Capture a conversational insight to the day's daily log so it can feed the memory compilation pipeline. Appends to `docs/.output/memories/daily/{YYYY-MM-DD}.md` — one line per invocation, prefixed with an ISO timestamp. No commit (the log is rolled up periodically by the memory compiler).
+Capture a conversational insight to the day's daily log so it feeds the memory acquisition pipeline. Appends to `docs/.output/memories/daily/{YYYY-MM-DD}.md` — one line per invocation, prefixed with an ISO timestamp. No commit. Structured memories are extracted manually (memory-extractor.js) or created directly via memory-manager.js create.
 
 **Use when:** something surprising or non-obvious came up in conversation that's worth capturing but doesn't warrant a structured memory yet. Turn it into a structured memory later via `/review:memory-health` or `/review:promote-memories`.
 
@@ -1433,22 +1479,20 @@ flowchart TD
 
 ## /review:memory-health
 
-Compile + lint + decay health check. Optionally runs `memory-extractor.js extract` first (when `CLAUDE_MEMORY_AUTO_EXTRACT=1`), then always runs compile, lint, decay. Silent if healthy (compiled=0, score=70, stale=0); otherwise reports the full breakdown. Read-only — no commit.
+Extract (opt-in) + lint + decay health check. Optionally runs the Haiku extractor first, then runs lint + decay report. Silent if healthy (score=70, stale=0); otherwise reports the full breakdown. Read-only — no commit.
 
 ```mermaid
 flowchart TD
     START(["/review:memory-health"]) --> EXTRACT{CLAUDE_MEMORY_AUTO_EXTRACT\n= 1?}
 
     EXTRACT -->|Yes| RUN_EXT["Run:\nmemory-extractor.js extract"]
-    EXTRACT -->|No| COMPILE
+    EXTRACT -->|No| LINT
 
-    RUN_EXT --> COMPILE["Step 1: Compile\nmemory-compiler.js compile\nTrack concepts_compiled"]
-
-    COMPILE --> LINT["Step 2: Lint\nmemory-manager.js lint\n7-point check, score 0-70"]
+    RUN_EXT --> LINT["Step 2: Lint\nmemory-manager.js lint\n7-point check, score 0-70"]
 
     LINT --> DECAY["Step 3: Decay Report\nmemory-manager.js decay-report\nCount stale (< 0.3)\nCount archive (< 0.1)"]
 
-    DECAY --> EVAL{All healthy?\ncompiled=0 + score=70\n+ stale=0}
+    DECAY --> EVAL{All healthy?\nscore=70 + stale=0}
 
     EVAL -->|Yes| SILENT(["[SILENT] Memory system\nhealthy — nothing to process"])
 

@@ -23,7 +23,7 @@ Read these once you've initialized a project and want to use it well.
 2. [`guides/specialize.md`](./guides/specialize.md) — `/review:specialize --fix` walkthrough. Appends project context to the baseline agents and generates stack-specific agents from your architecture doc.
 3. [`guides/personalize.md`](./guides/personalize.md) — `/review:personalize` walkthrough. Gives agents names, personas, and soul-level identities. Cosmetic until you work at scale — then it becomes how you think about the team.
 4. [`concepts/memory.md`](./concepts/memory.md) — How memories compound across sessions. Active-work-day decay (idle projects don't rot), confidence tiers, the session-handoff write path.
-5. [`concepts/hooks.md`](./concepts/hooks.md) — The 11 automated hooks. Secret scanning, guardrails, session memory capture — what happens without you asking.
+5. [`concepts/hooks.md`](./concepts/hooks.md) — The 12 automated hooks. Secret scanning, guardrails, session memory capture — what happens without you asking.
 
 ## For Contributors — Extending the System
 
@@ -45,7 +45,7 @@ If you came here from a search engine or a link and just need to find a specific
 | Agents (concept) | [`concepts/agents.md`](./concepts/agents.md) | The 11 baseline agents + model hierarchy |
 | Skills (concept) | [`concepts/skills.md`](./concepts/skills.md) | Auto-load, user-invocable, the 26-skill catalog |
 | Memory (concept) | [`concepts/memory.md`](./concepts/memory.md) | Compounding, confidence, decay, the session-handoff write path |
-| Hooks (concept) | [`concepts/hooks.md`](./concepts/hooks.md) | The 11 hooks and their trigger taxonomy |
+| Hooks (concept) | [`concepts/hooks.md`](./concepts/hooks.md) | The 12 hooks and their trigger taxonomy |
 | Commands (reference) | [`reference/commands.md`](./reference/commands.md) | Every slash command, alphabetical |
 | System Map | [`reference/system-map.md`](./reference/system-map.md) | Full inventory and wiring |
 | Customization | [`reference/customization.md`](./reference/customization.md) | Zone map for safe editing |

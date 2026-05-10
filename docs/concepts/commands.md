@@ -1,6 +1,6 @@
 # Commands
 
-A command in this system is a slash-invoked workflow — the thing you type with `/`, like `/do` or `/brainstorm`. Each one is a Markdown file in `.claude/commands/` that tells the main agent how to run a specific procedure: which gates to check, what to ask the user, whether to delegate, how to validate, and whether to commit. There are 38 of them as of today, grouped into 4 categories: Setup, Build Loop, Supporting, and Review.
+A command in this system is a slash-invoked workflow — the thing you type with `/`, like `/do` or `/brainstorm`. Each one is a Markdown file in `.claude/commands/` that tells the main agent how to run a specific procedure: which gates to check, what to ask the user, whether to delegate, how to validate, and whether to commit. There are 39 of them as of today, grouped into 4 categories: Setup, Build Loop, Supporting, and Review.
 
 Commands are the **orchestration layer** of the three-tier architecture. They don't contain domain knowledge (skills do) and they don't do the implementation work themselves when it gets large (agents do). They do own the shape of a procedure — the order of steps, where the user gets asked a question, when the gate runs, and what gets committed. If you want to think of it as a verb: commands are the verb the user types, agents are the workers a command can dispatch, and skills are the reference material both agents and the main loop already know.
 
@@ -21,8 +21,9 @@ Commands are the **orchestration layer** of the three-tier architecture. They do
 | `/create:project-todo` | Master implementation index → `TODO_{ProjectName}.md` |
 | `/create:project-epics-todo` | Per-epic story checklists → `todo/TODO_epic{NN}.md` |
 | `/create:component` | Create a new agent, command, or skill following conventions |
+| `/create:new-project` | Master orchestrator — scaffolds `docs/` and runs the full Setup pipeline → `_project-context.md` |
 
-Eleven commands. Run them in roughly that order the first time you drop this template into a repo. The `/create:project-*` chain has hard gates — each one checks that the previous artifact exists before it runs (see "Hard gates" below).
+Twelve commands. Run them in roughly that order the first time you drop this template into a repo. The `/create:project-*` chain has hard gates — each one checks that the previous artifact exists before it runs (see "Hard gates" below).
 
 ### Build Loop (daily)
 
@@ -45,7 +46,7 @@ Six commands, used dozens of times per session. Every session starts with `/prim
 | `/create:module` | Add a new feature area → `docs/app/{module}/` + TODO checklist |
 | `/organize` | Move plan files to dated folders |
 | `/investigate` | Structured debug investigation with root cause before fixes |
-| `/remember` | Capture a conversational insight to the daily log for memory compilation |
+| `/remember` | Capture a conversational insight to the daily log for memory acquisition |
 
 Five utility commands for progress-checking, module scaffolding, cleanup, debugging, and memory.
 
