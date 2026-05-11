@@ -58,12 +58,37 @@ function buildFtsQuery(searchTerm) {
     return tokens.join(' OR ');
 }
 
-// Try to load built-in SQLite (stable in Node 24+; experimental with --experimental-sqlite in Node 22-23)
+// SQLite backend resolution — preference order:
+//   1. better-sqlite3 (npm, optionalDependency) — ships its own SQLite compiled
+//      with FTS5. The only backend where full-text search actually works.
+//   2. node:sqlite (built-in, Node 22+ flagged / 24+ stable) — convenient, but
+//      Node's bundled SQLite ships WITHOUT FTS5 as of v24, so CREATE VIRTUAL
+//      TABLE...USING fts5 throws "no such module: fts5". indexMemory()'s
+//      try/catch survives this, but the FTS index is dead weight.
+//   3. JSON-only — linear scan over per-category JSON files. Fine up to a few
+//      thousand memories.
+//
+// All three paths satisfy the same minimal API: new DatabaseSync(path),
+// db.exec(sql), db.prepare(sql).run/get/all, db.close().
 let DatabaseSync = null;
+let sqliteBackend = 'json-only';
+let sqliteSupportsFts5 = false;
+
 try {
-    DatabaseSync = require('node:sqlite').DatabaseSync;
+    const BetterSqlite3 = require('better-sqlite3');
+    // Adapter so callers keep using `new DatabaseSync(path)`.
+    DatabaseSync = function(dbPath) { return new BetterSqlite3(dbPath); };
+    sqliteBackend = 'better-sqlite3';
+    sqliteSupportsFts5 = true;
 } catch {
-    // SQLite not available — JSON-only mode
+    try {
+        DatabaseSync = require('node:sqlite').DatabaseSync;
+        sqliteBackend = 'node:sqlite';
+        // FTS5 absence detected lazily in initDb() — Node's bundle decision can
+        // change between versions; don't assume.
+    } catch {
+        // Neither backend available — JSON-only mode.
+    }
 }
 
 class MemoryManager {
@@ -699,7 +724,9 @@ class MemoryManager {
             timestamp: new Date().toISOString(),
             storage: {
                 json: this.memoriesDir,
-                sqlite: DatabaseSync ? this.dbPath : 'not available (Node 24+ required)'
+                sqlite: DatabaseSync ? this.dbPath : 'not available',
+                sqliteBackend,
+                sqliteSupportsFts5,
             },
             categories: {}
         };

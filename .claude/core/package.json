@@ -17,5 +17,8 @@
     "lifecycle"
   ],
   "author": "Domdhi",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "optionalDependencies": {
+    "better-sqlite3": "^12.9.0"
+  }
 }
