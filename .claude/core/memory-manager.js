@@ -104,7 +104,14 @@ class MemoryManager {
             `);
             return true;
         } catch (e) {
+            // Close the handle if `new DatabaseSync()` succeeded but `exec()`
+            // threw (e.g. FTS5 not compiled in). Otherwise the file lock leaks
+            // and the db file is undeletable until process exit — surfaces on
+            // Windows as EPERM on tmp-dir cleanup in tests.
             console.error('SQLite init failed (falling back to JSON-only):', e.message);
+            if (this.db) {
+                try { this.db.close(); } catch { /* non-fatal */ }
+            }
             this.db = null;
             return false;
         }

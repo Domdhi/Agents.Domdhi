@@ -18,11 +18,16 @@
 
 // ── Zone Data ─────────────────────────────────────────────────────────────────
 
-/** Template zone — overwrite in target. */
+/** Template zone — overwrite in target.
+ *
+ * core/ and hooks/ use ** (recursive) so subdirectories like core/_lib/ are
+ * included. ALWAYS_SKIP_DIRS in template-updater.js filters __tests__/ etc.
+ * at the file-walker level, so test files never reach the classifier.
+ */
 const TEMPLATE_GLOBS = [
     'commands/**/*.md',
-    'core/*.js',
-    'hooks/*.cjs',
+    'core/**/*.js',
+    'hooks/**/*.cjs',
     'skills/**/*',
     'skills-optional/**/*',
     'templates/**/*',

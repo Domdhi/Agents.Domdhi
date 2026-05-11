@@ -54,9 +54,20 @@ function createTmpDir({ prefix = 'domdhi-test-' } = {}) {
 
     /**
      * Remove the entire tmp directory tree.
+     *
+     * Windows note: maxRetries/retryDelay mitigate a race where AV scanners,
+     * file-system indexers, or recently-closed file handles transiently hold
+     * locks on freshly-written files, producing EPERM/EBUSY on rmSync. Node's
+     * built-in retry loop handles all of those without us shipping a polyfill.
+     * See nodejs/node#34624 for the rationale behind these options.
      */
     cleanup() {
-      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     },
   };
 }
