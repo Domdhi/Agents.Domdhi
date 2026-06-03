@@ -37,7 +37,7 @@ INPUT: $ARGUMENTS
 
 ### 4a. Interview Mode (main agent)
 
-Use AskUserQuestion to gather vision and scope. Use the Interview Questions from the `project-brief-writer` skill as the question bank — cover vision, users, features, scope boundaries, constraints, and success metrics.
+Use AskUserQuestion to gather vision and scope. Use the Interview Questions from the `project-planning` skill's `references/project-brief.md` as the question bank — cover vision, users, features, scope boundaries, constraints, and success metrics.
 
 ### 4b. Context Mode (main agent)
 
@@ -56,12 +56,12 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the bri
 3. User's answers from interview rounds (if any)
 4. Mode (Context/Interview)
 
-The `product-strategist` agent auto-loads the `project-brief-writer` skill via frontmatter — do NOT tell it to read the skill file.
+The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter — do NOT tell it to read the skill file.
 
 ### 6. Validate (main agent)
 
 After the agent completes, verify the output:
-- Check against project-brief-writer skill's Required Sections Checklist
+- Check against the Required Sections Checklist in `.claude/skills/project-planning/references/project-brief.md`
 - If any section is incomplete, delegate back to the agent to fill it
 
 ### 7. Commit (main agent)

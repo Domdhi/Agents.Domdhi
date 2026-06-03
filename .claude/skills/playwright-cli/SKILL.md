@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [browser-automation, testing, screenshots, web-scraping, e2e]
 user-invocable: false
-allowed-tools: Bash(playwright-cli:*), Read, Write
+allowed-tools: Bash(playwright-cli:*) Read Write
 ---
 
 # Browser Automation with playwright-cli

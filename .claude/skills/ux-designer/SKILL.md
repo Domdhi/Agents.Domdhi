@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [ux, wireframes, design-system, accessibility, themes, mock-layout]
 user-invocable: false
-allowed-tools: Read, Grep, Glob
+allowed-tools: Read Grep Glob
 ---
 
 # UX Designer

@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [testing, qa, unit-test, integration-test, e2e, coverage]
 user-invocable: false
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read Grep Glob Bash
 ---
 
 # QA Engineer

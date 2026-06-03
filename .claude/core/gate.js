@@ -28,7 +28,8 @@
  *   2. Cargo.toml → cargo build / cargo test
  *   3. go.mod → go build ./... / go test ./...
  *   4. *.sln or *.slnx → dotnet build / dotnet test
- *   5. Makefile → make build / make test
+ *   5. pyproject.toml → ruff check + format --check + mypy --strict / pytest
+ *   6. Makefile → make build / make test
  */
 
 const { execSync } = require('child_process');
@@ -46,7 +47,10 @@ const CONFIG_FILE = path.join(PROJECT_ROOT, '.claude', 'gate.config.json');
 // ── Args ────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const runTests = args.includes('--test') || args.includes('test');
+const skipBuild = args.includes('--no-build');
+const changedOnly = args.includes('--changed');
+// --no-build implies --test (build-skip without testing is meaningless)
+const runTests = skipBuild || args.includes('--test') || args.includes('test');
 
 // ── Lock ────────────────────────────────────────────────────────────
 
@@ -139,6 +143,23 @@ function loadConfig() {
         };
     }
 
+    if (files.includes('pyproject.toml')) {
+        // Prefer .venv/bin/ tools when present (project-local venv pattern).
+        const venvBin = path.join(PROJECT_ROOT, '.venv', 'bin');
+        const hasVenv = fs.existsSync(path.join(venvBin, 'ruff'));
+        const prefix = hasVenv ? `${venvBin}/` : '';
+        const buildCmd = [
+            `${prefix}ruff check src tests`,
+            `${prefix}ruff format --check src tests`,
+            `${prefix}mypy --strict src`,
+        ].join(' && ');
+        return {
+            build: { command: buildCmd, timeout: 300000 },
+            test: { command: `${prefix}pytest`, timeout: 1200000 },
+            stack: 'python'
+        };
+    }
+
     if (files.includes('Makefile')) {
         return {
             build: { command: 'make build', timeout: 300000 },
@@ -198,9 +219,13 @@ function parseBuildOutput(output, exitCode) {
         // TypeScript: src/file.ts(10,5): error TS2345: ...
         // ESLint: /path/file.ts:10:5: error ...
         // Generic: file:line:col: error ...
+        // mypy: src/file.py:42: error: Cannot assign ...  [assignment]
+        // ruff:  src/file.py:10:5: F401 `os` imported but unused
         const errorPatterns = [
             /(.+?)\((\d+),(\d+)\):\s*error\s+(\w+\d+):\s*(.+)/,          // TS/C# style
             /(.+?):(\d+):(\d+):\s*error\s*(.+)/,                           // ESLint/generic style
+            /(.+\.py):(\d+):\s*error:\s*(.+)/,                             // mypy style (no column)
+            /(.+\.py):(\d+):(\d+):\s*([A-Z]+\d+)\s+(.+)/,                  // ruff style
             /^error(?:\[(\w+)\])?:\s*(.+)/,                                 // Rust/generic prefix
         ];
 
@@ -306,6 +331,30 @@ function parseTestOutput(output, exitCode) {
             continue;
         }
 
+        // pytest summary: "===== 5 passed, 1 failed, 2 skipped in 1.23s =====".
+        // Counters may appear in any order; "warnings" / "errors" / "deselected"
+        // segments are ignored. Match the envelope, then scan the body for keywords.
+        const pytestMatch = line.match(/={2,}\s+(.+?)\s+in\s+[\d.]+s\s*={2,}/);
+        if (pytestMatch && /\b(passed|failed|skipped|error|errors)\b/.test(pytestMatch[1])) {
+            const body = pytestMatch[1];
+            const pM = body.match(/(\d+)\s+passed/);
+            const fM = body.match(/(\d+)\s+failed/);
+            const sM = body.match(/(\d+)\s+skipped/);
+            const eM = body.match(/(\d+)\s+errors?/);
+            tests.passed = pM ? parseInt(pM[1]) : 0;
+            tests.failed = (fM ? parseInt(fM[1]) : 0) + (eM ? parseInt(eM[1]) : 0);
+            tests.skipped = sM ? parseInt(sM[1]) : 0;
+            tests.total = tests.passed + tests.failed + tests.skipped;
+            continue;
+        }
+
+        // pytest individual failure: "FAILED tests/test_foo.py::test_bar - AssertionError: ..."
+        const pytestFailMatch = line.match(/^FAILED\s+(\S+)(?:\s+-\s+(.+))?$/);
+        if (pytestFailMatch) {
+            tests.failures.push({ name: pytestFailMatch[1] });
+            continue;
+        }
+
         // Individual failure lines
         const failMatch = line.match(/^\s*(?:FAIL|Failed|✗|✘|×)\s+(.+?)(?:\s+\[|$)/);
         if (failMatch) {
@@ -336,30 +385,51 @@ async function main() {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const logPath = path.join(LOG_DIR, `gate-${timestamp}.log`);
-    const mode = runTests ? 'BUILD + TEST' : 'BUILD';
+    const mode = skipBuild
+        ? (changedOnly ? 'TEST (changed only)' : 'TEST ONLY')
+        : (runTests ? 'BUILD + TEST' : 'BUILD');
     let fullLog = `${mode} gate started at ${new Date().toISOString()}\nStack: ${config.stack || 'configured'}\n${'='.repeat(60)}\n`;
 
     // ── Step 1: Build ───────────────────────────────────────────────
 
-    console.log(`[GATE] Building... (${config.build.command})`);
-    fullLog += '\n--- Build ---\n';
+    let build;
+    if (skipBuild) {
+        console.log('[GATE] Build: SKIPPED (--no-build)');
+        fullLog += '\n--- Build SKIPPED (--no-build) ---\n';
+        build = {
+            succeeded: true,
+            errors: [],
+            warnings: [],
+            exitCode: 0,
+            command: '(skipped)',
+            timestamp: new Date().toISOString(),
+            skipped: true,
+        };
+        fs.writeFileSync(
+            path.join(GATE_DIR, '_latest-build.json'),
+            JSON.stringify(build, null, 2)
+        );
+    } else {
+        console.log(`[GATE] Building... (${config.build.command})`);
+        fullLog += '\n--- Build ---\n';
 
-    const buildResult = runCommand(config.build.command, PROJECT_ROOT, config.build.timeout);
-    const buildCombined = buildResult.output + '\n' + buildResult.stderr;
-    fullLog += buildCombined + '\n';
+        const buildResult = runCommand(config.build.command, PROJECT_ROOT, config.build.timeout);
+        const buildCombined = buildResult.output + '\n' + buildResult.stderr;
+        fullLog += buildCombined + '\n';
 
-    const build = parseBuildOutput(buildCombined, buildResult.exitCode);
-    build.exitCode = buildResult.exitCode;
-    build.command = config.build.command;
-    build.timestamp = new Date().toISOString();
+        build = parseBuildOutput(buildCombined, buildResult.exitCode);
+        build.exitCode = buildResult.exitCode;
+        build.command = config.build.command;
+        build.timestamp = new Date().toISOString();
 
-    fs.writeFileSync(
-        path.join(GATE_DIR, '_latest-build.json'),
-        JSON.stringify(build, null, 2)
-    );
+        fs.writeFileSync(
+            path.join(GATE_DIR, '_latest-build.json'),
+            JSON.stringify(build, null, 2)
+        );
 
-    const buildStatus = build.succeeded ? 'PASSED' : 'FAILED';
-    console.log(`[GATE] Build: ${buildStatus} (${build.errors.length} errors, ${build.warnings.length} warnings)`);
+        const buildStatus = build.succeeded ? 'PASSED' : 'FAILED';
+        console.log(`[GATE] Build: ${buildStatus} (${build.errors.length} errors, ${build.warnings.length} warnings)`);
+    }
 
     // ── Step 2: Test (if requested and build passed) ────────────────
 
@@ -369,16 +439,21 @@ async function main() {
             console.log('[GATE] Skipping tests — build failed');
             fullLog += '\n--- Tests SKIPPED (build failed) ---\n';
         } else {
-            console.log(`[GATE] Testing... (${config.test.command})`);
+            // Inject --changed via `npm test -- --changed` (extra args after `--` pass through to vitest).
+            // --passWithNoTests prevents false-failure when --changed matches zero files (e.g., docs-only wave).
+            const testCmd = changedOnly
+                ? `${config.test.command} -- --changed --passWithNoTests`
+                : config.test.command;
+            console.log(`[GATE] Testing... (${testCmd})`);
             fullLog += '\n--- Tests ---\n';
 
-            const testResult = runCommand(config.test.command, PROJECT_ROOT, config.test.timeout);
+            const testResult = runCommand(testCmd, PROJECT_ROOT, config.test.timeout);
             const testCombined = testResult.output + '\n' + testResult.stderr;
             fullLog += testCombined + '\n';
 
             test = parseTestOutput(testCombined, testResult.exitCode);
             test.exitCode = testResult.exitCode;
-            test.command = config.test.command;
+            test.command = testCmd;
             test.timestamp = new Date().toISOString();
 
             fs.writeFileSync(

@@ -25,10 +25,10 @@ const {
 } = require('./_lib/daily-log-parser');
 const {
     checkClaudeCli,
-    invokeHaiku,
-    parseHaikuResult,
+    invokeModel,
+    parseModelResult,
     extractTokenCounts,
-} = require('./_lib/haiku-runner');
+} = require('./_lib/model-runner');
 const { appendJsonl } = require('./_lib/jsonl-writer');
 const { getTelemetryDir, getJsonlPath } = require('./_lib/telemetry-paths');
 
@@ -56,7 +56,7 @@ class MemoryBenchmark {
     }
 
     // -------------------------------------------------------------------------
-    // Guards (thin adapter over _lib/haiku-runner)
+    // Guards (thin adapter over _lib/model-runner)
     // -------------------------------------------------------------------------
 
     checkClaudeCli() {
@@ -169,20 +169,20 @@ Rules:
 - If no concept matches, return null (not an empty string).`;
     }
 
-    invokeHaiku(prompt) {
-        return invokeHaiku(prompt, {
+    invokeModel(prompt) {
+        return invokeModel(prompt, {
             cwd: this.projectRoot,
             timeout: 90000,
             logTag: 'memory-benchmark',
         });
     }
 
-    parseHaikuResult(raw) {
+    parseModelResult(raw) {
         // Benchmark originally had an expected_slug-specific fallback for the edge
         // case where Haiku returned the payload directly instead of an envelope.
         // Preserve by chaining: try shared envelope parser, then fall back to
         // treating the whole string as the payload.
-        const primary = parseHaikuResult(raw);
+        const primary = parseModelResult(raw);
         if (primary) return primary;
         try {
             const envelope = JSON.parse(raw);
@@ -192,7 +192,7 @@ Rules:
     }
 
     tryParseInnerJson(text) {
-        return require('./_lib/haiku-runner').tryParseInnerJson(text);
+        return require('./_lib/model-runner').tryParseInnerJson(text);
     }
 
     extractTokenCounts(raw) {
@@ -272,10 +272,10 @@ Rules:
 
         for (const entry of sampled) {
             const prompt = this.buildPrompt(indexContent, entry);
-            const raw = this.invokeHaiku(prompt);
+            const raw = this.invokeModel(prompt);
             if (!raw) continue;
 
-            const parsed = this.parseHaikuResult(raw);
+            const parsed = this.parseModelResult(raw);
             const expectedSlug = (parsed && typeof parsed.expected_slug === 'string' && parsed.expected_slug.trim())
                 ? parsed.expected_slug.trim()
                 : null;

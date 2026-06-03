@@ -6,7 +6,7 @@ description: Identify memory store overlap clusters and walk the user through me
 
 Periodic restructuring sweep of the memory store. Dispatches a Sonnet agent to analyze overlap, then walks the user through accepting merge / split / cross-reference proposals one-by-one. Different timing from the `memory-curator.js` Stop hook (which does light dedup on session close): defrag is the heavier, infrequent intervention.
 
-**When to run:** quarterly, OR after a burst of new memory creation, OR when a category approaches its 50-entry soft cap. Not every session — the analysis cost (Sonnet dispatch) is real.
+**When to run:** quarterly, OR after a burst of new memory creation, OR when a category approaches its 50-entry hard cap (`MAX_MEMORIES_PER_CATEGORY` in `memory-manager.js`; writes are refused at 50, prune-warning triggers at 80% = 40). Not every session — the analysis cost (Sonnet dispatch) is real.
 
 ## Orchestration Rule
 
@@ -99,7 +99,7 @@ OUTPUT FORMAT — markdown with sections like:
 ### Proposal 2: SPLIT constraints/big-grab-bag
 - **Source:** constraints/big-grab-bag
 - **Into:** constraints/specific-thing-a + constraints/specific-thing-b
-- **Rationale:** Description currently bundles two distinct platform constraints
+- **Rationale:** Description currently bundles two distinct constraints
   that fire in different contexts. Splitting lets future agents match the
   specific case, not the bundle.
 
@@ -161,8 +161,6 @@ For each accepted proposal:
 2. Construct merged `content` object — primary's content wins by default; specific fields from duplicate that are load-bearing (evidence, code_example, reference, alternatives entries) get appended to the corresponding fields in the merged content.
 3. Update primary:
    ```bash
-   # Direct file write — memory-manager.js doesn't expose updateMemory at CLI today
-   # so use Edit on the JSON file directly, OR use the Node API:
    node -e "const M=require('./.claude/core/memory-manager'); (async()=>{const m=new M(); await m.updateMemory('{primary_category}','{primary_id}',{ content: <merged-object> }); m.db?.close();})();"
    ```
 4. Delete duplicate:
@@ -179,7 +177,6 @@ For each accepted proposal:
    node .claude/core/memory-manager-cli.js create {new_category_a} {new_id_a} '<content_a_json>'
    node .claude/core/memory-manager-cli.js create {new_category_b} {new_id_b} '<content_b_json>'
    ```
-   For multi-line payloads, use the `--payload-file` pattern (write JSON to temp file, then ingest).
 4. Either reduce source memory's content (if keeping the source) OR delete it (if retiring):
    - Reduce: `updateMemory` with the leftover content
    - Retire: `delete <category> <source_id>`
@@ -196,10 +193,10 @@ For each accepted proposal:
 Before SPLIT or CROSS-REF that would create a new memory, check the target category's count:
 
 ```bash
-node .claude/core/memory-manager-cli.js list {category} | head -1
+node .claude/core/memory-manager-cli.js list {category} | grep -c '"id"'
 ```
 
-If the category is at 49 (one below the soft cap of 50), warn the user and suggest pruning before proceeding. Do NOT silently fail at the cap.
+If the category is at 49 (one below the hard cap of 50), warn the user and suggest pruning before proceeding. Do NOT silently fail at the cap.
 
 ### Step 5: Commit
 
@@ -207,23 +204,26 @@ Stage the modified memory JSON files plus the plan file:
 
 ```bash
 git add docs/.output/memories/ docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
-git commit -m "$(cat <<'EOF'
+```
+
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool) then `node .claude/core/commit.js`:
+```
 docs: /review:memory-defrag — N proposals applied
 
 {Brief summary: M merges, S splits, X cross-refs.}
 
 Plan: docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
-
-Co-Authored-By: 🤖
-EOF
-)"
 ```
 
 If zero proposals were accepted, commit only the plan file (it's still a useful audit artifact):
 
 ```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
-git commit -m "docs: /review:memory-defrag — analysis only (0 proposals applied)"
+```
+
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` then `node .claude/core/commit.js`:
+```
+docs: /review:memory-defrag — analysis only (0 proposals applied)
 ```
 
 If the agent abstained (no overlap identified), skip the commit entirely — there's nothing to record.
@@ -263,4 +263,3 @@ Memory corpus size: before {N_before} → after {N_after}.
 - Companion command: `/review:promote-memories` (concept-to-template promotion)
 - Light dedup runs on Stop hook via `memory-curator.js` (strict profile only) — defrag is the heavier, less frequent intervention
 - Memory architecture decision: `docs/.output/reviews/2026-04-20-adr-memory-unification.md`
-- Source recommendation: `docs/.output/research/2026-05-11-memory-enhancement-investigation.md` §C.2 R-B

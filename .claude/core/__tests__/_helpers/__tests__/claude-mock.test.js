@@ -26,11 +26,11 @@ const FIXTURE_PATH = '../fixtures/destructure-fixture.cjs';
 const FIXTURE_RESOLVED = require.resolve(FIXTURE_PATH);
 
 // ---------------------------------------------------------------------------
-// Helpers used by multiple tests — mimic the parseHaikuResult logic from
+// Helpers used by multiple tests — mimic the parseModelResult logic from
 // memory-curator.js:281-303 and memory-benchmark.js:187-204.
 // ---------------------------------------------------------------------------
 
-function parseHaikuResult(raw) {
+function parseModelResult(raw) {
     if (!raw) return null;
     let envelope;
     try {
@@ -319,16 +319,16 @@ describe('expectClaudePCalledWith', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Round-trip: envelope → parseHaikuResult (mirrors memory-curator/benchmark logic)
+// Round-trip: envelope → parseModelResult (mirrors memory-curator/benchmark logic)
 // ---------------------------------------------------------------------------
 
-describe('round-trip parseHaikuResult', () => {
+describe('round-trip parseModelResult', () => {
     it('roundTrip_buildEnvelope_primaryShape_innerTextRecovered', () => {
         const innerPayload = JSON.stringify({ dedup_candidates: [], contradiction_pairs: [] });
         const envelope = buildEnvelope(innerPayload);
 
-        // parseHaikuResult receives the full envelope string (as execSync would return)
-        const parsed = parseHaikuResult(envelope);
+        // parseModelResult receives the full envelope string (as execSync would return)
+        const parsed = parseModelResult(envelope);
 
         expect(parsed).toEqual({ dedup_candidates: [], contradiction_pairs: [] });
     });
@@ -337,7 +337,7 @@ describe('round-trip parseHaikuResult', () => {
         const innerPayload = JSON.stringify({ expected_slug: 'my-concept' });
         const envelope = buildTextEnvelope(innerPayload);
 
-        const parsed = parseHaikuResult(envelope);
+        const parsed = parseModelResult(envelope);
 
         expect(parsed).toEqual({ expected_slug: 'my-concept' });
     });
@@ -347,14 +347,14 @@ describe('round-trip parseHaikuResult', () => {
         const innerPayload = JSON.stringify({ expected_slug: 'joined' });
         const envelope = buildContentEnvelope([innerPayload]);
 
-        const parsed = parseHaikuResult(envelope);
+        const parsed = parseModelResult(envelope);
 
         expect(parsed).toEqual({ expected_slug: 'joined' });
     });
 
     it('roundTrip_rawJsonString_extractor_parsedDirectly', () => {
         // With --bare the extractor (memory-extractor.js:112-115) gets raw JSON and
-        // calls JSON.parse() directly on stdout — NOT via parseHaikuResult.
+        // calls JSON.parse() directly on stdout — NOT via parseModelResult.
         // This test mirrors that direct-parse path (not the curator/benchmark envelope path).
         const rawArray = JSON.stringify([
             { category: 'pattern', title: 'mock usage', content: 'use mocks', confidence: 0.7 },
@@ -379,7 +379,7 @@ describe('round-trip parseHaikuResult', () => {
         const returned = impl('claude -p "some prompt" --model claude-haiku-4-5', { encoding: 'utf8' });
 
         expect(returned).toBe(canned);
-        const parsed = parseHaikuResult(returned);
+        const parsed = parseModelResult(returned);
         expect(parsed.dedup_candidates).toHaveLength(1);
     });
 });

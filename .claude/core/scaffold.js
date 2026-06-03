@@ -338,6 +338,8 @@ function runScaffold(projectDir, opts) {
         'docs/.output/research',
         'docs/.output/investigations',
         'docs/.output/telemetry',
+        'docs/.output/agent-updates',   // day-rotated agent-misalignment logs ({YYYY-MM-DD}.md)
+        'docs/.output/intake',          // /listen post-MVP signal intake ({YYYY-MM-DD}.md)
     ];
     for (const dir of extraDirs) {
         const fullPath = path.join(target, dir);

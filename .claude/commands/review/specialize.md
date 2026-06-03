@@ -308,7 +308,7 @@ For each skill in `.claude/skills/*/SKILL.md`:
 
 **3b. Classify against the extracted tech stack:**
 
-- **relevant** — Skill is tech-agnostic (planning/review skills like `prd-writer`, `architecture-writer`, `epic-writer`, `project-brief-writer`, `project-analyst`, `project-context`, `ux-designer`, `code-reviewer`, `qa-engineer`) OR skill's technology is in the project's tech stack
+- **relevant** — Skill is tech-agnostic (planning/review skills like `project-planning`, `architecture-writer`, `epic-writer`, `project-context`, `ux-designer`, `code-review`, `qa-engineer`) OR skill's technology is in the project's tech stack
 - **not-applicable** — Skill teaches a specific technology NOT used in this project (e.g., `tailwind-css-patterns` when project doesn't use Tailwind)
 - **needs-framework-skill** — Project uses a technology that has no corresponding skill
 

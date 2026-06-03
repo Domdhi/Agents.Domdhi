@@ -36,6 +36,82 @@ async function main() {
             console.log(JSON.stringify(memories, null, 2));
             break;
         }
+        case 'delete': {
+            const [category, id] = args;
+            if (!category || !id) {
+                console.error('Error: delete requires <category> <id>');
+                process.exit(1);
+            }
+            const result = await manager.deleteMemory(category, id);
+            if (result.deleted) {
+                console.log(`🗑️  Deleted: ${category}/${id}`);
+            } else {
+                console.error(`❌ Delete failed: ${result.error}`);
+                process.exit(1);
+            }
+            break;
+        }
+        case 'update': {
+            const [category, id] = args;
+            if (!category || !id || args[2] === undefined) {
+                console.error('Error: update requires <category> <id> <content-json>');
+                console.error('  content-json is merged into the memory\'s content (e.g. \'{"description":"..."}\')');
+                process.exit(1);
+            }
+            let content;
+            try {
+                content = JSON.parse(args[2]);
+            } catch (e) {
+                console.error(`Error: content must be valid JSON — ${e.message}`);
+                process.exit(1);
+            }
+            const updated = await manager.updateMemory(category, id, { content });
+            if (!updated) {
+                console.error(`❌ Update failed: ${category}/${id} not found`);
+                process.exit(1);
+            }
+            break;
+        }
+        case 'inbox-list': {
+            const entries = await manager.inboxList();
+            console.log(JSON.stringify(entries, null, 2));
+            break;
+        }
+        case 'inbox-promote': {
+            const [id] = args;
+            if (!id) {
+                console.error('Error: inbox-promote requires an inbox draft id');
+                process.exit(1);
+            }
+            const opts = {};
+            for (let i = 1; i < args.length; i++) {
+                if (args[i] === '--category' && args[i + 1]) { opts.categoryOverride = args[++i]; }
+                else if (args[i] === '--id' && args[i + 1]) { opts.idOverride = args[++i]; }
+            }
+            const result = await manager.inboxPromote(id, opts);
+            if (result.promoted) {
+                console.log(`✅ Promoted: ${result.category}/${result.id}`);
+            } else {
+                console.error(`❌ Promote failed: ${result.error}`);
+                process.exit(1);
+            }
+            break;
+        }
+        case 'inbox-discard': {
+            const [id] = args;
+            if (!id) {
+                console.error('Error: inbox-discard requires an inbox draft id');
+                process.exit(1);
+            }
+            const result = await manager.inboxDiscard(id);
+            if (result.discarded) {
+                console.log(`🗑️  Discarded inbox draft: ${id}`);
+            } else {
+                console.error(`❌ Discard failed: ${result.error}`);
+                process.exit(1);
+            }
+            break;
+        }
         case 'search': {
             const results = await manager.searchMemories(args[0]);
             console.log(JSON.stringify(results, null, 2));
@@ -176,9 +252,13 @@ Memory Manager (JSON + SQLite FTS5)
 Usage:
   node memory-manager-cli.js create <category> <id> <content>
   node memory-manager-cli.js read <category> <id>
-  node memory-manager-cli.js delete <category> <id>
+  node memory-manager-cli.js update <category> <id> <content-json>
   node memory-manager-cli.js list <category>
+  node memory-manager-cli.js delete <category> <id>
   node memory-manager-cli.js search <term>
+  node memory-manager-cli.js inbox-list
+  node memory-manager-cli.js inbox-promote <draft-id> [--category C] [--id new-id]
+  node memory-manager-cli.js inbox-discard <draft-id>
   node memory-manager-cli.js report
   node memory-manager-cli.js rebuild-index
   node memory-manager-cli.js decay-report

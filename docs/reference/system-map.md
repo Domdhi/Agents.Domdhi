@@ -12,11 +12,11 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Command | Agent | Skill | Reads | Produces | Gate |
 |---------|-------|-------|-------|----------|------|
-| `/brainstorm` | product-strategist | project-analyst | user input, codebase | `_brainstorm.md`, `_feature-ideas.md` | — |
-| `/research` | product-strategist | project-analyst | user topic, web | `_research.md` | — |
+| `/brainstorm` | product-strategist | project-planning | user input, codebase | `_brainstorm.md`, `_feature-ideas.md` | — |
+| `/research` | product-strategist | project-planning | user topic, web | `_research.md` | — |
 | `/interview` | — (main) | — | user input | decision summary (chat only) | — |
-| `/create:project-brief` | product-strategist | project-brief-writer | `_brainstorm.md`, `_research.md` | `_project-brief.md` | — |
-| `/create:project-requirements` | product-strategist | prd-writer | brief OR brainstorm OR research | `_project-requirements.md` | needs phase 1 artifact |
+| `/create:project-brief` | product-strategist | project-planning | `_brainstorm.md`, `_research.md` | `_project-brief.md` | — |
+| `/create:project-requirements` | product-strategist | project-planning | brief OR brainstorm OR research | `_project-requirements.md` | needs phase 1 artifact |
 | `/create:project-design` | ux-designer | ux-designer | `_project-requirements.md` | `_project-design.md` + 4 design files | needs PRD |
 | `/create:project-architecture` | architect | architecture-writer | `_project-requirements.md` | `_project-architecture.md` | needs PRD |
 | `/create:project-epics` | project-planner | epic-writer | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
@@ -50,8 +50,8 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Command | Agent | Skill | Modifies files? |
 |---------|-------|-------|----------------|
-| `/review:code-review` | code-reviewer | code-reviewer + code-review-playbook | No (read-only) |
-| `/review:security` | security-auditor | code-reviewer + code-review-playbook | Yes (writes to `docs/.output/reviews/`) |
+| `/review:code-review` | code-reviewer | code-review | No (read-only) |
+| `/review:security` | security-auditor | code-review | Yes (writes to `docs/.output/reviews/`) |
 | `/review:check-readiness` | architect + product-strategist + project-planner + ux-designer | prd/arch/ux/epic writers | No (read-only) |
 | `/review:check-sync` | architect + project-planner + product-strategist | — | No (read-only) |
 | `/review:check-templates` | — (main) | — | Yes (writes to `docs/.output/reviews/`, `--multi` for cross-project) |
@@ -73,13 +73,13 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | Agent | Skill(s) Loaded | Used By Commands |
 |-------|----------------|-----------------|
 | `architect` | architecture-writer | project-architecture, module, specialize, check-readiness, check-sync |
-| `product-strategist` | project-analyst, prd-writer, project-brief-writer | brainstorm, research, project-brief, project-requirements, module, check-readiness, check-sync |
+| `product-strategist` | project-planning | brainstorm, research, project-brief, project-requirements, module, check-readiness, check-sync |
 | `ux-designer` | ux-designer, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects | project-design, module, check-readiness |
 | `project-planner` | epic-writer | project-epics, project-todo, project-epics-todo, optimize-backlog, todo, check-readiness, check-sync |
-| `code-reviewer` | code-reviewer, code-review-playbook | code-review, run-todo, todo |
+| `code-reviewer` | code-review | code-review, run-todo, todo |
 | `qa-engineer` | qa-engineer | qa |
 | `doc-writer` | project-context, documentation | changelog, update-docs, retro, personalize |
-| `security-auditor` | code-reviewer, code-review-playbook | security |
+| `security-auditor` | code-review | security |
 | `general-purpose` | full-output-enforcement, systematic-debugging, verification-before-completion, finishing-a-development-branch, using-git-worktrees | module, run-tests, do (domain tasks) |
 | `playwright` | playwright-cli | run-tests |
 | `shadow` | article-writer | (not referenced by any command) |
@@ -94,16 +94,13 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | Skill | Loaded By Agent(s) | Referenced By Command(s) | Purpose |
 |-------|--------------------|--------------------------| --------|
 | architecture-writer | architect | project-architecture, check-readiness | Architecture doc template + quality criteria |
-| prd-writer | product-strategist | project-requirements, check-readiness | PRD template + quality criteria |
-| project-brief-writer | product-strategist | project-brief | Brief template + quality criteria |
+| project-planning | product-strategist | brainstorm, research, project-brief, project-requirements | Navigator: brainstorm/research, brief, PRD templates + quality criteria |
 | epic-writer | project-planner | project-epics, project-todo, project-epics-todo, optimize-backlog, module | Epic/story template + quality criteria |
-| project-analyst | product-strategist | brainstorm, research | Research methodology + brainstorm facilitation |
 | project-context | doc-writer | changelog, update-docs, retro | Project context doc format |
 | documentation | doc-writer | — | Documentation wayfinding + verification rules |
 | ux-designer | ux-designer | project-design, check-readiness | UX spec template + quality criteria |
 | brand-guidelines | ux-designer | project-design (updates it) | Brand colors/typography guide |
-| code-reviewer | code-reviewer, security-auditor | code-review | Review severity + patterns |
-| code-review-playbook | code-reviewer, security-auditor | code-review | Review process + checklists |
+| code-review | code-reviewer, security-auditor | code-review | Navigator: reviewer identity, two-stage process, severity, risk routing, checklists |
 | qa-engineer | qa-engineer | qa | Test strategy + generation patterns |
 | playwright-cli | playwright | run-tests | Browser automation patterns |
 | article-writer | shadow | — | Blog/article writing patterns |

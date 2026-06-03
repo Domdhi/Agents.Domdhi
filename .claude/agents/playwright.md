@@ -2,7 +2,7 @@
 name: playwright
 nickname: Gepetto
 aliases: [browser, e2e, automation]
-model: haiku
+model: sonnet
 description: Browser automation, web testing, form filling, screenshots, and data extraction. Use for navigating websites, testing web applications, and interacting with web pages.
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
@@ -64,7 +64,7 @@ Read these files at the start of every task:
 
 ## Memory Inbox Protocol
 
-If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. The Main Agent will review and promote keepers; you do not need to be confident the insight is worth keeping.
+If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
 Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
@@ -84,6 +84,6 @@ Write the file directly (you have the `Write` tool). Use the JSON shape:
 }
 ```
 
-`category` ∈ {`patterns`, `constraints`, `decisions`, `workflows`, `rejected-approaches`}. Don't worry about being right — the curator can override category at promotion time.
+`category` ∈ {`patterns`, `constraints`, `decisions`, `workflows`, `rejected-approaches`}. Don't worry about being exactly right — the Main Agent can override category or id at promotion time (`memory-manager-cli.js inbox-promote`), or discard the draft.
 
 **When NOT to flag:** pure project state (epic progress, branch status), one-off fixes specific to the current story, anything you'd label "obvious." Default toward flagging when in doubt — discarded drafts cost near zero; lost insights cost real work to rediscover.

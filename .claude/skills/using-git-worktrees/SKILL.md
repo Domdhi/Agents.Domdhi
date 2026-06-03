@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [git, worktrees, isolation, workflow]
 user-invocable: false
-allowed-tools: Read, Bash, Grep
+allowed-tools: Read Bash Grep
 ---
 
 # Using Git Worktrees

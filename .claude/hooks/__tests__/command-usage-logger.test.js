@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 
 const fs = require('fs');
 const path = require('path');
-const { processEvent, inferGateRun, appendJsonl } = require('../command-usage-logger.cjs');
+const { processEvent, inferGateRun, appendJsonl, MAX_JSONL_LINES, TAIL_KEEP_LINES } = require('../command-usage-logger.cjs');
 const { createTmpDir } = require('../../core/__tests__/_helpers/tmp-dir');
 
 // ─── inferGateRun ─────────────────────────────────────────────────────────────
@@ -134,26 +134,29 @@ describe('command-usage-logger', () => {
             expect(fs.existsSync(jsonlPath)).toBe(true);
         });
 
-        it('appendJsonl_over1000entries_rotatesAndDropsOldest', () => {
-            // Arrange — write 1200 entries to trigger rotation
+        it('appendJsonl_overMaxLines_rotatesAndDropsOldest', () => {
+            // Derive counts from the exported caps so this test survives cap
+            // re-sizing (command-usage was raised 1000/500 → 6000/5000 on
+            // 2026-06-03 to preserve longitudinal history). Rotation mechanics
+            // are exhaustively covered in jsonl-writer.test.js with small caps;
+            // here we only confirm the logger passes its caps through.
             const jsonlPath = path.join(tmp.root, 'telemetry', 'log.jsonl');
+            const total = MAX_JSONL_LINES + 200;
 
             // Act
-            for (let i = 0; i < 1200; i++) {
+            for (let i = 0; i < total; i++) {
                 appendJsonl(jsonlPath, { seq: i });
             }
 
-            // Assert — rotation cuts to TAIL_KEEP_LINES (500) once lines exceed
-            // MAX_JSONL_LINES (1000); the file then grows again until the next
-            // rotation. Invariant: size stays ≤ MAX, never equal to the full
-            // write count, and oldest entries are dropped.
+            // Assert — size stays ≤ MAX, oldest entries dropped, newest kept.
             const lines = fs.readFileSync(jsonlPath, 'utf8').trim().split('\n');
-            expect(lines.length).toBeLessThanOrEqual(1000);
-            expect(lines.length).toBeLessThan(1200);
+            expect(lines.length).toBeLessThanOrEqual(MAX_JSONL_LINES);
+            expect(lines.length).toBeLessThan(total);
+            expect(TAIL_KEEP_LINES).toBeLessThan(MAX_JSONL_LINES); // rotation sheds, never zeroes
             const firstSeq = JSON.parse(lines[0]).seq;
             expect(firstSeq).toBeGreaterThan(0);
             const lastSeq = JSON.parse(lines[lines.length - 1]).seq;
-            expect(lastSeq).toBe(1199);
+            expect(lastSeq).toBe(total - 1);
         });
 
         it('appendJsonl_rotation_preservesLastEntries', () => {

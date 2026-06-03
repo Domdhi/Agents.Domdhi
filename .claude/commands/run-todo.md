@@ -5,7 +5,7 @@ argument-hint: [path to TODO file, or leave blank to auto-discover]
 
 # /run-todo — Full Checklist Execution
 
-Execute every story in a TODO checklist using waves. Main Agent owns the TaskList, orchestrates every decision, and never loses its place. For multi-story waves, Main Agent delegates to Sonnet agents for parallelism. For single-story waves or all-XS waves, Main Agent implements directly — no delegation overhead. Haiku handles documentation.
+Execute every story in a TODO checklist using waves. Main Agent owns the TaskList, orchestrates every decision, and never loses its place. For multi-story waves, Main Agent delegates to Sonnet agents for parallelism. For single-story waves or all-XS waves, Main Agent implements directly — no delegation overhead. Sonnet handles documentation.
 
 ## Variables
 
@@ -348,7 +348,7 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 | Status | Action |
 |--------|--------|
 | **DONE** | Proceed to misalignment check |
-| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification. Log to docs/.output/agent-updates.md. |
+| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification. Log to docs/.output/agent-updates/{YYYY-MM-DD}.md. |
 | **BLOCKED** | Read blocker. Fix if possible (missing file, wrong path, missing dep). If truly blocked → mark story `[!]`, remove from wave, continue with remaining stories. |
 | **NEEDS_CONTEXT** | Answer questions by reading more files. Re-dispatch that agent only with additional context. |
 
@@ -469,7 +469,6 @@ Story {ID}:
 ```
 Agent(
   subagent_type: "code-reviewer",
-  model: "sonnet",
   prompt: """
   Review the changes for wave {N} stories: {IDs}
 
@@ -517,12 +516,12 @@ If CRITICAL or MAJOR findings → Main Agent fixes directly, re-runs gate.
 
 `TaskUpdate: "Wave {N}: Update TODO + commit" → in_progress`
 
-**8a. Update TODO (Haiku)**
+**8a. Update TODO (Sonnet)**
 
 ```
 Agent(
   subagent_type: "doc-writer",
-  model: "haiku",
+  model: "sonnet",
   prompt: """
   Update {TODO_PATH}:
   1. Mark these stories [x] in the Story Index: {IDs}
@@ -541,11 +540,11 @@ Read `docs/TODO_{Project}.md`. Update epic status/counts if applicable.
 
 **8c. Log agent issues (Main Agent)**
 
-Log **every** agent misalignment, no matter how small. Model doesn't matter — any delegated agent (Sonnet, Haiku, or otherwise) that produces output Main Agent has to fix is a misalignment and gets logged. Do not filter for "systemic" or "recurring" issues — that is `/review:optimize-agents`'s job, not yours. Only skip logging when the agent's output was accepted as-is.
+Log **every** agent misalignment, no matter how small. Model doesn't matter — any delegated agent (Sonnet or otherwise) that produces output Main Agent has to fix is a misalignment and gets logged. Do not filter for "systemic" or "recurring" issues — that is `/review:optimize-agents`'s job, not yours. Only skip logging when the agent's output was accepted as-is.
 
 We only put up rails for things that go wrong. Do not log "what worked well" — noise crowds out signal.
 
-If any misalignment or quality issue was observed in Step 4, append to `docs/.output/agent-updates.md`:
+If any misalignment or quality issue was observed in Step 4, append to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
 
 ```markdown
 ## {date} — Wave {N} ({story IDs})
@@ -585,13 +584,20 @@ Why per-wave: if the session dies after this wave, the next session's `/prime` s
 
 **8f. Commit (wave + TODO updates + plan + handoff, all atomic)**
 
-```bash
-git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md docs/__handoff.md
-git commit -m "feat: wave {N} — {story IDs joined}
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+feat: wave {N} — {story IDs joined}
 
 Stories: {ID}: {title}, {ID}: {title}
 AC verified: {total_pass}/{total} passed, {manual_count} manual
-Co-Authored-By: 🤖"
+```
+
+Then run:
+
+```bash
+git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md docs/__handoff.md
+node .claude/core/commit.js
 ```
 
 **8g. Verify commit**
@@ -685,7 +691,7 @@ node .claude/hooks/organize.cjs
 | Misalignments fixed | {n} |
 | File ownership violations | {n} |
 | Signature mismatches | {n} |
-| Issues logged to docs/.output/agent-updates.md | {n} |
+| Issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md | {n} |
 
 ### Issues
 {Any blocked stories, deferred items, manual-only ACs needing UI testing}
@@ -702,11 +708,17 @@ After the plan file is updated, regenerate `docs/__handoff.md` ONE MORE TIME usi
 
 The plan file update + final handoff need a small follow-up commit (the last wave's commit already covered implementation):
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /run-todo {slug} — final report + handoff
+```
+
+Then run:
+
 ```bash
 git add docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md docs/__handoff.md
-git commit -m "docs: /run-todo {slug} — final report + handoff
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 Then display the Final Summary content in chat.
@@ -716,7 +728,7 @@ Then display the Final Summary content in chat.
 ## Verification-Only Waves
 
 Stories that are read-only verification (no code changes):
-1. Dispatch `code-reviewer` agents (Sonnet) — 1 per story, parallel
+1. Dispatch `code-reviewer` agents (no `model:` pin → inherits `review.default`, Opus) — 1 per story, parallel
 2. Each reports PASS/FAIL with line references
 3. Batch into ONE commit
 4. Any FAIL requiring code changes → create new stories or fix inline
@@ -735,7 +747,7 @@ Stories that are read-only verification (no code changes):
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
 9. **Every wave commit regenerates `docs/__handoff.md`.** Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.
 10. **Always update TODO after completing a story. Always commit after updating TODO.** Before starting a story, check for pending commits.
-11. **Log every agent fuck-up to `docs/.output/agent-updates.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
+11. **Log every agent fuck-up to `docs/.output/agent-updates/{YYYY-MM-DD}.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
 12. **Log new decisions and implementations** that affect agent alignment. Keep agents current.
 13. **Use `/organize` to clean up plan files** after they're created.
 14. **Commit per wave, not per story.** Keeps git history clean and atomic.

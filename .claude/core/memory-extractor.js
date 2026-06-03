@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Memory Extractor — Brownfield-only Haiku-driven daily-log → memory extraction
+ * Memory Extractor — Brownfield-only model-driven daily-log → memory extraction
  *
  * Reads daily logs from docs/.output/memories/daily/{YYYY-MM-DD}.md and runs each
- * unprocessed entry through Haiku (single-pass extraction, Mem0 v2.0.0-aligned)
+ * unprocessed entry through the model (single-pass extraction, Mem0 v2.0.0-aligned)
  * for structured learning candidates. Output goes to docs/.output/memories/extracted/{date}/
  * for adopter review.
  *
@@ -33,9 +33,9 @@ const path = require('path');
 const { parseDailyFile: parseDailyFileLib } = require('./_lib/daily-log-parser');
 const {
     checkClaudeCli,
-    invokeHaiku,
+    invokeModel,
     tryParseInnerJson,
-} = require('./_lib/haiku-runner');
+} = require('./_lib/model-runner');
 
 const MAX_ENTRIES_PER_RUN = 10;
 
@@ -48,7 +48,7 @@ class MemoryExtractor {
 
     /**
      * Check if the claude CLI is available in PATH.
-     * Thin adapter over _lib/haiku-runner.
+     * Thin adapter over _lib/model-runner.
      */
     checkClaudeCli() {
         return checkClaudeCli();
@@ -82,7 +82,7 @@ class MemoryExtractor {
     }
 
     /**
-     * Invoke Haiku via claude -p to extract structured learnings from an entry.
+     * Invoke the model via claude -p to extract structured learnings from an entry.
      * Single-pass extraction (Mem0 v2.0.0-aligned shape, R-C 2026-05-11):
      * one LLM call per entry, ADD-only output, schema matches the canonical
      * memory content shape used by `memory-manager-cli.js create` and the
@@ -91,9 +91,9 @@ class MemoryExtractor {
      * Returns array of {category, suggested_id, content: {description, evidence?, confidence}}.
      * Returns [] on failure (graceful degradation).
      */
-    invokeHaiku(entryText) {
+    invokeModel(entryText) {
         // Single concrete few-shot example beats stronger "JSON only" instructions.
-        // The example is what Haiku actually pattern-matches against; the system-style
+        // The example is what the model actually pattern-matches against; the system-style
         // intro establishes the no-prose contract.
         const prompt = [
             'You are a strict JSON extractor. Read the daily log entry below and extract durable, reusable learnings.',
@@ -151,7 +151,7 @@ class MemoryExtractor {
         //   - Shorter timeout (30s — per-entry extraction is faster than full curation)
         //   - Raw-payload response (no { result, usage } envelope expected — tests mock
         //     with raw JSON arrays; production behavior matches per current fixtures)
-        const raw = invokeHaiku(prompt, {
+        const raw = invokeModel(prompt, {
             cwd: this.projectRoot,
             timeout: 30000,
             // Extractor's original inline logger emitted to stderr with "Warning:" prefix
@@ -161,7 +161,7 @@ class MemoryExtractor {
         });
 
         if (raw === null) {
-            process.stderr.write('  Warning: Haiku invocation failed — subprocess returned null\n');
+            process.stderr.write('  Warning: model invocation failed — subprocess returned null\n');
             return [];
         }
 
@@ -227,14 +227,14 @@ class MemoryExtractor {
     /**
      * Main extract command.
      * Iterates daily files, finds unprocessed entries, processes up to MAX_ENTRIES_PER_RUN.
-     * In --dry-run mode: lists what would be processed without invoking Haiku or writing files.
+     * In --dry-run mode: lists what would be processed without invoking the model or writing files.
      * Returns { processed, skipped, failed }.
      */
     async extract(options = {}) {
         const { dryRun = false } = options;
 
         if (dryRun) {
-            console.log('Dry run mode — no files will be written, no Haiku invocations.\n');
+            console.log('Dry run mode — no files will be written, no model invocations.\n');
         }
 
         // Read all daily log files
@@ -312,10 +312,10 @@ class MemoryExtractor {
         for (const entry of toProcess) {
             process.stdout.write(`  Extracting [${entry.date} ${entry.time}]... `);
 
-            const learnings = this.invokeHaiku(entry.rawText);
+            const learnings = this.invokeModel(entry.rawText);
 
             if (learnings === null || learnings === undefined) {
-                // invokeHaiku returns [] on failure — this branch is unreachable but kept for safety
+                // invokeModel returns [] on failure — this branch is unreachable but kept for safety
                 console.log('FAILED (null result)');
                 failed++;
                 continue;
@@ -349,7 +349,7 @@ class MemoryExtractor {
                 processed++;
             } catch (err) {
                 process.stderr.write(`  Warning: could not mark entry as processed — ${err.message}\n`);
-                // Still count as processed since the Haiku call succeeded
+                // Still count as processed since the model call succeeded
                 processed++;
             }
         }

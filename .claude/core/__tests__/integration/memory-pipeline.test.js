@@ -15,7 +15,7 @@
  *   - MemoryPromoter.isEligible requires sources.length >= 2
  *   - MemoryPromoter.CATEGORIES does NOT include 'rejected-approaches'
  *   - MemoryBenchmark needs createConceptIndex before benchmark() (readIndexMd must return non-null)
- *   - Spy on instance methods bench.checkClaudeCli / bench.invokeHaiku — not execSync
+ *   - Spy on instance methods bench.checkClaudeCli / bench.invokeModel — not execSync
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -220,11 +220,11 @@ describe('Memory Pipeline Integration', () => {
         // MemoryManager so searchMemories will find them in top 5.
         const seededSlugs = ['auth-middleware', 'cache-ttl-limit', 'structured-logging'];
         let callIndex = 0;
-        vi.spyOn(bench, 'invokeHaiku').mockImplementation(() => {
+        vi.spyOn(bench, 'invokeModel').mockImplementation(() => {
             const slug = seededSlugs[callIndex % seededSlugs.length];
             callIndex++;
             // buildEnvelope wraps inner as { result: innerJsonString, usage: {...} }
-            // parseHaikuResult unwraps envelope.result → tryParseInnerJson → { expected_slug, rationale }
+            // parseModelResult unwraps envelope.result → tryParseInnerJson → { expected_slug, rationale }
             return buildEnvelope({ expected_slug: slug, rationale: 'stubbed for integration test' });
         });
 

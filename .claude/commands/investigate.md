@@ -30,7 +30,7 @@ IF INPUT is a file path:
 Also gather:
 - `git log --oneline -10` — what changed recently
 - `git status --short` — current state
-- Read `docs/.output/agent-updates.md` for recent agent issues (if exists)
+- Read recent agent issues from `docs/.output/agent-updates/` — the newest few day-scoped files (`{YYYY-MM-DD}.md`, sorted descending). Fall back to the legacy flat `docs/.output/agent-updates.md` if the folder is absent (pre-rotation projects).
 
 ### 2. Investigate — Map the Blast Radius
 

@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [design, ui-ux, refactoring, css]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Redesign Skill

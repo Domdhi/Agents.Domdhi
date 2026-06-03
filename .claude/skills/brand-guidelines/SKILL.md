@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [brand, colors, typography, visual-identity, design-system]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Brand Guidelines

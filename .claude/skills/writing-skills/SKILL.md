@@ -116,7 +116,7 @@ metadata:
   author: Domdhi.Agents
   tags: [tag1, tag2]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Skill Name

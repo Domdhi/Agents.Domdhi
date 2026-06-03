@@ -18,11 +18,13 @@
 
 // ── Zone Data ─────────────────────────────────────────────────────────────────
 
-/** Template zone — overwrite in target.
- *
+/**
+ * Template zone — overwrite in target.
  * core/ and hooks/ use ** (recursive) so subdirectories like core/_lib/ are
- * included. ALWAYS_SKIP_DIRS in template-updater.js filters __tests__/ etc.
- * at the file-walker level, so test files never reach the classifier.
+ * classified 'template' and propagate on `template-updater update`. A single
+ * star (`core/*.js`) silently skipped every file under core/_lib/ after the
+ * library split, so downstreams received zero _lib/ updates. ALWAYS_SKIP_DIRS
+ * keeps __tests__/ out at the file-walker level.
  */
 const TEMPLATE_GLOBS = [
     'commands/**/*.md',

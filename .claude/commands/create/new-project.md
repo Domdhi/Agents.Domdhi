@@ -230,11 +230,17 @@ Write `docs/_project-context.md`:
 
 Stage specifically those files; never use `git add .` (might pull in unrelated changes in the adopter's working tree).
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+feat: /create:new-project — {project name} initialized
+```
+
+Then run:
+
 ```bash
 git add docs/_project-context.md docs/.output/work/{date}/new-project-interview.md
-git commit -m "feat: /create:new-project — {project name} initialized
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 ### 11. Final Report

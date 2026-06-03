@@ -83,8 +83,14 @@ function getProjectRoot() {
     return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
 }
 
-const MAX_JSONL_LINES = 1000;
-const TAIL_KEEP_LINES = 500;
+// command-usage.jsonl is the longitudinal record consumed by /retro, /status,
+// /timeline, and metrics.js — its value is the HISTORY, not the latest tail.
+// It's append-mostly (a few hundred lines/week) and is never loaded by /prime
+// (Key-File-banned), so a large cap is cheap. Sized to retain ~8-10 months at
+// typical rates; the small tail caps (1000/500) used by high-churn logs like
+// hook-events would silently discard weeks of history in a single rotation.
+const MAX_JSONL_LINES = 6000;
+const TAIL_KEEP_LINES = 5000;
 
 /**
  * Infer whether a bash command is a gate.js invocation and return the gate type.
@@ -230,4 +236,4 @@ if (require.main === module) {
     main().catch(() => process.exit(0));
 }
 
-module.exports = { processEvent, inferGateRun, appendJsonl };
+module.exports = { processEvent, inferGateRun, appendJsonl, MAX_JSONL_LINES, TAIL_KEEP_LINES };

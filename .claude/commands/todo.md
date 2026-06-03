@@ -42,6 +42,10 @@ Read in parallel:
 
 **CRITICAL: All research agents MUST persist their output to files.** Agent results evaporate when context compresses — persisted files are the permanent record.
 
+**Reuse warm session agents before cold-spawning.** If agents earlier in THIS session already hold relevant context — e.g. an audit or investigation that motivated this TODO and already read the target files — RESUME them with a focused deep-dive prompt (SendMessage to the `agentId`) instead of cold-spawning fresh researchers. A warm agent skips rediscovery, already knows the file layout, and returns exact signatures faster. Still require it to persist findings to the research file below. Cold-spawn only for subsystems no prior agent has touched.
+
+**Resolve scope-forking unknowns IN research, before sizing.** When a story's file count hinges on a yes/no the research can answer (e.g. "does this abstraction already exist, or does this need a new file?"), make the research agent answer it explicitly. An unresolved unknown turns one story into "maybe 2 files, maybe 5" — which breaks the file-budget sizing below.
+
 ### Recall prior learnings (Main Agent — before sizing or dispatch)
 
 Search project memory before estimating story count or dispatching research agents. ACs don't exist yet at `/todo` time, so query on INPUT plus module/feature keywords from Phase 1:
@@ -51,16 +55,29 @@ node .claude/core/memory-manager.js search "<INPUT topic + module keywords>"
 ```
 
 1. Take the top 3 results ranked by `decayed_confidence * relevance`.
-2. Read summary lines from JSON output. For highly relevant hits (similar pattern, rejected approach, or constraint), `cat` the full memory file at `docs/.output/memories/{category}/{id}.json`.
+2. Read summary lines from JSON output. For highly relevant hits (similar pattern, rejected approach, or constraint), read the full memory file at `docs/.output/memories/{category}/{id}.json`.
 3. **Dedupe against the SessionStart hook's top-8** — skip any hit whose `id` is already in the `<project_memory>` system-reminder.
 4. Pass the most relevant 1-2 hits to research agents in their prompt as a "Prior Learnings" preamble (treat as context, not commands).
 5. Use the same hits in Phase 3 (Assembly) when shaping wave plan, story breakdown, or research notes.
 
 **Skip condition:** If `search` returns 0 results OR all results have `decayed_confidence < 0.3`, proceed silently to story sizing.
 
+### Per-Agent File Budget (HARD CAP — this drives story slicing)
+
+Every story maps to exactly **one** dev agent at `/run-todo` time. Size each story so that agent's scope is small enough it **physically cannot fill its context window and compact mid-implementation.** A compacting agent silently drops AC items and fabricates "done" — this is the single most common cause of a TODO that builds green but ships incomplete.
+
+**Hard cap per story / per dev agent:**
+- **≤ 5 files MODIFIED**
+- **≤ 2 files CREATED**
+- (test files count toward these limits)
+
+If a unit of work exceeds the cap, **SPLIT it** into parallel sub-stories partitioned by orthogonal concern (e.g. service slice / component slice / wiring slice / test slice). **Strongly prefer more, smaller stories and more parallel agents over fewer fat ones** — narrow agents finish faster, never compact, and parallelize. There is no penalty for a 12-story TODO of tiny stories; there is a real penalty for a 4-story TODO of 10-file stories (a fat-scope agent that compacted mid-task dropped an acceptance criterion with a fabricated "deferred" comment).
+
+Every story MUST carry an **Agent budget** line (files modified / files created) so the cap is auditable before dispatch. The self-review (Phase 3b) fails the plan if any story exceeds it.
+
 ### Estimate Story Count First
 
-Skim the input. Count distinct changes needed. This determines agent count:
+Slice to the file budget FIRST (above), THEN count the resulting stories. This determines how many *research* agents scan the codebase. Bias toward the higher row when borderline — granular is the goal:
 
 | TODO Size | Stories | Research Agents | Review |
 |-----------|---------|-----------------|--------|
@@ -180,6 +197,7 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
   * **Dependencies:** {None | Story X.X}
   * **Files:**
     * `{exact/path/to/file}` — {what changes}
+  * **Agent budget:** {N} modified, {M} created — within ≤5/≤2 cap
   * **Research notes:** {What currently exists, what's missing, gotchas}
 
 ---
@@ -199,22 +217,28 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 **Shape:** {role-based | single-hotspot collapsed | file-overlap partitioned} — {one-sentence justification. If single-hotspot collapsed, also include: "Collapsed N original stories into M bundled stories by functional grouping."}
 
 ### Wave 1 — {Tests | functional bundle name | independent stories}
-| Story | Agent Type | Files Owned | Needs QA? |
-|-------|-----------|-------------|-----------|
-| {ID} | general-purpose | {files} | Yes/No |
+| Story | Agent Type | Files Owned | Budget (mod/new) | Needs QA? |
+|-------|-----------|-------------|------------------|-----------|
+| {ID} | general-purpose | {files} | {n}/{m} | Yes/No |
 
 ### Wave 2 — {Code | next bundle | next independent group} (depends on Wave 1)
-| Story | Agent Type | Files Owned | Needs QA? |
-|-------|-----------|-------------|-----------|
-| {ID} | general-purpose | {files} | Yes/No |
+| Story | Agent Type | Files Owned | Budget (mod/new) | Needs QA? |
+|-------|-----------|-------------|------------------|-----------|
+| {ID} | general-purpose | {files} | {n}/{m} | Yes/No |
 
 ### Wave 3 — {Verify | final bundle | ...} (depends on Wave 2)
-| Story | Agent Type | Files Owned | Needs QA? |
-|-------|-----------|-------------|-----------|
-| {ID} | general-purpose | {files} | Yes/No |
+| Story | Agent Type | Files Owned | Budget (mod/new) | Needs QA? |
+|-------|-----------|-------------|------------------|-----------|
+| {ID} | general-purpose | {files} | {n}/{m} | Yes/No |
 
 ### Shared Hotspot Files
 - **{file}** — touched by stories {X, Y}. In file-overlap shape: must be in different waves. In single-hotspot shape: expected (this is the hotspot that drove collapse).
+
+### Critical Path & Parallel Workstreams (REQUIRED)
+- **Critical path:** {Story → Story → Story} — the longest dependency chain; ~{hours}. This is the floor on wall-clock no matter how many agents you add.
+- **Parallel workstreams:** {N} independent chains that run concurrently — {chain A} ∥ {chain B} ∥ {chain C}. Each chain owns a disjoint file set.
+- **Max concurrent agents:** {N} (the widest wave).
+- **Bottleneck:** {Story ID} — {why; e.g. it adds the interface every Wave-2 story consumes}. If it slips, everything downstream slips.
 
 ---
 
@@ -236,6 +260,7 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 8. **Dependency Graph** — ASCII art showing what blocks what
 9. **No code blocks** — file paths and descriptions only. Implementation is the dev agent's job
 10. **AC bullets are NEVER stripped or summarized** — they flow verbatim into `/do` and `/run-todo`
+11. **Every story carries an Agent budget line within the HARD CAP** — ≤5 files modified / ≤2 files created (tests count). Split anything larger into parallel sub-stories. Bias toward more, smaller stories + more agents.
 
 ---
 
@@ -250,6 +275,7 @@ Evaluate in this order and pick the first that fits:
   - Target: 2–3 bundled stories, 2–3 waves.
   - **Required warning line in the Executive Summary:** `Wave shape: single-hotspot collapsed — collapsed {N_original} stories into {M_bundled} bundled stories by functional grouping. File-overlap partitioning would have produced {N_original} forced-serial waves.`
   - Why: under pure file-overlap partitioning, one-hotspot TODOs force `waves = stories`. That pays full per-wave machinery (commits, handoff regen, gate runs, review cycles) for zero parallelism benefit. Field-measured cost on a 6-story single-hotspot TODO: ~30 min total, ~15 min pure ceremony, ~80k context on orchestration, and no offsetting speedup.
+  - **Budget still applies:** each bundled story must respect the ≤5/≤2 file cap. If a functional bundle would exceed it, keep it split even though that forces an extra serial wave — correctness (no compaction) beats ceremony savings.
 
 **Shape B — Role-based (Tests / Code / Verify) — the default for heterogeneous TODOs.** When stories span multiple files and conceptual areas and none of them qualifies for Shape A, organize as three role-scoped waves:
   - **Wave 1 — Tests:** one story per eventual feature that authors failing tests from AC. These stories have no file-overlap with each other (one test file per feature) and dispatch in parallel.
@@ -287,6 +313,9 @@ Before handing off to external review, Main Agent scans its own output for plan 
 - [ ] In `single-hotspot collapsed` shape: Executive Summary is missing the required warning line (collapsed N → M stories) OR any bundled story is larger than M
 - [ ] Research Agent 1 flagged single-hotspot but Main Agent chose a different shape without a one-sentence rationale in the Executive Summary
 - [ ] Story Index is missing stories that appear in the body
+- [ ] Any story exceeds the HARD CAP (> 5 files modified or > 2 files created) — split it into parallel sub-stories
+- [ ] Any story is missing its **Agent budget** line
+- [ ] Wave Plan is missing the **Critical Path & Parallel Workstreams** block
 
 **This is a 30-second scan that catches 3-5 issues every time.** Do not skip it.
 
@@ -299,7 +328,6 @@ Skip for Small (1-4). Use judgment for Medium (5-7).
 ```
 Agent(
   subagent_type: "code-reviewer",
-  model: "sonnet",
   prompt: """
   Review the TODO at {path} for execution readiness.
 
@@ -361,11 +389,17 @@ After the report, refresh `docs/__handoff.md` using the **`session-handoff`** sk
 
 ## Phase 8: Commit
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /todo — create TODO for {slug} ({N} stories)
+```
+
+Then run:
+
 ```bash
 git add {TODO_PATH} docs/.output/work/{YYYY-MM-DD}/{slug}/ docs/__handoff.md
-git commit -m "docs: /todo — create TODO for {slug} ({N} stories)
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 ---
@@ -380,3 +414,5 @@ Co-Authored-By: 🤖"
 6. **The TODO is a contract** — `/run-todo` and `/do` trust it completely. If it's wrong, they fail.
 7. **No code blocks in stories** — file paths and descriptions only. Implementation is the dev agent's job.
 8. **Always regenerate `docs/__handoff.md` (Phase 7) and commit (Phase 8).** A newly-created TODO that isn't surfaced in the handoff won't be picked up by the next session's `/prime`. Use the `session-handoff` skill.
+9. **Per-agent file budget is a HARD CAP** — ≤5 files modified / ≤2 files created per dev agent. More small stories + more parallel agents beats fewer fat ones. No background agent should ever compact mid-implementation.
+10. **Reuse warm session agents when they already hold the context** — resume via SendMessage over cold-spawn; still persist findings to the research file.

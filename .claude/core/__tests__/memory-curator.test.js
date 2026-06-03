@@ -1,5 +1,5 @@
 // AC→source map (TDD-4.3 / memory-curator):
-//   - invokeHaiku returns raw envelope string, NOT parsed object. Parsing is done by parseHaikuResult().
+//   - invokeModel returns raw envelope string, NOT parsed object. Parsing is done by parseModelResult().
 //   - writePendingCuration() method does NOT exist. File write is inline in curate() lines 398-405.
 //     Test the side-effect of curate({dryRun:false}): file at pendingDir/{date}/{HH-MM-SS}.json.
 //   - buildPrompt() takes 4 args: (indexContent, activityArticles, dailyLogContent, concepts).
@@ -86,7 +86,7 @@ function mockCuratorExecSync(innerPayload = cannedCuration) {
       // checkClaudeCli call — return anything (stdio:'ignore', return value not used)
       return '';
     }
-    // invokeHaiku call — return envelope string
+    // invokeModel call — return envelope string
     return buildEnvelope(innerPayload);
   });
 }
@@ -324,42 +324,42 @@ describe('buildPrompt()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// invokeHaiku() — returns raw envelope string
+// invokeModel() — returns raw envelope string
 // ---------------------------------------------------------------------------
-describe('invokeHaiku()', () => {
-  it('invokeHaiku_returnsRawEnvelopeString', () => {
+describe('invokeModel()', () => {
+  it('invokeModel_returnsRawEnvelopeString', () => {
     const expectedEnvelope = buildEnvelope(cannedCuration);
     mockExecSync.mockImplementation(makeMockExecSync(expectedEnvelope));
 
     const curator = new MemoryCurator();
-    const raw = curator.invokeHaiku('test prompt');
+    const raw = curator.invokeModel('test prompt');
 
-    // invokeHaiku returns the raw string from execSync — the envelope itself
+    // invokeModel returns the raw string from execSync — the envelope itself
     expect(typeof raw).toBe('string');
     expect(raw).toBe(expectedEnvelope);
     expect(mockExecSync).toHaveBeenCalledOnce();
   });
 
-  it('invokeHaiku_returnsNullOnExecSyncFailure', () => {
+  it('invokeModel_returnsNullOnExecSyncFailure', () => {
     mockExecSync.mockImplementation(() => {
       throw new Error('execSync failed unexpectedly');
     });
     const curator = new MemoryCurator();
-    const raw = curator.invokeHaiku('test prompt');
+    const raw = curator.invokeModel('test prompt');
     expect(raw).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// parseHaikuResult() — parses the raw envelope into structured JSON
+// parseModelResult() — parses the raw envelope into structured JSON
 // ---------------------------------------------------------------------------
-describe('parseHaikuResult()', () => {
-  it('parseHaikuResult_primaryEnvelopeShape_returnsAllThreeKeys', () => {
+describe('parseModelResult()', () => {
+  it('parseModelResult_primaryEnvelopeShape_returnsAllThreeKeys', () => {
     const curator = new MemoryCurator();
     // buildEnvelope wraps result as JSON string in { result, usage }
     const envelopeStr = buildEnvelope(cannedCuration);
 
-    const parsed = curator.parseHaikuResult(envelopeStr);
+    const parsed = curator.parseModelResult(envelopeStr);
 
     expect(parsed).not.toBeNull();
     expect(parsed).toHaveProperty('dedup_candidates');
@@ -367,11 +367,11 @@ describe('parseHaikuResult()', () => {
     expect(parsed).toHaveProperty('merge_proposals');
   });
 
-  it('parseHaikuResult_preservesArrayContentsVerbatim', () => {
+  it('parseModelResult_preservesArrayContentsVerbatim', () => {
     const curator = new MemoryCurator();
     const envelopeStr = buildEnvelope(cannedCuration);
 
-    const parsed = curator.parseHaikuResult(envelopeStr);
+    const parsed = curator.parseModelResult(envelopeStr);
 
     // dedup_candidates verbatim
     expect(parsed.dedup_candidates).toHaveLength(1);
@@ -389,35 +389,35 @@ describe('parseHaikuResult()', () => {
     expect(parsed.merge_proposals[0].source_slugs).toEqual(['workflow-a', 'workflow-b', 'workflow-c']);
   });
 
-  it('parseHaikuResult_nullRaw_returnsNull', () => {
+  it('parseModelResult_nullRaw_returnsNull', () => {
     const curator = new MemoryCurator();
-    expect(curator.parseHaikuResult(null)).toBeNull();
+    expect(curator.parseModelResult(null)).toBeNull();
   });
 
-  it('parseHaikuResult_jsonFenced_stripsAndParses', () => {
+  it('parseModelResult_jsonFenced_stripsAndParses', () => {
     const curator = new MemoryCurator();
     const inner = { dedup_candidates: [], contradiction_pairs: [], merge_proposals: [] };
     const fenced = '```json\n' + JSON.stringify(inner) + '\n```';
-    // Wrap fenced string in envelope so parseHaikuResult can unwrap it
+    // Wrap fenced string in envelope so parseModelResult can unwrap it
     const envelopeStr = buildEnvelope(fenced);
 
-    const parsed = curator.parseHaikuResult(envelopeStr);
+    const parsed = curator.parseModelResult(envelopeStr);
 
     expect(parsed).not.toBeNull();
     expect(parsed.dedup_candidates).toEqual([]);
   });
 
-  it('invokeHaiku_then_parseHaikuResult_chain_producesStructuredResult', () => {
-    // Test the full chain: invokeHaiku returns envelope → parseHaikuResult parses it
+  it('invokeModel_then_parseModelResult_chain_producesStructuredResult', () => {
+    // Test the full chain: invokeModel returns envelope → parseModelResult parses it
     const expectedEnvelope = buildEnvelope(cannedCuration);
     mockExecSync.mockImplementation(makeMockExecSync(expectedEnvelope));
 
     const curator = new MemoryCurator();
 
-    const raw = curator.invokeHaiku('any prompt');
+    const raw = curator.invokeModel('any prompt');
     expect(raw).toBe(expectedEnvelope);
 
-    const parsed = curator.parseHaikuResult(raw);
+    const parsed = curator.parseModelResult(raw);
     expect(parsed).not.toBeNull();
     expect(parsed.dedup_candidates).toHaveLength(1);
     expect(parsed.contradiction_pairs).toHaveLength(1);

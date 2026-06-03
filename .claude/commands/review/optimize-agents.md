@@ -93,10 +93,11 @@ Also check for:
 Check for runtime agent issues tracked by `/do` and `/run-todo`:
 
 ```
-Read: docs/.output/agent-updates.md (if exists)
+Read: docs/.output/agent-updates/*.md (newest day-files; e.g. last 30 days)
+      ↳ fall back to legacy flat docs/.output/agent-updates.md if the folder is absent
 ```
 
-This file contains:
+The `agent-updates/` folder rotates by day (`{YYYY-MM-DD}.md`) so no single file grows unbounded — read across the recent files. These contain:
 - **Agent Issues** — misalignments, file ownership violations, naming mismatches logged per wave/story
 - **New Decisions** — implementation decisions that affect future agent prompts
 - **Prompt Improvements Needed** — specific changes to prevent recurring issues
@@ -164,7 +165,7 @@ Delegate skill audit to the `code-reviewer` agent via Task tool with `subagent_t
 3. Instruction to classify each skill: `ACTIVE` (covers tech in codebase), `NOT_USED` (covers tech not in codebase)
 4. Instruction to identify gaps: technologies in `DETECTED_STACK` with no corresponding skill
 5. Instruction to cross-reference retro findings from `Glob: docs/.output/reviews/retro-*.md` for skill improvement recommendations
-6. The `code-reviewer` agent auto-loads `code-reviewer` and `code-review-playbook` skills via frontmatter
+6. The `code-reviewer` agent auto-loads the `code-review` skill via frontmatter
 
 **Agent must return**: Skill classification table, gap list with suggested names, and unapplied retro recommendations.
 
@@ -343,11 +344,11 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```
 /specialize --fix          (once, during initial project setup)
     ↓
-/do | /run-todo            (builds code, logs agent issues to docs/.output/agent-updates.md)
+/do | /run-todo            (builds code, logs agent issues to docs/.output/agent-updates/{date}.md)
     ↓
 /retro                     (after epic, promotes patterns to 0.8, flags system issues)
     ↓
-/optimize-agents --fix     (reads agent-updates.md + retro findings + codebase scan,
+/optimize-agents --fix     (reads agent-updates/ day-files + retro findings + codebase scan,
                             fixes recurring issues, updates agent context)
     ↓
 /do | /run-todo            (agents now aligned — fewer misalignments, better prompts)
@@ -355,7 +356,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 
 **Data sources for optimization:**
 ```
-docs/.output/agent-updates.md  ← runtime issues from /do and /run-todo (continuous)
+docs/.output/agent-updates/{date}.md  ← runtime issues from /do and /run-todo (day-rotated, continuous)
 docs/.output/reviews/retro-*.md                ← system improvements from /retro (per epic)
 codebase scan                  ← actual dependencies, patterns, structure (live)
 memory system                  ← proven patterns at confidence ≥ 0.7 (accumulated)

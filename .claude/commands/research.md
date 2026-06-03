@@ -55,7 +55,7 @@ Use the Task tool with `subagent_type: "product-strategist"` to conduct the rese
 2. Research type (market/technical/domain/competitive)
 3. Where to write output (`{OUTPUT_PATH}`)
 4. Whether to append to existing research or start fresh
-5. The `product-strategist` agent auto-loads the `project-analyst` skill via frontmatter.
+5. The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter.
 6. Instruction to: state questions upfront, document methodology, present findings with confidence levels, cite sources
 
 **For multiple research topics**, launch parallel Task calls — one per topic:

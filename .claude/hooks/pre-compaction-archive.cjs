@@ -74,18 +74,32 @@ function buildSnapshot(projectRoot, log, trigger) {
         }
     }
 
-    // Read recent agent updates if available
+    // Read recent agent updates if available. The store rotates by day under
+    // docs/.output/agent-updates/{YYYY-MM-DD}.md so no single file grows unbounded;
+    // older (pre-rotation) projects may still have the legacy flat
+    // docs/.output/agent-updates.md. Prefer the folder (newest day-files), fall
+    // back to the flat file.
     let agentUpdates = '';
-    const updatesPath = path.join(projectRoot, 'docs', '.output', 'agent-updates.md');
-    if (fs.existsSync(updatesPath)) {
-        try {
-            const updatesContent = fs.readFileSync(updatesPath, 'utf8');
-            const sections = updatesContent.split(/(?=^## )/m).filter(s => s.trim());
-            const recent = sections.slice(-5).join('\n').trim();
-            if (recent) agentUpdates = recent;
-        } catch {
-            // Graceful degradation
+    try {
+        const updatesDir = path.join(projectRoot, 'docs', '.output', 'agent-updates');
+        const flatPath = path.join(projectRoot, 'docs', '.output', 'agent-updates.md');
+        let updatesContent = '';
+        if (fs.existsSync(updatesDir) && fs.statSync(updatesDir).isDirectory()) {
+            const dayFiles = fs.readdirSync(updatesDir)
+                .filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f))  // day-files only; skips README.md
+                .sort()        // {YYYY-MM-DD}.md sorts chronologically
+                .slice(-3);    // newest few days
+            updatesContent = dayFiles
+                .map(f => fs.readFileSync(path.join(updatesDir, f), 'utf8'))
+                .join('\n');
+        } else if (fs.existsSync(flatPath)) {
+            updatesContent = fs.readFileSync(flatPath, 'utf8');
         }
+        const sections = updatesContent.split(/(?=^## )/m).filter(s => s.trim());
+        const recent = sections.slice(-5).join('\n').trim();
+        if (recent) agentUpdates = recent;
+    } catch {
+        // Graceful degradation
     }
 
     const sessionContext = (handoffContext || agentUpdates)

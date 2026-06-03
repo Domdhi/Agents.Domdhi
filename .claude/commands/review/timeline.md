@@ -28,11 +28,17 @@ Report the script output to the user.
 
 After reporting, commit the updated timeline:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /review:timeline — update project timeline
+```
+
+Then run:
+
 ```bash
 git add docs/_project-timeline.md
-git commit -m "docs: /review:timeline — update project timeline
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 ## Format Reference

@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [epics, stories, backlog, planning, estimation, dependencies]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Epic Writer
@@ -145,6 +145,7 @@ Use domain tags to help `/do` select the right implementation agent:
 - Estimates are present and realistic
 - Domain tags help route to correct implementation agent
 - First phase is always foundation/infrastructure
+- Each story lists the files it touches in a `**Files:**` block — `epic-overlap.js` parses these to flag epics that claim the same file, which would cause silent merge conflicts when `/run-todo` dispatches them in parallel waves
 
 ### Bad Epic Breakdown
 - No dependency ordering (stories can't be built in sequence)

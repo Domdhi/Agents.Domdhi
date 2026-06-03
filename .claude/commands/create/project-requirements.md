@@ -50,7 +50,7 @@ Check that at least ONE of these files exists AND does not contain `<!-- @@templ
 
 ### 4a. Interview Mode (main agent)
 
-Use AskUserQuestion to gather requirements. Use the Interview Questions from the `prd-writer` skill as the question bank — cover modules, user capabilities, performance, security, data model, and integrations. End with a MoSCoW prioritization round.
+Use AskUserQuestion to gather requirements. Use the Interview Questions from the `project-planning` skill's `references/project-requirements.md` as the question bank — cover modules, user capabilities, performance, security, data model, and integrations. End with a MoSCoW prioritization round.
 
 ### 4b. Context Mode (main agent)
 
@@ -72,11 +72,11 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the PRD
 4. Feature ideas from `_feature-ideas.md` (if available)
 5. Mode (Context/Interview/Reverse-Engineering)
 
-The `product-strategist` agent auto-loads the `prd-writer` skill via frontmatter — do NOT tell it to read the skill file.
+The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter — do NOT tell it to read the skill file.
 
 ### 6. Validate (main agent)
 
-After the agent completes, read `docs/_project-requirements.md` and validate against the `prd-writer` skill's **Required Sections Checklist**. Also verify MoSCoW is used (not everything Must Have) and NFRs have measurable targets. If anything is missing, delegate back to the agent to fill it.
+After the agent completes, read `docs/_project-requirements.md` and validate against the **Required Sections Checklist** in `.claude/skills/project-planning/references/project-requirements.md`. Also verify MoSCoW is used (not everything Must Have) and NFRs have measurable targets. If anything is missing, delegate back to the agent to fill it.
 
 ### 7. Commit (main agent)
 

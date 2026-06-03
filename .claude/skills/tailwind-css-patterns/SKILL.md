@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [tailwind, css, responsive-design, utility-first, design-system]
 user-invocable: false
-allowed-tools: Read, Grep, Glob
+allowed-tools: Read Grep Glob
 ---
 
 # Tailwind CSS Development Patterns

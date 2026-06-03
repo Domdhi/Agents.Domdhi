@@ -1,7 +1,7 @@
 // AC→source map (TDD-4.2 / memory-extractor):
 //   - isProcessed(heading): 1-arg, checks heading.includes('[extracted]') — no processed-dates JSON file
 //   - markProcessed(filePath, originalHeading): reads file, replaces heading with "${heading} [extracted]", writes back
-//   - invokeHaiku() returns [] on failure (not null) — graceful-skip returns []
+//   - invokeModel() returns [] on failure (not null) — graceful-skip returns []
 //   - Mock strategy: source uses `const { execSync } = require('child_process')` (destructured).
 //     vi.spyOn + vi.mock (ESM) cannot intercept a destructured CJS ref after load.
 //     Solution: replace child_process.execSync with a controllable wrapper BEFORE requiring
@@ -250,10 +250,10 @@ describe('markProcessed', () => {
 });
 
 // ---------------------------------------------------------------------------
-// invokeHaiku — success path (canned raw JSON via wrapper delegate)
+// invokeModel — success path (canned raw JSON via wrapper delegate)
 // ---------------------------------------------------------------------------
 
-describe('invokeHaiku', () => {
+describe('invokeModel', () => {
   // R-C (2026-05-11): schema migrated from {category, title, content, confidence}
   // to {category, suggested_id, content: {description, evidence?, confidence}}.
   // Categories changed from singular (pattern) to canonical plural (patterns).
@@ -272,7 +272,7 @@ describe('invokeHaiku', () => {
     };
   }
 
-  it('invokeHaiku_cannedJsonArray_returnsFilteredLearnings', () => {
+  it('invokeModel_cannedJsonArray_returnsFilteredLearnings', () => {
     const extractor = new MemoryExtractor();
     const cannedLearnings = [
       makeLearning({ category: 'patterns', suggested_id: 'test-pattern' }),
@@ -280,12 +280,12 @@ describe('invokeHaiku', () => {
     // Raw JSON string — no envelope wrapping (extractor uses --bare flag)
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
-    const result = extractor.invokeHaiku('some entry text');
+    const result = extractor.invokeModel('some entry text');
 
     expect(result).toEqual(cannedLearnings);
   });
 
-  it('invokeHaiku_multipleLearnings_returnsAll', () => {
+  it('invokeModel_multipleLearnings_returnsAll', () => {
     const extractor = new MemoryExtractor();
     const cannedLearnings = [
       makeLearning({ category: 'patterns', suggested_id: 'first-pattern' }),
@@ -294,7 +294,7 @@ describe('invokeHaiku', () => {
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(cannedLearnings)));
 
-    const result = extractor.invokeHaiku('multi-learning entry');
+    const result = extractor.invokeModel('multi-learning entry');
 
     expect(result).toHaveLength(3);
     expect(result[0].suggested_id).toBe('first-pattern');
@@ -302,7 +302,7 @@ describe('invokeHaiku', () => {
     expect(result[2].suggested_id).toBe('hard-limit');
   });
 
-  it('invokeHaiku_filtersItemsMissingRequiredFields', () => {
+  it('invokeModel_filtersItemsMissingRequiredFields', () => {
     const extractor = new MemoryExtractor();
     const rawLearnings = [
       makeLearning({ category: 'patterns', suggested_id: 'valid-entry' }),
@@ -313,13 +313,13 @@ describe('invokeHaiku', () => {
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(rawLearnings)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_id).toBe('valid-entry');
   });
 
-  it('invokeHaiku_wrappedInLearningsKey_returnsLearningsArray', () => {
+  it('invokeModel_wrappedInLearningsKey_returnsLearningsArray', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
       makeLearning({ category: 'workflows', suggested_id: 'wrapped-workflow', content: { description: 'Use this flow.', evidence: 'session-handoff Step 6a', confidence: 0.75 } }),
@@ -327,12 +327,12 @@ describe('invokeHaiku', () => {
     const wrapped = { learnings };
     setExecSyncImpl(makeMockExecSync(JSON.stringify(wrapped)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toEqual(learnings);
   });
 
-  it('invokeHaiku_wrappedInResultsKey_returnsResultsArray', () => {
+  it('invokeModel_wrappedInResultsKey_returnsResultsArray', () => {
     const extractor = new MemoryExtractor();
     const results = [
       makeLearning({ category: 'patterns', suggested_id: 'results-key-pattern', content: { description: 'Via results key.', confidence: 0.6 } }),
@@ -340,12 +340,12 @@ describe('invokeHaiku', () => {
     const wrapped = { results };
     setExecSyncImpl(makeMockExecSync(JSON.stringify(wrapped)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toEqual(results);
   });
 
-  it('invokeHaiku_jsonWithMarkdownFences_parsedSuccessfully', () => {
+  it('invokeModel_jsonWithMarkdownFences_parsedSuccessfully', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
       makeLearning({ category: 'patterns', suggested_id: 'fenced-result', content: { description: 'Came through fences.', evidence: 'unit test', confidence: 0.7 } }),
@@ -354,14 +354,14 @@ describe('invokeHaiku', () => {
     const fenced = '```json\n' + JSON.stringify(learnings) + '\n```';
     setExecSyncImpl(makeMockExecSync(fenced));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toEqual(learnings);
   });
 
   // R-C new tests: validate the strict schema rules
 
-  it('invokeHaiku_singularCategoryForm_filtered', () => {
+  it('invokeModel_singularCategoryForm_filtered', () => {
     // Old singular form (pattern, not patterns) is no longer valid — adopters
     // re-running after R-C will see legacy entries filtered.
     const extractor = new MemoryExtractor();
@@ -371,13 +371,13 @@ describe('invokeHaiku', () => {
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_id).toBe('new-form');
   });
 
-  it('invokeHaiku_nonKebabSuggestedId_filtered', () => {
+  it('invokeModel_nonKebabSuggestedId_filtered', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
       { category: 'patterns', suggested_id: 'BadID With Spaces', content: { description: 'bad slug.', confidence: 0.7 } },
@@ -386,13 +386,13 @@ describe('invokeHaiku', () => {
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_id).toBe('good-kebab-slug');
   });
 
-  it('invokeHaiku_confidenceOutOfRange_filtered', () => {
+  it('invokeModel_confidenceOutOfRange_filtered', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
       // Below 0.5 — extracted memories should not start that low
@@ -403,55 +403,55 @@ describe('invokeHaiku', () => {
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_id).toBe('in-range');
   });
 
-  it('invokeHaiku_evidenceOptional_acceptedWhenAbsent', () => {
+  it('invokeModel_evidenceOptional_acceptedWhenAbsent', () => {
     const extractor = new MemoryExtractor();
     const learnings = [
       { category: 'patterns', suggested_id: 'no-evidence', content: { description: 'evidence missing but valid.', confidence: 0.7 } },
     ];
     setExecSyncImpl(makeMockExecSync(JSON.stringify(learnings)));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_id).toBe('no-evidence');
   });
 
   // ---------------------------------------------------------------------------
-  // invokeHaiku — graceful-skip (claude not installed)
+  // invokeModel — graceful-skip (claude not installed)
   // ---------------------------------------------------------------------------
 
-  it('invokeHaiku_claudeNotInstalled_returnsEmptyArray', () => {
+  it('invokeModel_claudeNotInstalled_returnsEmptyArray', () => {
     // Drift from AC: source returns [] not null — see AC→source drift map item #3
     const extractor = new MemoryExtractor();
     const err = new Error('claude: command not found');
     err.stderr = 'claude: command not found';
     setExecSyncImpl(() => { throw err; });
 
-    const result = extractor.invokeHaiku('any text');
+    const result = extractor.invokeModel('any text');
 
     expect(result).toEqual([]);
   });
 
-  it('invokeHaiku_claudeNotInstalled_doesNotThrow', () => {
+  it('invokeModel_claudeNotInstalled_doesNotThrow', () => {
     const extractor = new MemoryExtractor();
     const err = new Error('claude: command not found');
     err.stderr = 'claude: command not found';
     setExecSyncImpl(() => { throw err; });
 
-    expect(() => extractor.invokeHaiku('any text')).not.toThrow();
+    expect(() => extractor.invokeModel('any text')).not.toThrow();
   });
 
-  it('invokeHaiku_malformedJson_returnsEmptyArray', () => {
+  it('invokeModel_malformedJson_returnsEmptyArray', () => {
     const extractor = new MemoryExtractor();
     setExecSyncImpl(makeMockExecSync('this is not json at all {{broken}}'));
 
-    const result = extractor.invokeHaiku('entry text');
+    const result = extractor.invokeModel('entry text');
 
     expect(result).toEqual([]);
   });
@@ -552,7 +552,7 @@ describe('extract — dryRun mode', () => {
     expect(result.skipped).toBe(2);
   });
 
-  it('extract_dryRun_doesNotInvokeHaiku', async () => {
+  it('extract_dryRun_doesNotInvokeModel', async () => {
     const extractor = new MemoryExtractor();
     createDailyLog(tmp, '2026-04-19', [
       { time: '09:00', trigger: 'Pre-Compaction', branch: 'main' },
@@ -566,7 +566,7 @@ describe('extract — dryRun mode', () => {
 
     await extractor.extract({ dryRun: true });
 
-    // execSync should NOT have been called (no Haiku in dry-run)
+    // execSync should NOT have been called (no model in dry-run)
     expect(execSyncCallCount).toBe(0);
   });
 
@@ -617,11 +617,11 @@ describe('extract — dryRun mode', () => {
 });
 
 // ---------------------------------------------------------------------------
-// extract() — non-dry-run integration (mocked Haiku)
+// extract() — non-dry-run integration (mocked model)
 // ---------------------------------------------------------------------------
 
-describe('extract — live mode (mocked Haiku)', () => {
-  it('extract_liveModeWithMockedHaiku_processedEqualsOne', async () => {
+describe('extract — live mode (mocked model)', () => {
+  it('extract_liveModeWithMockedModel_processedEqualsOne', async () => {
     const extractor = new MemoryExtractor();
     createDailyLog(tmp, '2026-04-19', [
       { time: '09:00', trigger: 'Pre-Compaction', branch: 'main' }
@@ -638,7 +638,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     expect(result.failed).toBe(0);
   });
 
-  it('extract_liveModeWithMockedHaiku_marksHeadingExtracted', async () => {
+  it('extract_liveModeWithMockedModel_marksHeadingExtracted', async () => {
     const extractor = new MemoryExtractor();
     createDailyLog(tmp, '2026-04-19', [
       { time: '09:00', trigger: 'Pre-Compaction', branch: 'main' }
@@ -659,7 +659,7 @@ describe('extract — live mode (mocked Haiku)', () => {
     expect(updatedContent).toContain('[extracted]');
   });
 
-  it('extract_liveModeWithMockedHaiku_writesExtractedJsonFile', async () => {
+  it('extract_liveModeWithMockedModel_writesExtractedJsonFile', async () => {
     const extractor = new MemoryExtractor();
     createDailyLog(tmp, '2026-04-19', [
       { time: '09:00', trigger: 'Pre-Compaction', branch: 'main' }
@@ -688,8 +688,8 @@ describe('extract — live mode (mocked Haiku)', () => {
     expect(payload.learnings[0].suggested_id).toBe('written-pattern');
   });
 
-  it('extract_liveModeHaikuReturnsEmpty_marksProcessedAndCountsIt', async () => {
-    // When Haiku returns [] (no learnings), entry is still marked processed
+  it('extract_liveModeModelReturnsEmpty_marksProcessedAndCountsIt', async () => {
+    // When model returns [] (no learnings), entry is still marked processed
     const extractor = new MemoryExtractor();
     createDailyLog(tmp, '2026-04-19', [
       { time: '09:00', trigger: 'Pre-Compaction' }

@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [writing, blog, articles, content, thought-leadership]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Article Writer — Dom's Voice

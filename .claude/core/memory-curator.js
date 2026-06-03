@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Memory Curator — Haiku-powered concept dedup/contradiction/merge analyzer
+ * Memory Curator — Sonnet-powered concept dedup/contradiction/merge analyzer
  *
  * Reads concepts/index.md + today's daily log + top-N concept summaries.
- * Invokes Haiku to propose dedup/contradiction/merge candidates for human review.
+ * Invokes the model to propose dedup/contradiction/merge candidates for human review.
  * Writes JSON to docs/.output/memories/pending-curation/{YYYY-MM-DD}/{HH-MM-SS}.json
  *
  * CLI:
@@ -21,19 +21,19 @@ const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
 const { readConcepts } = require('./_lib/concept-reader');
 const {
     checkClaudeCli,
-    invokeHaiku,
-    parseHaikuResult,
+    invokeModel,
+    parseModelResult,
     extractTokenCounts,
-} = require('./_lib/haiku-runner');
+} = require('./_lib/model-runner');
 
 const MAX_CONCEPTS_PER_RUN = 30;
 const MAX_ACTIVITY_SCOPE_ARTICLES = 10;
 const MAX_ARTICLE_CHARS = 2000;
 const MAX_DAILY_LOG_CHARS = 10000;
 
-// Haiku 4.5 pricing (per AC#11 — USD per token)
-const HAIKU_INPUT_PRICE = 0.0000008;
-const HAIKU_OUTPUT_PRICE = 0.000004;
+// Sonnet 4.6 pricing (USD per token) — the curator now runs on Sonnet, not Haiku.
+const MODEL_INPUT_PRICE = 0.000003;
+const MODEL_OUTPUT_PRICE = 0.000015;
 
 const CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 
@@ -48,7 +48,7 @@ class MemoryCurator {
     }
 
     // -------------------------------------------------------------------------
-    // Guards (thin adapters over _lib/haiku-runner)
+    // Guards (thin adapters over _lib/model-runner)
     // -------------------------------------------------------------------------
 
     checkClaudeCli() {
@@ -193,23 +193,23 @@ If there are no candidates in a category, return an empty array for it. Emit onl
     }
 
     // -------------------------------------------------------------------------
-    // Haiku invocation (thin adapters over _lib/haiku-runner)
+    // Haiku invocation (thin adapters over _lib/model-runner)
     // -------------------------------------------------------------------------
 
-    invokeHaiku(prompt) {
-        return invokeHaiku(prompt, {
+    invokeModel(prompt) {
+        return invokeModel(prompt, {
             cwd: this.projectRoot,
             timeout: 90000,
             logTag: 'memory-curator',
         });
     }
 
-    parseHaikuResult(raw) {
+    parseModelResult(raw) {
         // Curator's original had a dedup-specific fallback (`envelope.dedup_candidates`)
         // for the edge case where Haiku returned payload directly instead of an envelope.
         // Preserve that behavior by chaining: try the shared envelope-aware parser first,
         // then fall back to treating the whole string as the payload.
-        const primary = parseHaikuResult(raw);
+        const primary = parseModelResult(raw);
         if (primary) return primary;
         try {
             const envelope = JSON.parse(raw);
@@ -219,7 +219,7 @@ If there are no candidates in a category, return an empty array for it. Emit onl
     }
 
     tryParseInnerJson(text) {
-        return require('./_lib/haiku-runner').tryParseInnerJson(text);
+        return require('./_lib/model-runner').tryParseInnerJson(text);
     }
 
     extractTokenCounts(raw) {
@@ -247,10 +247,10 @@ If there are no candidates in a category, return an empty array for it. Emit onl
         const activityScope = this.getActivityScope(concepts, dailyLog && dailyLog.content);
 
         const prompt = this.buildPrompt(indexContent, activityScope, dailyLog && dailyLog.content, concepts);
-        const raw = this.invokeHaiku(prompt);
+        const raw = this.invokeModel(prompt);
         if (!raw) return null;
 
-        const parsed = this.parseHaikuResult(raw);
+        const parsed = this.parseModelResult(raw);
         if (!parsed) {
             process.stderr.write('[memory-curator] Failed to parse Haiku output as JSON\n');
             return null;
@@ -258,7 +258,7 @@ If there are no candidates in a category, return an empty array for it. Emit onl
 
         // Cost accounting (AC#11)
         const { input, output } = this.extractTokenCounts(raw);
-        const cost = (input * HAIKU_INPUT_PRICE) + (output * HAIKU_OUTPUT_PRICE);
+        const cost = (input * MODEL_INPUT_PRICE) + (output * MODEL_OUTPUT_PRICE);
         process.stderr.write(
             `[memory-curator] estimated_cost_usd=${cost.toFixed(4)} input_tokens=${input} output_tokens=${output}\n`
         );

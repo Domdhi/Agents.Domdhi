@@ -9,7 +9,7 @@ Execute structured manual/E2E testing checklists against a running app. Main Age
 
 ## Model Rule
 
-**All browser-facing agents (playwright or chrome MCP) MUST use `model: "haiku"`.** Haiku reads the accessibility tree and DOM identically to Sonnet — it correctly verifies element existence, text content, disabled states, aria attributes, and interaction flows. Neither model evaluates rendered pixels, so Sonnet's extra reasoning buys nothing for functional browser verification. Visual/design QA (spacing, alignment, color, responsive) is a separate human pass.
+**All browser-facing agents (playwright or chrome MCP) MUST use `model: "sonnet"`.** Do NOT use Haiku for browser verification — it fabricates results, confidently reporting that an element exists or an interaction succeeded without actually reading the accessibility tree. Sonnet reliably verifies element existence, text content, disabled states, aria attributes, and interaction flows. Visual/design QA (spacing, alignment, color, responsive) is a separate human pass.
 
 ## Browser Tool Selection
 
@@ -187,10 +187,10 @@ Mark these categories `[x]` in the TODO file immediately after verification.
 | Interaction Type | Who | Model | Rationale |
 |-----------------|-----|-------|-----------|
 | Code/file/schema verification | Main Agent (already done in Step 6) | — | No browser needed |
-| Page load + screenshot | `general-purpose` agent (chrome MCP) | haiku | Navigate, screenshot, read text — chrome MCP preferred |
-| Button click + form fill | `general-purpose` agent (chrome MCP) | haiku | Standard interaction via live Chrome |
-| Complex UI + code inspection | `general-purpose` agent (chrome MCP) | haiku | Combine browser MCP and grep/read |
-| Headless / CI environment | `playwright` agent | haiku | Primary for headless/CI environments |
+| Page load + screenshot | `general-purpose` agent (chrome MCP) | sonnet | Navigate, screenshot, read text — chrome MCP preferred |
+| Button click + form fill | `general-purpose` agent (chrome MCP) | sonnet | Standard interaction via live Chrome |
+| Complex UI + code inspection | `general-purpose` agent (chrome MCP) | sonnet | Combine browser MCP and grep/read |
+| Headless / CI environment | `playwright` agent | sonnet | Primary for headless/CI environments |
 
 **Prefer `general-purpose` with chrome MCP over `playwright` agent.** The chrome MCP tools interact with the user's actual browser — same session, same auth state, same cookies. `playwright` is the fallback for headless environments.
 
@@ -256,8 +256,8 @@ OUTPUT:
 
 **All agents for one wave go in a single message — prefer general-purpose with chrome MCP:**
 ```
-Agent(subagent_type: "general-purpose", model: "haiku", prompt: "{cat N prompt with chrome MCP tools}", description: "Test Cat {N}: {Name}")
-Agent(subagent_type: "general-purpose", model: "haiku", prompt: "{cat M prompt with chrome MCP tools}", description: "Test Cat {M}: {Name}")
+Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{cat N prompt with chrome MCP tools}", description: "Test Cat {N}: {Name}")
+Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{cat M prompt with chrome MCP tools}", description: "Test Cat {M}: {Name}")
 ```
 
 #### Step 8: Triage results and update TODO
@@ -269,7 +269,7 @@ Agent(subagent_type: "general-purpose", model: "haiku", prompt: "{cat M prompt w
 | Status | Action |
 |--------|--------|
 | **DONE** | Mark all checkpoints `[x]` in TODO |
-| **DONE_WITH_CONCERNS** | Read concerns. If flaky → mark `[x]` but note in report. If suspicious → re-run that category. Log to `docs/.output/agent-updates.md`. |
+| **DONE_WITH_CONCERNS** | Read concerns. If flaky → mark `[x]` but note in report. If suspicious → re-run that category. Log to `docs/.output/agent-updates/{YYYY-MM-DD}.md`. |
 | **BLOCKED** | Read blocker. Mark affected checkpoints `[!]` with root cause. Assess impact on downstream waves. |
 | **NEEDS_CONTEXT** | Answer questions, re-dispatch that agent only. |
 
@@ -355,7 +355,7 @@ Write `docs/.output/screenshots/{YYYY-MM-DD}/{Task}/TEST-REPORT.md`:
 | DONE | {n} |
 | DONE_WITH_CONCERNS | {n} |
 | BLOCKED | {n} |
-| Issues logged to docs/.output/agent-updates.md | {n} |
+| Issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md | {n} |
 
 ### Recommendations
 1. ...
@@ -369,6 +369,16 @@ Why: bugs found during testing and blocked checkpoints are high-value context fo
 
 ### Step 13: Commit test artifacts + handoff
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+test: {Task} — {PassCount}/{Total} passed, {BlockedCount} blocked
+
+{one-line summary of most severe finding, if any}
+```
+
+Then run:
+
 ```bash
 # Permanent spec files, if any were written
 git add {test spec files — test/__test__/**, e2e/**, etc.}
@@ -378,11 +388,7 @@ git add docs/.output/screenshots/{YYYY-MM-DD}/{Task}/
 git add {TODO_FILE}
 # Handoff
 git add docs/__handoff.md
-
-git commit -m "test: {Task} — {PassCount}/{Total} passed, {BlockedCount} blocked
-
-{one-line summary of most severe finding, if any}
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 Skip the commit only if the user invoked `/run-tests` as a dry-run with no expectation of persisting findings.
@@ -392,7 +398,7 @@ Skip the commit only if the user invoked `/run-tests` as a dry-run with no expec
 ## Rules
 
 1. **TaskList is your spine.** Create it in Phase 0. Update at every step. It survives context compression.
-2. **All browser agents use haiku. No exceptions.** Both playwright and general-purpose (chrome MCP) agents must specify `model: "haiku"`. Haiku reads DOM/a11y trees identically to Sonnet. Visual/design QA is a separate human pass.
+2. **All browser agents use sonnet. No exceptions.** Both playwright and general-purpose (chrome MCP) agents must specify `model: "sonnet"`. Never Haiku — it fabricates browser results instead of reading the DOM/a11y tree. Visual/design QA is a separate human pass.
 3. **Main Agent does non-browser checks directly.** Schema, seed data, code inspection, config — no delegation needed. Playwright agents handle browser interactions.
 4. **Status protocol is mandatory.** Every agent reports DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT.
 5. **Don't trust agent reports — verify.** If an agent says DONE but the screenshot shows an error, it's not DONE.
@@ -400,6 +406,6 @@ Skip the commit only if the user invoked `/run-tests` as a dry-run with no expec
 7. **Annotate blocked items with WHY.** `[!] BLOCKED` alone is useless. Always include root cause.
 8. **Wave gating is real.** Dependencies between categories exist. Don't launch all at once.
 9. **Screenshot at every verification point.** No screenshot = no evidence = no PASS.
-10. **Log agent issues to `docs/.output/agent-updates.md`.** Flaky behavior, wrong selectors, missed checkpoints — all get logged.
+10. **Log agent issues to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md`** (create the file if today's doesn't exist; the `agent-updates/` folder rotates by day). Flaky behavior, wrong selectors, missed checkpoints — all get logged.
 11. **Don't stop the dev server.** Unless explicitly asked.
 12. **Always regenerate `docs/__handoff.md` at the end (Step 12).** Bugs found and blocked checkpoints are critical next-session context. Use the `session-handoff` skill. Skip only for explicit dry-runs.

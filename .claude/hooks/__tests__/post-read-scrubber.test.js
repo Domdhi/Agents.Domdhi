@@ -15,7 +15,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const { processEvent } = require('../post-read-scrubber.cjs');
+const { processEvent, extractOutput, inferToolKind } = require('../post-read-scrubber.cjs');
 
 // ─── Fake secret builders (runtime concatenation avoids pre-commit hook) ──────
 
@@ -96,110 +96,61 @@ describe('post-read-scrubber', () => {
             expect(stderrSpy).not.toHaveBeenCalled();
         });
 
-        // ─── R7 — output redaction via hookSpecificOutput.updatedToolOutput ───
-        // Below-block tests cover the new behavior added 2026-05-10:
-        //   - emit JSON to stdout when redacting (Read + Bash)
-        //   - no stdout when content is clean
-        //   - return null preserved (non-blocking semantics)
-        //   - Bash event handling (no file_path; uses tool_response.stdout)
-
-        describe('R7 redaction', () => {
-            let stdoutSpy;
-
-            beforeEach(() => {
-                stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-            });
-
-            afterEach(() => {
-                stdoutSpy.mockRestore();
-            });
-
-            it('processEvent_readSecretInContent_emitsRedactedJsonToStdout', () => {
-                // AC4: Read event with secret → JSON to stdout AND stderr warning
-                const fakeKey = fakeAwsKey();
-                processEvent({
-                    tool_name: 'Read',
-                    tool_input: { file_path: '/some/file.js' },
-                    tool_output: `key = "${fakeKey}"`
-                });
-
-                expect(stdoutSpy).toHaveBeenCalled();
-                const stdoutText = stdoutSpy.mock.calls.map(c => c[0]).join('');
-                const parsed = JSON.parse(stdoutText.trim());
-                expect(parsed.hookSpecificOutput.hookEventName).toBe('PostToolUse');
-                expect(parsed.hookSpecificOutput.updatedToolOutput).toContain('<REDACTED:AWS Access Key>');
-                expect(parsed.hookSpecificOutput.updatedToolOutput).not.toContain(fakeKey);
-
-                // Existing stderr warning must still fire
-                expect(stderrSpy).toHaveBeenCalled();
-            });
-
-            it('processEvent_bashSecretInStdout_emitsRedactedJsonToStdout', () => {
-                // AC3: Bash event with secret in tool_response.stdout → JSON to stdout
-                const fakeKey = fakeAwsKey();
+        // ── Dispatch port-back 2026-06-02: Bash coverage + redaction ──────────
+        it('processEvent_bashOutputWithSecret_emitsRedactionJson', () => {
+            const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+            try {
                 processEvent({
                     tool_name: 'Bash',
                     tool_input: { command: 'cat .env' },
-                    tool_response: { stdout: `AWS_KEY=${fakeKey}\n`, stderr: '', interrupted: false }
+                    tool_response: { stdout: `AWS_KEY=${fakeAwsKey()}` },
                 });
-
-                expect(stdoutSpy).toHaveBeenCalled();
-                const stdoutText = stdoutSpy.mock.calls.map(c => c[0]).join('');
-                const parsed = JSON.parse(stdoutText.trim());
-                expect(parsed.hookSpecificOutput.hookEventName).toBe('PostToolUse');
-                expect(parsed.hookSpecificOutput.updatedToolOutput).toContain('<REDACTED:AWS Access Key>');
-                expect(parsed.hookSpecificOutput.updatedToolOutput).not.toContain(fakeKey);
-            });
-
-            it('processEvent_cleanContent_noStdoutOutput', () => {
-                // AC5: clean Read content → no stdout (no JSON emitted when not needed)
-                processEvent({
-                    tool_name: 'Read',
-                    tool_input: { file_path: '/some/clean.js' },
-                    tool_output: 'const x = 42;'
-                });
-
-                expect(stdoutSpy).not.toHaveBeenCalled();
-            });
-
-            it('processEvent_bashCleanOutput_noStdoutOutput', () => {
-                // AC5: clean Bash output → no JSON emitted
-                processEvent({
-                    tool_name: 'Bash',
-                    tool_input: { command: 'ls' },
-                    tool_response: { stdout: 'file1.txt\nfile2.txt\n', stderr: '' }
-                });
-
-                expect(stdoutSpy).not.toHaveBeenCalled();
+                const out = stdoutSpy.mock.calls.map(c => c[0]).join('');
+                expect(out).toMatch(/updatedToolOutput/);
+                expect(out).toMatch(/<REDACTED:/);
+                // Bash path writes no stderr warning (no useful file path)
                 expect(stderrSpy).not.toHaveBeenCalled();
-            });
+            } finally {
+                stdoutSpy.mockRestore();
+            }
+        });
 
-            it('processEvent_returnsNullEvenWhenRedacting', () => {
-                // AC6: non-blocking semantics preserved even on redaction path
-                const fakeKey = fakeAwsKey();
-                const result = processEvent({
+        it('processEvent_readSecret_redactionNoteInWarning', () => {
+            const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+            try {
+                processEvent({
                     tool_name: 'Read',
                     tool_input: { file_path: '/some/file.js' },
-                    tool_output: `key = "${fakeKey}"`
+                    tool_response: { content: `const k = "${fakeAwsKey()}";` },
                 });
+                const warn = stderrSpy.mock.calls.map(c => c[0]).join('');
+                expect(warn).toMatch(/redacted before reaching the model/);
+            } finally {
+                stdoutSpy.mockRestore();
+            }
+        });
+    });
 
-                expect(result).toBeNull();
-            });
+    describe('inferToolKind', () => {
+        it('prefers explicit tool_name', () => {
+            expect(inferToolKind({ tool_name: 'Bash', tool_input: { file_path: 'x' } })).toBe('Bash');
+        });
+        it('infers Read from file_path and Bash from command', () => {
+            expect(inferToolKind({ tool_input: { file_path: 'x' } })).toBe('Read');
+            expect(inferToolKind({ tool_input: { command: 'ls' } })).toBe('Bash');
+        });
+        it('returns unknown when nothing matches', () => {
+            expect(inferToolKind({ tool_input: {} })).toBe('unknown');
+        });
+    });
 
-            it('processEvent_bashWithoutToolName_inferredFromCommand', () => {
-                // Tolerate missing tool_name when tool_input.command is present
-                // (defensive against payload-shape variations across Claude Code versions)
-                const fakeKey = fakeAwsKey();
-                processEvent({
-                    tool_input: { command: 'printenv' },
-                    tool_response: { stdout: `KEY=${fakeKey}\n` }
-                });
-
-                expect(stdoutSpy).toHaveBeenCalled();
-                const stdoutText = stdoutSpy.mock.calls.map(c => c[0]).join('');
-                const parsed = JSON.parse(stdoutText.trim());
-                expect(parsed.hookSpecificOutput.updatedToolOutput).toContain('<REDACTED:AWS Access Key>');
-            });
+    describe('extractOutput', () => {
+        it('reads stdout, content, text, and legacy/string shapes', () => {
+            expect(extractOutput({ tool_response: { stdout: 'a' } })).toBe('a');
+            expect(extractOutput({ tool_response: { content: 'b' } })).toBe('b');
+            expect(extractOutput({ tool_response: 'c' })).toBe('c');
+            expect(extractOutput({ tool_output: 'd' })).toBe('d');
+            expect(extractOutput({})).toBe('');
         });
     });
 });

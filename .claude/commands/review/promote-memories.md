@@ -92,12 +92,19 @@ For each accepted candidate:
 
 If any promotions were accepted and applied:
 
-```bash
-git add {all modified files — target files + concept articles}
-git commit -m "docs: /review:promote-memories — promoted {N} concepts
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /review:promote-memories — promoted {N} concepts
 
 {For each promoted concept: slug → target-file}
-Co-Authored-By: 🤖"
+```
+
+Then run:
+
+```bash
+git add {all modified files — target files + concept articles}
+node .claude/core/commit.js
 ```
 
 ### Step 5: Report

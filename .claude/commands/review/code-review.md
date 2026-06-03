@@ -5,7 +5,7 @@ argument-hint: [file path, PR number, or git diff range]
 
 # Code Review
 
-Review code for quality, security, and architecture compliance. Uses the `code-reviewer` skill.
+Review code for quality, security, and architecture compliance. Uses the `code-review` skill.
 
 ## Agent Delegation
 
@@ -85,8 +85,8 @@ Classify each changed file into a risk tier to determine review depth.
 Use the Task tool with `subagent_type: "code-reviewer"` to perform the review.
 
 **If `--deep` flag is set:** Dispatch TWO review agents in parallel:
-1. **Primary** — `subagent_type: "code-reviewer"`, `model: "sonnet"` (default)
-2. **Secondary** — `subagent_type: "code-reviewer"`, `model: "opus"` (deep second opinion)
+1. **Primary** — `subagent_type: "code-reviewer"` (no `model:` pin → inherits `review.default` from the agent frontmatter; see the **Model Policy** in CLAUDE.md)
+2. **Backup** — `subagent_type: "code-reviewer"`, `model: "{review.backup}"` (the backup tier named in the Model Policy — a different model gives cross-tier diversity, not just a re-run)
 
 Both receive the same prompt. Results are compared in Step 4.
 
@@ -97,7 +97,7 @@ Both receive the same prompt. Results are compared in Step 4.
 2. Architecture standards and conventions from Step 2
 3. Memory patterns and constraints relevant to the changed code
 4. The risk classification table from Step 2b (per-file risk tiers and overall review depth)
-5. The `code-reviewer` agent auto-loads the `code-reviewer` and `code-review-playbook` skills via frontmatter.
+5. The `code-reviewer` agent auto-loads the `code-review` skill via frontmatter.
 6. Instruction to use the playbook's routing: Deep Review checklist for HIGH files, Standard for MEDIUM, Fast-Lane for LOW
 7. Instruction to evaluate: Correctness, Security, Performance, Architecture Compliance, Memory Pattern Compliance, Test Coverage
 8. Instruction to classify findings by severity: CRITICAL > MAJOR > MINOR > NIT
@@ -128,9 +128,17 @@ File format:
 
 Stage and commit the review output file:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
 ```
+docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{minor}m)
+```
+
+Then run:
+
+```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-code-review.md
-git commit -m "docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{minor}m)"
+node .claude/core/commit.js
 ```
 
 ### 6. Report (main agent)

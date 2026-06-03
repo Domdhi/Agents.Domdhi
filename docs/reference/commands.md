@@ -72,7 +72,7 @@ Twelve commands for project initialization — from brainstorm through per-epic 
 
 ## /brainstorm
 
-Guided ideation session. Writes `docs/_brainstorm.md` (always) plus topic-driven satellites as warranted (e.g., `_feature-ideas.md`). Dispatches `product-strategist` with the `project-analyst` skill.
+Guided ideation session. Writes `docs/_brainstorm.md` (always) plus topic-driven satellites as warranted (e.g., `_feature-ideas.md`). Dispatches `product-strategist` with the `project-planning` skill.
 
 ```mermaid
 flowchart TD
@@ -92,7 +92,7 @@ flowchart TD
 
     CONTEXT --> GATHER[Gather context:\nREADME, package.json,\nWebSearch if needed]
 
-    GATHER --> DELEGATE["Agent: product-strategist\n(auto-loads project-analyst skill)"]
+    GATHER --> DELEGATE["Agent: product-strategist\n(auto-loads project-planning skill)"]
     DELEGATE --> AGENT_WORK["Frame problem\nExplore 3-5 directions\nEvaluate: Feasibility/Impact/Effort/Risk\nCreate evaluation matrix\nRecommend direction"]
 
     AGENT_WORK --> FEATURE{docs/todo/_feature-ideas.md\nexists with content?}
@@ -185,7 +185,7 @@ flowchart TD
 
 ## /create:project-brief
 
-Strategic vision doc. Writes `docs/_project-brief.md`. Dispatches `product-strategist` with the `project-brief-writer` skill. Runs in Context Mode (if brainstorm/research exists) or Interview Mode.
+Strategic vision doc. Writes `docs/_project-brief.md`. Dispatches `product-strategist` with the `project-planning` skill. Runs in Context Mode (if brainstorm/research exists) or Interview Mode.
 
 ```mermaid
 flowchart TD
@@ -198,12 +198,12 @@ flowchart TD
 
     MODE{Upstream docs\nsubstantive?}
     MODE -->|Yes| CONTEXT_MODE["Context Mode:\nExtract vision from brainstorm\nExtract users from problem space\nExtract constraints from research"]
-    MODE -->|No| INTERVIEW_MODE["Interview Mode:\nAskUserQuestion with questions\nfrom project-brief-writer skill\nVision, users, features, scope,\nconstraints, success metrics"]
+    MODE -->|No| INTERVIEW_MODE["Interview Mode:\nAskUserQuestion with questions\nfrom project-planning skill\nVision, users, features, scope,\nconstraints, success metrics"]
 
-    CONTEXT_MODE --> DELEGATE["Agent: product-strategist\n(auto-loads project-brief-writer skill)"]
+    CONTEXT_MODE --> DELEGATE["Agent: product-strategist\n(auto-loads project-planning skill)"]
     INTERVIEW_MODE --> DELEGATE
 
-    DELEGATE --> VALIDATE{Validate against\nproject-brief-writer\nchecklist?}
+    DELEGATE --> VALIDATE{Validate against\nproject-planning\nchecklist?}
     VALIDATE -->|Pass| COMMIT["Commit:\ndocs/_project-brief.md"]
     VALIDATE -->|Fail| RE_DELEGATE[Re-delegate to agent\nto fill gaps]
     RE_DELEGATE --> VALIDATE
@@ -220,7 +220,7 @@ flowchart TD
 
 ## /create:project-requirements
 
-PRD with FRs, NFRs, MoSCoW priorities. Writes `docs/_project-requirements.md`. Dispatches `product-strategist` with the `prd-writer` skill. **Hard gate:** needs at least one of `_project-brief.md`, `_brainstorm.md`, or `_research.md` (bypass with `--yolo`).
+PRD with FRs, NFRs, MoSCoW priorities. Writes `docs/_project-requirements.md`. Dispatches `product-strategist` with the `project-planning` skill. **Hard gate:** needs at least one of `_project-brief.md`, `_brainstorm.md`, or `_research.md` (bypass with `--yolo`).
 
 ```mermaid
 flowchart TD
@@ -243,10 +243,10 @@ flowchart TD
 
     MODE{Which mode?}
     MODE -->|Brief exists| CTX["Context Mode:\nExtract personas, features,\nconstraints from brief"]
-    MODE -->|No brief| INT["Interview Mode:\nAskUserQuestion from\nprd-writer skill"]
+    MODE -->|No brief| INT["Interview Mode:\nAskUserQuestion from\nproject-planning skill"]
     MODE -->|Existing code| REV["Reverse-Engineering Mode:\nRead code to extract reqs"]
 
-    CTX --> DELEGATE["Agent: product-strategist\n(auto-loads prd-writer skill)"]
+    CTX --> DELEGATE["Agent: product-strategist\n(auto-loads project-planning skill)"]
     INT --> DELEGATE
     REV --> DELEGATE
 
@@ -977,7 +977,7 @@ Sixteen commands for quality assurance, optimization, and project governance. Mo
 
 ## /review:code-review
 
-Risk-tiered architecture compliance review. Reads the diff (file, PR number, git range, or auto = unstaged), classifies risk tiers (HIGH/MEDIUM/LOW) per file, routes to Deep / Standard / Fast-Lane review depth, dispatches `code-reviewer` with the `code-reviewer` + `code-review-playbook` skills. Read-only — no commit.
+Risk-tiered architecture compliance review. Reads the diff (file, PR number, git range, or auto = unstaged), classifies risk tiers (HIGH/MEDIUM/LOW) per file, routes to Deep / Standard / Fast-Lane review depth, dispatches `code-reviewer` with the `code-review` skill. Read-only — no commit.
 
 ```mermaid
 flowchart TD
@@ -1005,7 +1005,7 @@ flowchart TD
     STD --> DELEGATE
     FAST --> DELEGATE
 
-    DELEGATE["Agent: code-reviewer\n(auto-loads code-reviewer +\ncode-review-playbook skills)\n\nEvaluate: Correctness, Security,\nPerformance, Architecture,\nMemory Pattern Compliance,\nTest Coverage\n\nSeverity: CRITICAL > MAJOR >\nMINOR > NIT"]
+    DELEGATE["Agent: code-reviewer\n(auto-loads code-review skill)\n\nEvaluate: Correctness, Security,\nPerformance, Architecture,\nMemory Pattern Compliance,\nTest Coverage\n\nSeverity: CRITICAL > MAJOR >\nMINOR > NIT"]
 
     DELEGATE --> REPORT(["Report:\nVerdict, file count,\nreview depth, findings\nby severity\nRead-only — no commit"])
 
@@ -1018,7 +1018,7 @@ flowchart TD
 
 ## /review:security
 
-OWASP Top 10 audit, vulnerability detection, secret scanning, threat modeling. Dispatches `security-auditor` with the `code-reviewer` skill. Writes audit results to `docs/.output/reviews/security-{date}.md`.
+OWASP Top 10 audit, vulnerability detection, secret scanning, threat modeling. Dispatches `security-auditor` with the `code-review` skill. Writes audit results to `docs/.output/reviews/security-{date}.md`.
 
 ```mermaid
 flowchart TD
@@ -1035,7 +1035,7 @@ flowchart TD
 
     CTX["Gather security context:\n_project-architecture.md\n_project-requirements.md\nGlob: *.env*, auth/*, middleware/*\nMemory: security constraints"]
 
-    CTX --> DELEGATE["Agent: security-auditor\n(auto-loads code-reviewer skill)\n\nOWASP Top 10 assessment\nSecret/credential scan\nAuthorization audit\nInput validation check\nAttack chain analysis\n\nSeverity: CRITICAL > HIGH >\nMEDIUM > LOW"]
+    CTX --> DELEGATE["Agent: security-auditor\n(auto-loads code-review skill)\n\nOWASP Top 10 assessment\nSecret/credential scan\nAuthorization audit\nInput validation check\nAttack chain analysis\n\nSeverity: CRITICAL > HIGH >\nMEDIUM > LOW"]
 
     DELEGATE --> REPORT(["Report:\nThreat model, OWASP table,\nfindings by severity,\nattack chains, secret scan,\nrecommended actions\nWrite scope: review artifacts only"])
 
@@ -1100,7 +1100,7 @@ flowchart TD
     ACK -->|Yes, all listed in\n## Acknowledged Overlaps| COMPLETE
     ACK -->|Yes, unacknowledged| FAIL_OVERLAP(["FAIL:\nUnacknowledged overlaps\nlist pairs + suggest fixes"])
 
-    COMPLETE["Check completeness\nper skill checklists:\nPRD → prd-writer\nArch → architecture-writer\nDesign → ux-designer\nEpics → epic-writer"]
+    COMPLETE["Check completeness\nper skill checklists:\nPRD → project-planning\nArch → architecture-writer\nDesign → ux-designer\nEpics → epic-writer"]
 
     COMPLETE --> CONSISTENCY["Cross-document consistency:\nTech stack matches epics?\nEvery Must-Have FR → story?\nNFRs in architecture?\nPRD entities in data design?\nSecurity reqs → auth section?"]
 

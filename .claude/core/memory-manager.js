@@ -352,6 +352,164 @@ class MemoryManager {
     }
 
     /**
+     * Delete a memory: unlink the JSON file + remove it from the SQLite/FTS index.
+     * Returns {deleted, error?} rather than throwing — matches the create/update
+     * return-shape convention. Required by /review:memory-defrag merge/split ops.
+     *
+     * @param {string} category
+     * @param {string} id
+     * @returns {Promise<{deleted: boolean, error?: string}>}
+     */
+    async deleteMemory(category, id) {
+        if (!this.categories.includes(category)) {
+            return { deleted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
+        }
+
+        // Locate the JSON file — createMemory hyphenates ids at write time but
+        // accepts either form, so try the hyphenated filename then the raw id.
+        const hyphenated = MemoryManager.idToFilename(id);
+        const candidates = [
+            path.join(this.memoriesDir, category, `${hyphenated}.json`),
+            path.join(this.memoriesDir, category, `${id}.json`),
+        ];
+        let filePath = null;
+        for (const candidate of candidates) {
+            try {
+                await fs.access(candidate);
+                filePath = candidate;
+                break;
+            } catch { /* try next */ }
+        }
+        if (!filePath) {
+            return { deleted: false, error: `Memory not found: ${category}/${id}` };
+        }
+
+        try {
+            await fs.unlink(filePath);
+        } catch (e) {
+            return { deleted: false, error: `Failed to unlink ${filePath}: ${e.message}` };
+        }
+
+        // Deindex from SQLite (non-fatal if it fails; the JSON file is already gone)
+        this.deindexMemory(id);
+
+        return { deleted: true };
+    }
+
+    // -------------------------------------------------------------------------
+    // Inbox staging — sub-agents flag draft memories to _inbox/ during their
+    // work; the Main Agent reviews and promotes (or discards) them afterward,
+    // so nothing is written straight into the curated store unreviewed.
+    // -------------------------------------------------------------------------
+
+    _inboxDir() {
+        return path.join(this.memoriesDir, '_inbox');
+    }
+
+    /**
+     * List all draft memories staged in the inbox (chronological by id).
+     * @returns {Promise<Array<{id, file, mtime, content_preview, category, suggested_id, flagged_by, flagged_at}>>}
+     */
+    async inboxList() {
+        const dir = this._inboxDir();
+        let files;
+        try {
+            files = await fs.readdir(dir);
+        } catch (e) {
+            if (e.code === 'ENOENT') return [];
+            throw e;
+        }
+
+        const entries = [];
+        for (const file of files) {
+            if (!file.endsWith('.json')) continue;
+            const filePath = path.join(dir, file);
+            try {
+                const stat = await fs.stat(filePath);
+                const draft = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+                const description = draft.content?.description || '';
+                entries.push({
+                    id: file.replace(/\.json$/, ''),
+                    file: filePath,
+                    mtime: stat.mtime.toISOString(),
+                    content_preview: description.slice(0, 120),
+                    category: draft.category,
+                    suggested_id: draft.suggested_id,
+                    flagged_by: draft.flagged_by,
+                    flagged_at: draft.flagged_at,
+                });
+            } catch {
+                // Skip unreadable / malformed drafts — surfaced at promote time.
+            }
+        }
+        // Lex-sort = chronological for {YYYY-MM-DD}-{HHMM}-{slug} naming.
+        entries.sort((a, b) => a.id.localeCompare(b.id));
+        return entries;
+    }
+
+    /**
+     * Promote an inbox draft to a real memory: read draft, validate category,
+     * createMemory, then unlink the draft. Returns {promoted, error?} — never throws.
+     * @param {string} id - inbox filename stem (without .json)
+     * @param {{categoryOverride?: string, idOverride?: string}} [opts]
+     */
+    async inboxPromote(id, opts = {}) {
+        const filePath = path.join(this._inboxDir(), `${id}.json`);
+        let raw;
+        try {
+            raw = await fs.readFile(filePath, 'utf-8');
+        } catch (e) {
+            if (e.code === 'ENOENT') return { promoted: false, error: `Inbox draft not found: ${id}` };
+            return { promoted: false, error: `Failed to read inbox draft: ${e.message}` };
+        }
+
+        let draft;
+        try {
+            draft = JSON.parse(raw);
+        } catch (e) {
+            return { promoted: false, error: `Inbox draft has malformed JSON: ${e.message}` };
+        }
+
+        const category = opts.categoryOverride || draft.category;
+        const memoryId = opts.idOverride || draft.suggested_id;
+
+        if (!this.categories.includes(category)) {
+            return { promoted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
+        }
+        if (!memoryId || typeof memoryId !== 'string') {
+            return { promoted: false, error: 'Missing or invalid suggested_id (no idOverride supplied)' };
+        }
+
+        const created = await this.createMemory(category, memoryId, draft.content || {});
+        if (!created) {
+            return { promoted: false, error: 'createMemory returned null (category limit reached?)' };
+        }
+
+        try {
+            await fs.unlink(filePath);
+        } catch {
+            console.error(`⚠ Promoted ${category}/${memoryId} but failed to unlink ${filePath}`);
+        }
+
+        return { promoted: true, category, id: memoryId };
+    }
+
+    /**
+     * Discard an inbox draft without promoting it.
+     * @param {string} id - inbox filename stem (without .json)
+     */
+    async inboxDiscard(id) {
+        const filePath = path.join(this._inboxDir(), `${id}.json`);
+        try {
+            await fs.unlink(filePath);
+            return { discarded: true };
+        } catch (e) {
+            if (e.code === 'ENOENT') return { discarded: false, error: `Inbox draft not found: ${id}` };
+            return { discarded: false, error: e.message };
+        }
+    }
+
+    /**
      * List all memories in a category
      */
     async listMemories(category) {
@@ -726,7 +884,7 @@ class MemoryManager {
                 json: this.memoriesDir,
                 sqlite: DatabaseSync ? this.dbPath : 'not available',
                 sqliteBackend,
-                sqliteSupportsFts5,
+                sqliteSupportsFts5
             },
             categories: {}
         };

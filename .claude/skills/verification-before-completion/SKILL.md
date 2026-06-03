@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [quality, verification, workflow, testing]
 user-invocable: false
-allowed-tools: Read, Bash
+allowed-tools: Read Bash
 ---
 
 # Verification Before Completion

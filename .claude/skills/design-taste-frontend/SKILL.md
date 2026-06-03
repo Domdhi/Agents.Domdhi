@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [frontend, ui-ux, design, css]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # High-Agency Frontend Skill

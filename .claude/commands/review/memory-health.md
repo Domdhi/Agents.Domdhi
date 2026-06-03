@@ -4,7 +4,7 @@ description: Run extract (opt-in) + lint + decay health check on the memory syst
 
 # Memory Health Check
 
-Run the memory health pipeline (optional Haiku extraction, lint, decay report). Suitable for headless automation via `claude -p "/review:memory-health" --model haiku --allowedTools Bash`.
+Run the memory health pipeline (optional Sonnet extraction, lint, decay report). Suitable for headless automation via `claude -p "/review:memory-health" --model sonnet --allowedTools Bash`.
 
 ## Orchestration Rule
 
@@ -16,7 +16,7 @@ Run the memory health pipeline (optional Haiku extraction, lint, decay report). 
 
 ### Step 1: Extraction
 
-Run the Haiku extractor. Extraction is always manual — this command runs it here as part of the health check, and `memory-extractor.js extract` can also be invoked on demand via the CLI for brownfield backfill in adopter projects. No command or hook fires the extractor automatically. If the extractor script does not exist, skip silently.
+Run the Sonnet extractor. Extraction is always manual — this command runs it here as part of the health check, and `memory-extractor.js extract` can also be invoked on demand via the CLI for brownfield backfill in adopter projects. No command or hook fires the extractor automatically. If the extractor script does not exist, skip silently.
 
 ```bash
 test -f .claude/core/memory-extractor.js && node .claude/core/memory-extractor.js extract || echo "extractor not available"

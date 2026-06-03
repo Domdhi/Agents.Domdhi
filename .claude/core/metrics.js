@@ -57,9 +57,12 @@ function computeTelemetry() {
       if (!gate_results[cmd]) {
         gate_results[cmd] = { pass: 0, fail: 0, pass_rate: 0 };
       }
-      if (evt.outcome === 'success') {
+      // Normalize outcome vocab: 'success'/'failure' (current schema) plus
+      // legacy 'pass'/'fail' from pre-A4 JSONL. 'unknown' carries no signal —
+      // ignore it (matches status.js). Counting it as fail inflates fail rate.
+      if (evt.outcome === 'success' || evt.outcome === 'pass') {
         gate_results[cmd].pass++;
-      } else {
+      } else if (evt.outcome === 'failure' || evt.outcome === 'fail') {
         gate_results[cmd].fail++;
       }
     }

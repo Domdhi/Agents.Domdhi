@@ -304,81 +304,81 @@ describe('memory-benchmark', () => {
 
   }); // keywordQuery
 
-  // ── parseHaikuResult ───────────────────────────────────────────────────────
+  // ── parseModelResult ───────────────────────────────────────────────────────
 
-  describe('parseHaikuResult', () => {
+  describe('parseModelResult', () => {
 
-    it('parseHaikuResult_null_returnsNull', () => {
+    it('parseModelResult_null_returnsNull', () => {
       const bench = new MemoryBenchmark();
-      expect(bench.parseHaikuResult(null)).toBeNull();
+      expect(bench.parseModelResult(null)).toBeNull();
     });
 
-    it('parseHaikuResult_emptyString_returnsNull', () => {
+    it('parseModelResult_emptyString_returnsNull', () => {
       const bench = new MemoryBenchmark();
-      expect(bench.parseHaikuResult('')).toBeNull();
+      expect(bench.parseModelResult('')).toBeNull();
     });
 
-    it('parseHaikuResult_stringEnvelopeWithJsonResult_parsesInner', () => {
+    it('parseModelResult_stringEnvelopeWithJsonResult_parsesInner', () => {
       // AC: "string envelope with JSON string in .result → parsed inner"
       // buildEnvelope wraps inner payload as a JSON-stringified string in .result
       const bench = new MemoryBenchmark();
       const inner = { expected_slug: 'memory-system-patterns', rationale: 'test match' };
       const envelope = buildEnvelope(inner);
-      const result = bench.parseHaikuResult(envelope);
+      const result = bench.parseModelResult(envelope);
       expect(result).not.toBeNull();
       expect(result.expected_slug).toBe('memory-system-patterns');
       expect(result.rationale).toBe('test match');
     });
 
-    it('parseHaikuResult_malformedJson_returnsNull', () => {
+    it('parseModelResult_malformedJson_returnsNull', () => {
       // AC: "malformed JSON → null"
       const bench = new MemoryBenchmark();
-      expect(bench.parseHaikuResult('not valid json at all {{{')).toBeNull();
+      expect(bench.parseModelResult('not valid json at all {{{')).toBeNull();
     });
 
-    it('parseHaikuResult_missingFields_returnsObjectWithoutFields', () => {
+    it('parseModelResult_missingFields_returnsObjectWithoutFields', () => {
       // AC: "missing fields → null" — per source, tryParseInnerJson returns the
       // parsed object without validating required fields. An empty inner JSON {}
       // parses to {} (not null). Benchmark then checks parsed.expected_slug.
       const bench = new MemoryBenchmark();
       const envelope = buildEnvelope({});  // inner is "{}" — parses cleanly
-      const result = bench.parseHaikuResult(envelope);
+      const result = bench.parseModelResult(envelope);
       // The parsed result is {} — which is not null
       expect(result).not.toBeNull();
       // expected_slug will be undefined (not present)
       expect(result.expected_slug).toBeUndefined();
     });
 
-    it('parseHaikuResult_textEnvelope_parsesInner', () => {
+    it('parseModelResult_textEnvelope_parsesInner', () => {
       // Envelope shape: { text: "<json>" } — tolerated by the parser
       const bench = new MemoryBenchmark();
       const inner = JSON.stringify({ expected_slug: 'my-concept', rationale: 'via text' });
       const envelope = JSON.stringify({ text: inner });
-      const result = bench.parseHaikuResult(envelope);
+      const result = bench.parseModelResult(envelope);
       expect(result).not.toBeNull();
       expect(result.expected_slug).toBe('my-concept');
     });
 
-    it('parseHaikuResult_contentArrayEnvelope_parsesInner', () => {
+    it('parseModelResult_contentArrayEnvelope_parsesInner', () => {
       // Envelope shape: { content: [{ text: "<json>" }] }
       const bench = new MemoryBenchmark();
       const inner = JSON.stringify({ expected_slug: 'content-slug', rationale: 'via content' });
       const envelope = JSON.stringify({ content: [{ text: inner }] });
-      const result = bench.parseHaikuResult(envelope);
+      const result = bench.parseModelResult(envelope);
       expect(result).not.toBeNull();
       expect(result.expected_slug).toBe('content-slug');
     });
 
-    it('parseHaikuResult_bareEnvelopeWithExpectedSlug_returnsEnvelope', () => {
+    it('parseModelResult_bareEnvelopeWithExpectedSlug_returnsEnvelope', () => {
       // Source: if envelope.expected_slug !== undefined, return envelope directly
       const bench = new MemoryBenchmark();
       const envelope = JSON.stringify({ expected_slug: 'bare-slug', rationale: 'direct' });
-      const result = bench.parseHaikuResult(envelope);
+      const result = bench.parseModelResult(envelope);
       expect(result).not.toBeNull();
       expect(result.expected_slug).toBe('bare-slug');
     });
 
-  }); // parseHaikuResult
+  }); // parseModelResult
 
   // ── tryParseInnerJson ──────────────────────────────────────────────────────
 
@@ -643,13 +643,13 @@ describe('memory-benchmark', () => {
     it('benchmark_indexMdEmpty_noHaikuCalls', async () => {
       const bench = new MemoryBenchmark();
       vi.spyOn(bench, 'checkClaudeCli').mockReturnValue(true);
-      vi.spyOn(bench, 'invokeHaiku').mockReturnValue(null);
+      vi.spyOn(bench, 'invokeModel').mockReturnValue(null);
       tmp.write('docs/.output/memories/concepts/index.md', '  ');
 
       await bench.benchmark();
 
-      // invokeHaiku should not have been called since index is empty/null
-      expect(bench.invokeHaiku).not.toHaveBeenCalled();
+      // invokeModel should not have been called since index is empty/null
+      expect(bench.invokeModel).not.toHaveBeenCalled();
     });
 
     it('benchmark_noEligibleEntries_returnsNull', async () => {
@@ -675,11 +675,11 @@ describe('memory-benchmark', () => {
     // Note on mock strategy: the source uses `const { execSync } = require('child_process')`
     // (destructured at module load). vi.spyOn(childProcess, 'execSync') patches the module
     // exports object but does NOT intercept the already-bound local `execSync` variable.
-    // Solution: spy on bench.checkClaudeCli and bench.invokeHaiku directly — these wrap
+    // Solution: spy on bench.checkClaudeCli and bench.invokeModel directly — these wrap
     // the execSync calls and are instance methods on the prototype.
 
-    // A canned invokeHaiku response: the raw string that invokeHaiku returns to benchmark().
-    // benchmark() calls parseHaikuResult(raw) on this. buildEnvelope wraps the inner
+    // A canned invokeModel response: the raw string that invokeModel returns to benchmark().
+    // benchmark() calls parseModelResult(raw) on this. buildEnvelope wraps the inner
     // object as JSON.stringify(inner) in the `result` field.
     const cannedSlug = 'memory-system-patterns';
     const cannedInner = { expected_slug: cannedSlug, rationale: 'matches' };
@@ -709,8 +709,8 @@ describe('memory-benchmark', () => {
       const bench = new MemoryBenchmark();
       // Bypass the checkClaudeCli execSync dependency
       vi.spyOn(bench, 'checkClaudeCli').mockReturnValue(true);
-      // Bypass the invokeHaiku execSync dependency — return a canned envelope string
-      vi.spyOn(bench, 'invokeHaiku').mockReturnValue(cannedRaw);
+      // Bypass the invokeModel execSync dependency — return a canned envelope string
+      vi.spyOn(bench, 'invokeModel').mockReturnValue(cannedRaw);
       return bench;
     }
 
@@ -777,7 +777,7 @@ describe('memory-benchmark', () => {
       const bench = mockBench();
       const result = await bench.benchmark({ dryRun: true });
 
-      // invokeHaiku returns cannedRaw → parseHaikuResult extracts expected_slug = cannedSlug
+      // invokeModel returns cannedRaw → parseModelResult extracts expected_slug = cannedSlug
       // searchMemories returns [{id: cannedSlug}] → findRank returns 1 → hit = true
       const hitsInResult = result.records.filter(r => r.hit);
       expect(hitsInResult.length).toBeGreaterThan(0);

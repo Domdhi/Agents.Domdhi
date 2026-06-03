@@ -70,7 +70,7 @@ Task prompt:
 
 Task prompt:
 1. Read `docs/_project-requirements.md`
-2. Validate completeness against the prd-writer skill's quality checklist
+2. Validate completeness against the project-planning skill's `references/project-requirements.md` quality checklist
 3. Return a structured report: section name, present (Y/N), issues found
 4. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
 
@@ -154,9 +154,17 @@ File format:
 
 Stage and commit the readiness check output file:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
 ```
+docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found
+```
+
+Then run:
+
+```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md
-git commit -m "docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found"
+node .claude/core/commit.js
 ```
 
 ### 8. Report (main agent)

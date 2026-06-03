@@ -40,11 +40,17 @@ Follow the `session-handoff` skill template. Tailor for the `/end` case (Step 4 
 
 ### 4. Commit the handoff
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /end — {brief summary of session focus}
+```
+
+Then run:
+
 ```bash
 git add docs/__handoff.md
-git commit -m "docs: /end — {brief summary of session focus}
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 ### 5. Show the user

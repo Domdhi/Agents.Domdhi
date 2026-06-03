@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [session, handoff, state, prime, continuity]
 user-invocable: false
-allowed-tools: Read, Write, Bash, Grep, Glob
+allowed-tools: Read Write Bash Grep Glob
 ---
 
 # Session Handoff

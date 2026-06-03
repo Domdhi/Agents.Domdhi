@@ -1,6 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "plansDirectory": "./docs/.output/plans",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/core/statusline.sh\""
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(git status)",
@@ -9,7 +16,6 @@
       "Bash(git branch*)",
       "Bash(git checkout*)",
       "Bash(git add*)",
-      "Bash(git commit*)",
       "Bash(curl:*)",
       "Bash(node:*)"
     ],
@@ -86,6 +92,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guardrail.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/commit-guard.cjs\""
           }
         ]
       }
@@ -119,6 +129,19 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-read-scrubber.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-logger.cjs\""
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-logger.cjs\""
           }
         ]
       },
@@ -163,6 +186,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-read-scrubber.cjs\""
+          },
+          {
+            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/organize.cjs\""
           },
           {
@@ -176,10 +203,6 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-capture.cjs\""
-          },
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-read-scrubber.cjs\""
           }
         ]
       }

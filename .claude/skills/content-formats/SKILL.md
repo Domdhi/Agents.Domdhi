@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [content, social-media, templates, formats]
 user-invocable: false
-allowed-tools: Read, Grep, Glob
+allowed-tools: Read Grep Glob
 ---
 
 # Content Formats

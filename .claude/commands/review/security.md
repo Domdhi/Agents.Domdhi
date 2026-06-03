@@ -59,7 +59,7 @@ Use the Task tool with `subagent_type: "security-auditor"` to perform the audit.
 2. Architecture security context (auth model, security ADRs, API design)
 3. Security requirements from PRD (if any)
 4. Known security constraints from memory
-5. The `security-auditor` agent auto-loads the `code-reviewer` skill via frontmatter (for severity classification)
+5. The `security-auditor` agent auto-loads the `code-review` skill via frontmatter (for severity classification)
 6. Instruction to perform a full OWASP Top 10 assessment against the code in scope
 7. Instruction to scan for hardcoded secrets, credentials, API keys, tokens in all files
 8. Instruction to verify authorization on every protected endpoint (not just authentication)
@@ -93,9 +93,17 @@ File format:
 
 Stage and commit the audit output file:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
 ```
+docs: /review:security — {N} findings ({critical}C/{high}H/{medium}M/{low}L)
+```
+
+Then run:
+
+```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-security-audit.md
-git commit -m "docs: /review:security — {N} findings ({critical}C/{high}H/{medium}M/{low}L)"
+node .claude/core/commit.js
 ```
 
 ### 6. Report (main agent)

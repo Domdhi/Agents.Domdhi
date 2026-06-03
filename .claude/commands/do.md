@@ -5,7 +5,7 @@ argument-hint: [story ID, task description, or blank to infer from conversation]
 
 # /do — Single Task Execution
 
-Execute one task through a structured pipeline. Main Agent owns the TaskList, plans, verifies, and makes every judgment call. For small/medium tasks, Main Agent implements directly — no lossy translation, no delegation overhead. For large tasks (or `--delegate`), Main Agent delegates to Sonnet. Haiku documents.
+Execute one task through a structured pipeline. Main Agent owns the TaskList, plans, verifies, and makes every judgment call. For small/medium tasks, Main Agent implements directly — no lossy translation, no delegation overhead. For large tasks (or `--delegate`), Main Agent delegates to Sonnet. Sonnet documents.
 
 ## Variables
 
@@ -310,7 +310,7 @@ Use when the task is too large for Main Agent to hold in working memory, or when
 | Backend / API / business logic | `general-purpose` | `sonnet` |
 | Database / migrations | `general-purpose` | `sonnet` |
 | Tests only | `qa-engineer` | `sonnet` |
-| Documentation only | `doc-writer` | `haiku` |
+| Documentation only | `doc-writer` | `sonnet` |
 | Infrastructure / config | `general-purpose` | `sonnet` |
 
 #### B2. Assemble implementation prompt
@@ -399,7 +399,7 @@ Read the agent's STATUS and act accordingly:
 | Status | Action |
 |--------|--------|
 | **DONE** | Proceed to Step 7 (gate) |
-| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification in Step 8. Log concern to docs/.output/agent-updates.md. |
+| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification in Step 8. Log concern to docs/.output/agent-updates/{YYYY-MM-DD}.md. |
 | **BLOCKED** | Read blocker. Fix if possible (missing file, wrong path). If truly blocked → mark story `[!]`, skip to report. |
 | **NEEDS_CONTEXT** | Answer the questions by reading more files. Re-dispatch with additional context. |
 
@@ -411,7 +411,7 @@ Regardless of status, review what the agent produced:
 - **Quality issues** — missing error handling, wrong patterns, incomplete implementation
 - **Good decisions** — agent discovered something useful not in the plan
 
-If misalignment: fix it directly (Main Agent), and log the issue for docs/.output/agent-updates.md (Step 8).
+If misalignment: fix it directly (Main Agent), and log the issue for docs/.output/agent-updates/{YYYY-MM-DD}.md (Step 8).
 
 #### B6. Inbox curation — promote sub-agent memory drafts
 
@@ -515,14 +515,14 @@ Only after spec passes. Check:
 
 `TaskUpdate: "Update TODO + commit" → in_progress`
 
-### 9a. Update TODO (Haiku)
+### 9a. Update TODO (Sonnet)
 
 If the task is in a TODO file:
 
 ```
 Agent(
   subagent_type: "doc-writer",
-  model: "haiku",
+  model: "sonnet",
   prompt: """
   Update the TODO file at {path}:
   1. Change story {ID} from [>] to [x]
@@ -547,11 +547,11 @@ Update the epic's story count or status if all stories are now [x]
 
 ### 9c. Log agent issues (Main Agent)
 
-Log **every** agent misalignment, no matter how small. Model doesn't matter — any delegated agent (Sonnet, Haiku, or otherwise) that produces output Main Agent has to fix is a misalignment and gets logged. Do not filter for "systemic" or "recurring" issues — that is `/review:optimize-agents`'s job, not yours. Only skip logging when the agent's output was accepted as-is.
+Log **every** agent misalignment, no matter how small. Model doesn't matter — any delegated agent (Sonnet or otherwise) that produces output Main Agent has to fix is a misalignment and gets logged. Do not filter for "systemic" or "recurring" issues — that is `/review:optimize-agents`'s job, not yours. Only skip logging when the agent's output was accepted as-is.
 
 We only put up rails for things that go wrong. Do not log "what worked well" — noise crowds out signal.
 
-If any misalignment or quality issue was observed in Step 6, append to `docs/.output/agent-updates.md`:
+If any misalignment or quality issue was observed in Step 6, append to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
 ```markdown
 ## {date} — {story ID}
 
@@ -575,12 +575,19 @@ Why before commit: including the handoff in the same commit as the implementatio
 
 Stage the plan file (the one from Step 4c — it still says `**Status:** planning` right now; Step 10 will update it post-commit), the implementation files, TODO updates, and the handoff:
 
-```bash
-git add {implementation files} {test files} {TODO updates if any} docs/__handoff.md docs/.output/plans/{YYYY-MM-DD}-do-{slug}.md
-git commit -m "feat: {story-id} — {summary}
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+feat: {story-id} — {summary}
 
 AC verified: {N}/{total} passed, {M} manual
-Co-Authored-By: 🤖"
+```
+
+Then run:
+
+```bash
+git add {implementation files} {test files} {TODO updates if any} docs/__handoff.md docs/.output/plans/{YYYY-MM-DD}-do-{slug}.md
+node .claude/core/commit.js
 ```
 
 ### 9f. Verify commit
@@ -627,7 +634,7 @@ The resulting plan file is now a full record: intent at top, outcome at bottom.
 {table from Step 8}
 
 ### Agent Performance
-{any issues logged to docs/.output/agent-updates.md, or "No issues"}
+{any issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md, or "No issues"}
 
 ### Next Task
 {Next pending [ ] story from the checklist, or "Checklist complete"}
@@ -670,7 +677,7 @@ This mode is for: "we just talked through a design — now do it."
 6. **Context assembly matters for delegation.** When delegating (Path B), a rich Sonnet prompt with variable names and code snippets prevents hallucination. When Main Agent implements directly (Path A), the context from Step 3 is sufficient.
 7. **Mark [>] before starting, [x] after committing.** Session crashes leave a trail.
 8. **Main Agent fixes gate failures directly.** Don't re-dispatch to Sonnet for build errors.
-9. **Log agent fuck-ups.** Every misalignment — no matter how small — goes to `docs/.output/agent-updates.md`. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Don't log what worked; rails are for failures only.
+9. **Log agent fuck-ups.** Every misalignment — no matter how small — goes to `docs/.output/agent-updates/{YYYY-MM-DD}.md`. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Don't log what worked; rails are for failures only.
 10. **Check for pending commits before implementing.** Don't build on dirty state.
 11. **Every `/do` ends with a handoff regeneration.** Step 9d uses the `session-handoff` skill to rewrite `docs/__handoff.md`. Don't skip it even for trivial tasks — the next session's `/prime` depends on it.
 12. **One task per invocation.** Use `/run-todo` for batch execution.

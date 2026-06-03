@@ -137,22 +137,19 @@ describe('classifyClaudeFile', () => {
         expect(classifyClaudeFile('core/gate.js')).toBe('template');
     });
 
-    it('classifies core/_lib/*.js as template (nested helpers)', () => {
-        // Regression: before core/**/*.js the glob was core/*.js (single-star),
-        // which silently skipped every _lib/ helper. Targets upgrading from a
-        // pre-_lib version ended up with core/*.js refreshed but _lib/ missing.
-        expect(classifyClaudeFile('core/_lib/zone-classifier.js')).toBe('template');
-        expect(classifyClaudeFile('core/_lib/agent-merger.js')).toBe('template');
-    });
-
     it('classifies hooks/*.cjs as template', () => {
         expect(classifyClaudeFile('hooks/secret-scanner.cjs')).toBe('template');
     });
 
-    it('classifies hooks/**/*.cjs as template (future-proofing for nested hooks)', () => {
-        // No nested hooks exist today, but hooks/**/*.cjs mirrors core/**/*.js
-        // so the same regression cannot reappear if hooks ever grows subdirs.
-        expect(classifyClaudeFile('hooks/_lib/anything.cjs')).toBe('template');
+    // Regression (Dispatch port-back 2026-06-02): single-star core/*.js and
+    // hooks/*.cjs silently skipped subdirectories, so core/_lib/ never synced
+    // to downstreams after the library split. Globs widened to **.
+    it('classifies core/_lib/*.js as template (was skipped under single-star)', () => {
+        expect(classifyClaudeFile('core/_lib/model-runner.js')).toBe('template');
+    });
+
+    it('classifies a nested core/_lib file as template', () => {
+        expect(classifyClaudeFile('core/_lib/zone-classifier.js')).toBe('template');
     });
 
     it('classifies skills/**/* as template', () => {

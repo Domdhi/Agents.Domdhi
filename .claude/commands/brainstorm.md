@@ -71,7 +71,7 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the bra
 1. Problem statement and where to write output (`{OUTPUT_PATH}`)
 2. User's interview answers (problem, constraints, success criteria)
 3. Context gathered from codebase or web research
-4. The `product-strategist` agent auto-loads the `project-analyst` skill via frontmatter.
+4. The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter.
 5. Instruction to: frame the problem, explore 3-5 solution directions, evaluate each on Feasibility/Impact/Effort/Risk, create evaluation matrix, recommend a direction
 
 ### 5. Capture Ideas to Feature Backlog (main agent)

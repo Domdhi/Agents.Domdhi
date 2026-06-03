@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [debugging, root-cause-analysis, workflow, quality]
 user-invocable: false
-allowed-tools: Read, Bash, Grep, Glob
+allowed-tools: Read Bash Grep Glob
 ---
 
 # Systematic Debugging

@@ -121,9 +121,17 @@ File format:
 
 Stage and commit the sync check output file:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
 ```
+docs: /review:check-sync — {scope}, {N} drift items, {N} dead links
+```
+
+Then run:
+
+```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-sync-check.md
-git commit -m "docs: /review:check-sync — {scope}, {N} drift items, {N} dead links"
+node .claude/core/commit.js
 ```
 
 ### 6. Report (main agent)

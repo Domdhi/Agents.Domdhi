@@ -151,11 +151,17 @@ Rate each category 0-10:
 
 After the report file is written, commit it:
 
+Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+
+```
+docs: /review:check-templates — {score}/50, {N} issues found
+```
+
+Then run:
+
 ```bash
 git add docs/.output/reviews/{YYYY-MM-DD}-template-health-check.md
-git commit -m "docs: /review:check-templates — {score}/50, {N} issues found
-
-Co-Authored-By: 🤖"
+node .claude/core/commit.js
 ```
 
 ### 10. Cross-Project Scan (--multi only)

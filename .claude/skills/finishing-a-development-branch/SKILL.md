@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [git, workflow, branching, integration]
 user-invocable: false
-allowed-tools: Read, Bash
+allowed-tools: Read Bash
 ---
 
 # Finishing a Development Branch

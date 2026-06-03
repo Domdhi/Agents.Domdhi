@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [documentation, writing, api-docs, changelogs]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Documentation Writing Skill

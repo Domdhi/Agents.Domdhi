@@ -51,7 +51,7 @@ If a conflict exists, report it and ask the user whether to update the existing 
 ### Step 3: Gather Context
 
 **For agents** — determine:
-- Model tier: planning (`inherit`), implementation (`sonnet`), or documentation (`haiku`)?
+- Model tier: planning (`inherit`), implementation (`sonnet`), or documentation (`sonnet`)?
 - Tools needed: implementation set, research set, or read-only set?
 - Existing skills to wire, or does a new skill need to be created too?
 - Which commands will delegate to this agent?

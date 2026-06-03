@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [project-context, documentation, overview, quick-reference]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Project Context

@@ -1,5 +1,5 @@
 // AC→source map (TDD-3.2):
-//   - No deleteMemory() exists — test CRU only
+//   - deleteMemory() unlinks JSON + deindexes; returns {deleted,error?} (no throw)
 //   - MEMORY_DECAY.RATES[category] (nested), not MEMORY_DECAY[category]
 //   - Decay formula: base*rate^activeDays + usage*USAGE_BOOST + (recent?RECENT_UPDATE_BOOST:0), cap 1.0
 //   - lintMemories deductions: error=3, warning=2, info=1 (not 10)
@@ -170,6 +170,36 @@ describe('memory-manager', () => {
       expect(result).toBeNull();
     });
 
+    it('deleteMemory_existing_removesFileAndReturnsDeleted', async () => {
+      // Arrange
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'delete_me', { description: 'temp' });
+      const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'delete-me.json');
+      expect(fs.existsSync(filePath)).toBe(true);
+
+      // Act
+      const result = await manager.deleteMemory('patterns', 'delete_me');
+
+      // Assert
+      expect(result).toEqual({ deleted: true });
+      expect(fs.existsSync(filePath)).toBe(false);
+      expect(await manager.readMemory('patterns', 'delete_me')).toBeNull();
+    });
+
+    it('deleteMemory_missing_returnsErrorNotThrow', async () => {
+      const manager = makeManager();
+      const result = await manager.deleteMemory('patterns', 'never_existed');
+      expect(result.deleted).toBe(false);
+      expect(result.error).toMatch(/not found/i);
+    });
+
+    it('deleteMemory_invalidCategory_returnsError', async () => {
+      const manager = makeManager();
+      const result = await manager.deleteMemory('bogus', 'x');
+      expect(result.deleted).toBe(false);
+      expect(result.error).toMatch(/Invalid category/);
+    });
+
     it('listMemories_populatedCategory_returnsSummaries', async () => {
       // Arrange
       const manager = makeManager();
@@ -204,6 +234,86 @@ describe('memory-manager', () => {
     });
 
   }); // CRUD
+
+  // ── Inbox staging ───────────────────────────────────────────────────────────
+
+  describe('inbox', () => {
+    /** Write a draft JSON into the inbox dir the way a sub-agent would (Write tool). */
+    function writeDraft(manager, id, draft) {
+      const dir = manager._inboxDir();
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(draft));
+    }
+
+    it('inboxList_empty_returnsEmptyArray', async () => {
+      const manager = makeManager();
+      expect(await manager.inboxList()).toEqual([]);
+    });
+
+    it('inboxList_returnsDraftsChronologically', async () => {
+      const manager = makeManager();
+      writeDraft(manager, '2026-06-02-1200-beta', { category: 'patterns', suggested_id: 'beta', content: { description: 'B' } });
+      writeDraft(manager, '2026-06-02-0900-alpha', { category: 'constraints', suggested_id: 'alpha', content: { description: 'A' } });
+
+      const list = await manager.inboxList();
+      expect(list.map(e => e.id)).toEqual(['2026-06-02-0900-alpha', '2026-06-02-1200-beta']);
+      expect(list[0]).toMatchObject({ category: 'constraints', suggested_id: 'alpha', content_preview: 'A' });
+    });
+
+    it('inboxPromote_validDraft_createsMemoryAndRemovesDraft', async () => {
+      const manager = makeManager();
+      writeDraft(manager, '2026-06-02-1000-gotcha', {
+        category: 'constraints',
+        suggested_id: 'windows-cr-strip',
+        content: { description: 'CRLF gotcha', confidence: 0.7 },
+      });
+
+      const result = await manager.inboxPromote('2026-06-02-1000-gotcha');
+      expect(result).toEqual({ promoted: true, category: 'constraints', id: 'windows-cr-strip' });
+      // Real memory now exists; draft is gone.
+      expect(await manager.readMemory('constraints', 'windows-cr-strip')).not.toBeNull();
+      expect(await manager.inboxList()).toEqual([]);
+    });
+
+    it('inboxPromote_categoryOverride_respected', async () => {
+      const manager = makeManager();
+      writeDraft(manager, 'd1', { category: 'patterns', suggested_id: 'thing', content: { description: 'x' } });
+      const result = await manager.inboxPromote('d1', { categoryOverride: 'decisions', idOverride: 'thing-renamed' });
+      expect(result).toMatchObject({ promoted: true, category: 'decisions', id: 'thing-renamed' });
+      expect(await manager.readMemory('decisions', 'thing-renamed')).not.toBeNull();
+    });
+
+    it('inboxPromote_missingDraft_returnsErrorNotThrow', async () => {
+      const manager = makeManager();
+      const result = await manager.inboxPromote('nope');
+      expect(result.promoted).toBe(false);
+      expect(result.error).toMatch(/not found/i);
+    });
+
+    it('inboxPromote_invalidCategory_returnsError', async () => {
+      const manager = makeManager();
+      writeDraft(manager, 'd2', { category: 'bogus', suggested_id: 'x', content: {} });
+      const result = await manager.inboxPromote('d2');
+      expect(result.promoted).toBe(false);
+      expect(result.error).toMatch(/Invalid category/);
+    });
+
+    it('inboxDiscard_removesDraftWithoutPromoting', async () => {
+      const manager = makeManager();
+      writeDraft(manager, 'd3', { category: 'patterns', suggested_id: 'junk', content: {} });
+      const result = await manager.inboxDiscard('d3');
+      expect(result).toEqual({ discarded: true });
+      expect(await manager.inboxList()).toEqual([]);
+      expect(await manager.readMemory('patterns', 'junk')).toBeNull();
+    });
+
+    it('inboxDiscard_missing_returnsError', async () => {
+      const manager = makeManager();
+      const result = await manager.inboxDiscard('nope');
+      expect(result.discarded).toBe(false);
+      expect(result.error).toMatch(/not found/i);
+    });
+  }); // inbox
 
   // ── searchMemories ─────────────────────────────────────────────────────────
 
@@ -947,3 +1057,31 @@ describe('memory-manager', () => {
   }); // ingestAgentMemory
 
 }); // memory-manager
+
+// ─── buildFtsQuery (Dispatch port-back 2026-06-02) ───────────────────────────
+describe('buildFtsQuery', () => {
+  const { buildFtsQuery } = require('../memory-manager');
+
+  it('OR-joins multi-word terms so any keyword matches', () => {
+    expect(buildFtsQuery('memory inbox protocol')).toBe('memory OR inbox OR protocol');
+  });
+
+  it('passes a single token through unchanged', () => {
+    expect(buildFtsQuery('inbox')).toBe('inbox');
+  });
+
+  it('does not touch strings already using FTS5 operators', () => {
+    expect(buildFtsQuery('memory AND inbox')).toBe('memory AND inbox');
+    expect(buildFtsQuery('"exact phrase"')).toBe('"exact phrase"');
+    expect(buildFtsQuery('prefix*')).toBe('prefix*');
+  });
+
+  it('drops sub-2-char tokens then OR-joins the rest', () => {
+    expect(buildFtsQuery('a memory b inbox')).toBe('memory OR inbox');
+  });
+
+  it('returns non-string input unchanged', () => {
+    expect(buildFtsQuery('')).toBe('');
+    expect(buildFtsQuery(null)).toBe(null);
+  });
+});

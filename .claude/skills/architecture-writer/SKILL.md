@@ -6,7 +6,7 @@ metadata:
   author: Domdhi.Agents
   tags: [architecture, system-design, ADR, tech-stack, infrastructure]
 user-invocable: false
-allowed-tools: Read, Write, Edit, Grep, Glob
+allowed-tools: Read Write Edit Grep Glob
 ---
 
 # Architecture Writer
