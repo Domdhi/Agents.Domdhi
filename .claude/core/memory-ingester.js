@@ -3,7 +3,7 @@
 /**
  * Memory Ingester — Converts legacy daily recap files into daily log format
  *
- * Reads recap files from external projects (e.g., Domdhi.platform) and converts
+ * Reads recap files from external projects (e.g., a legacy downstream) and converts
  * them into the daily log format consumed by memory-extractor.js (manual Haiku pipeline).
  *
  * Source format: docs/.archive/recaps/.archive/{YYYY-MM}/daily_recap_{YYYY_MM_DD}.md
