@@ -102,7 +102,7 @@ When updating a project, compare the template's `settings.json` hooks section ag
 
 ## Template Update Mechanism
 
-`template-updater.js` implements the zone-aware merge strategy defined above. Field-tested against Domdhi.Platform (2026-04-11) and manually verified against Domdhi.Dispatch (2026-04-12).
+`template-updater.js` implements the zone-aware merge strategy defined above. Field-tested and manually verified against multiple downstream projects (April 2026).
 
 ```bash
 node .claude/core/template-updater.js update <target-path> [--merge] [--dry-run]
