@@ -89,7 +89,7 @@ describe('processEvent', () => {
   });
 
   it('PASSES file-based and editor escape hatches', () => {
-    expect(processEvent(evt('git commit -F .git/CLAUDE_COMMIT_MSG'))).toBeNull();
+    expect(processEvent(evt('git commit -F docs/.output/.commit-msg'))).toBeNull();
     expect(processEvent(evt('git commit --amend'))).toBeNull();
     expect(processEvent(evt('git commit'))).toBeNull();
   });

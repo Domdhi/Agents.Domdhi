@@ -230,7 +230,7 @@ Write `docs/_project-context.md`:
 
 Stage specifically those files; never use `git add .` (might pull in unrelated changes in the adopter's working tree).
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: /create:new-project — {project name} initialized

@@ -110,8 +110,11 @@ confirm_patterns:
   - git stash clear                    # permanently removes ALL stash entries
 
   # --- Filesystem: Recursive deletion ---
-  - rm -rf                             # recursive force remove
-  - rm -fr                             # alternate flag order
+  # rm -rf / -fr: confirm EXCEPT when the target is a tmp path (/tmp/...) or a
+  # $T*/$TMPDIR-style variable. Sub-agent tmp-dir cleanups (rm -rf "$T") during
+  # /run-todo e2e work were prompting on every run; real project-path deletes
+  # still confirm. (Dom, 2026-06-03)
+  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!.*(\/tmp\/|\$\{?T))/
   - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
   - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
 
@@ -120,7 +123,10 @@ confirm_patterns:
   - npm publish                        # publishing to npm registry (irreversible)
 
   # --- File: Bulk write/overwrite operations ---
-  - /find .+ -exec .+ \{\}/            # find -exec can silently overwrite many files
+  # find -exec: confirm only when the exec runs a DESTRUCTIVE command
+  # (rm/mv/dd/truncate/tee/chmod/chown/sh/bash). Read-only execs like
+  # -exec grep / cat / ls no longer prompt. (Dom, 2026-06-03)
+  - /find\s+.+-exec\s+(rm|mv|dd|truncate|tee|chmod|chown|sh|bash)\b/
 
 
 # ============================================================

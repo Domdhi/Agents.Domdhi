@@ -26,9 +26,12 @@ const {
     idFromFilename: ingestIdFromFilename,
     findMarkdownFiles: ingestFindMarkdownFiles,
 } = require('./_lib/memory-ingest');
+const { appendJsonl } = require('./_lib/jsonl-writer');
 
 // Memory guard constants
-const MAX_MEMORIES_PER_CATEGORY = 50;
+// Cap source is constants.js; env override (MEMORY_MAX_PER_CATEGORY) applied here
+// with the SAME expression as memory-guard.cjs so the two sites can never diverge.
+const MAX_MEMORIES_PER_CATEGORY = parseInt(process.env.MEMORY_MAX_PER_CATEGORY, 10) || CONSTANTS.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY;
 const PRUNE_THRESHOLD_PERCENT = 0.8;
 const PRUNE_MIN_AGE_DAYS = 30;
 const PRUNE_MIN_CONFIDENCE = 0.3;
@@ -338,6 +341,9 @@ class MemoryManager {
 
         memory.updated = new Date().toISOString();
         memory.usage_count = (memory.usage_count || 0) + 1;
+        // MP-2.1: explicit access timestamp — lets analytics attribute a hit to an
+        // injected memory that was later updated within the same session window.
+        memory.last_accessed = memory.updated;
 
         // Write JSON
         const filename = MemoryManager.idToFilename(id);
@@ -559,7 +565,7 @@ class MemoryManager {
                 `);
                 const rows = stmt.all(buildFtsQuery(searchTerm));
                 if (rows.length > 0) {
-                    return rows.map(row => {
+                    const mapped = rows.map(row => {
                         // Reconstruct enough of the memory shape to compute decay
                         const mockMemory = {
                             updated: row.updated,
@@ -574,6 +580,8 @@ class MemoryManager {
                             decayed_confidence: this.calculateDecayedConfidence(mockMemory)
                         };
                     });
+                    this._logMemoryAccess(mapped);
+                    return mapped;
                 }
             } catch {
                 // FTS query failed — fall through to JSON scan
@@ -600,7 +608,36 @@ class MemoryManager {
                 }
             }
         }
-        return results.sort((a, b) => b.relevance - a.relevance);
+        const sorted = results.sort((a, b) => b.relevance - a.relevance);
+        this._logMemoryAccess(sorted);
+        return sorted;
+    }
+
+    /**
+     * MP-2.1: record a recall (search) as a `memory_access` telemetry event — the
+     * meaningful "the agent recalled this memory to use it" signal that gives
+     * hit-rate analysis its numerator. Best-effort: a telemetry failure must never
+     * break search, so the whole write is wrapped and swallowed. Called once from
+     * whichever search path returns (SQLite or JSON fallback) — it logs the ids of
+     * that path's results; a no-match search logs nothing (no signal, no numerator).
+     *
+     * @param {Array<{id: string}>} results - the search results about to be returned
+     * @returns {void}
+     */
+    _logMemoryAccess(results) {
+        try {
+            if (!Array.isArray(results) || results.length === 0) return;
+            const ts = new Date().toISOString();
+            const jsonlPath = path.join(this.projectRoot, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+            appendJsonl(jsonlPath, {
+                timestamp: ts,
+                type: 'memory_access',
+                accessed_ids: results.map(r => r.id),
+                session_proxy: ts.slice(0, 16),   // ISO-8601 truncated to the minute — session join key
+            });
+        } catch {
+            // best-effort — never break search
+        }
     }
 
     /**
@@ -914,6 +951,176 @@ class MemoryManager {
         };
 
         return report;
+    }
+
+    /**
+     * MP-3.1: read the injection/access telemetry stream (memory-injection.jsonl)
+     * and split it by event type. Best-effort — a missing or unreadable file
+     * yields empty arrays so analytics degrades gracefully rather than throwing.
+     *
+     * @returns {{ injections: object[], accesses: object[], hasLines: boolean }}
+     */
+    _readInjectionTelemetry() {
+        const logPath = path.join(this.projectRoot, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+        try {
+            if (!fsSync.existsSync(logPath)) {
+                return { injections: [], accesses: [], hasLines: false };
+            }
+            const lines = fsSync.readFileSync(logPath, 'utf8').split('\n').filter(l => l.trim());
+            const injections = [];
+            const accesses = [];
+            for (const line of lines) {
+                let ev;
+                try { ev = JSON.parse(line); } catch { continue; }
+                if (ev.type === 'memory_injection') injections.push(ev);
+                else if (ev.type === 'memory_access') accesses.push(ev);
+            }
+            return { injections, accesses, hasLines: lines.length > 0 };
+        } catch {
+            return { injections: [], accesses: [], hasLines: false };
+        }
+    }
+
+    /**
+     * MP-3.1: performance/usage analytics — the complement to generateReport()
+     * (inventory) and lintMemories() (hygiene). Returns a structured object;
+     * formatting lives in the CLI `analytics` case. Sections:
+     *   a) cap_utilization  — per-category {count, cap, pct_full, near_limit}
+     *   b) decay            — stale / archive-candidate totals
+     *   c) usage            — never-used count + top-5 by usage_count
+     *   d) prune            — stale AND usage_count===0, projected store size
+     *   e) injection        — avg injected_count, default_limit, decayed-conf "cliff"
+     *   f) hit_rate         — fraction of injected_ids later recalled/updated.
+     *                          LOWER BOUND — implicit reads of an injected memory
+     *                          leave no signal, so true usefulness is undercounted.
+     *
+     * @param {{ recentInjections?: number }} [opts]
+     * @returns {Promise<object>}
+     */
+    async generateAnalytics({ recentInjections = 50 } = {}) {
+        const { MEMORY_DECAY } = require('./constants');
+        const cap = MAX_MEMORIES_PER_CATEGORY;
+        const defaultLimit = CONSTANTS.MEMORY_FILTERS.DEFAULT_LIMIT;
+
+        const capUtilization = {};
+        const allUsage = [];        // { category, id, usage_count }
+        const allDecayed = [];      // decayed_confidence values (for the cliff)
+        const pruneCandidates = []; // stale AND usage_count === 0
+        const idLastAccessed = {};  // id -> last_accessed ISO (for hit-rate)
+        let totalMemories = 0;
+        let totalNeverUsed = 0;
+        let totalStale = 0;
+        let totalArchive = 0;
+
+        for (const category of this.categories) {
+            const memories = await this.listMemories(category);
+            const count = memories.length;
+            totalMemories += count;
+
+            const stale = memories.filter(m => m.decayed_confidence < MEMORY_DECAY.STALE_THRESHOLD).length;
+            const archive = memories.filter(m => m.decayed_confidence < MEMORY_DECAY.ARCHIVE_THRESHOLD).length;
+            const neverUsed = memories.filter(m => (m.usage_count || 0) === 0).length;
+            totalStale += stale;
+            totalArchive += archive;
+            totalNeverUsed += neverUsed;
+
+            const pctFull = cap > 0 ? count / cap : 0;
+            capUtilization[category] = {
+                count,
+                cap,
+                pct_full: Number(pctFull.toFixed(3)),
+                near_limit: pctFull >= 0.8,
+                stale_count: stale,
+                archive_candidates: archive,
+                never_used: neverUsed,
+            };
+
+            for (const m of memories) {
+                allUsage.push({ category, id: m.id, usage_count: m.usage_count || 0 });
+                allDecayed.push(m.decayed_confidence);
+                if (m.decayed_confidence < MEMORY_DECAY.STALE_THRESHOLD && (m.usage_count || 0) === 0) {
+                    pruneCandidates.push({ category, id: m.id, decayed_confidence: m.decayed_confidence });
+                }
+                // last_accessed lives in the full memory JSON, not the summary
+                const full = await this.readMemory(category, m.id);
+                if (full && full.last_accessed) idLastAccessed[m.id] = full.last_accessed;
+            }
+        }
+
+        const topUsed = allUsage
+            .slice()
+            .sort((a, b) => b.usage_count - a.usage_count)
+            .slice(0, 5);
+
+        // --- injection economics + hit-rate (read telemetry) ---
+        // `hasLines` = the file had any parseable events. The public `has_telemetry`
+        // below is stricter (needs >=1 injection event) — a file of only
+        // memory_access events shouldn't claim injection telemetry exists.
+        const { injections, accesses, hasLines } = this._readInjectionTelemetry();
+
+        // (e) injection economics
+        const avgInjected = injections.length > 0
+            ? Number((injections.reduce((s, e) => s + (e.injected_count || 0), 0) / injections.length).toFixed(2))
+            : null;
+        const sortedDecayed = allDecayed.slice().sort((a, b) => b - a);
+        const cutoffVal = sortedDecayed.length >= defaultLimit ? sortedDecayed[defaultLimit - 1] : null;
+        const nextVal = sortedDecayed.length > defaultLimit ? sortedDecayed[defaultLimit] : null;
+        const cliff = (cutoffVal != null && nextVal != null)
+            ? Number((cutoffVal - nextVal).toFixed(4))
+            : null;
+
+        // (f) hit-rate — LOWER BOUND. An injected id counts as a hit if it later
+        // appears in a memory_access event at/after the injection time, OR its
+        // memory's last_accessed is at/after the injection time.
+        const recent = injections.slice(-recentInjections);
+        let numerator = 0;
+        let denominator = 0;
+        for (const inj of recent) {
+            const injTime = new Date(inj.timestamp).getTime();
+            const ids = Array.isArray(inj.injected_ids) ? inj.injected_ids : [];
+            denominator += ids.length;
+            const accessedAtOrAfter = new Set();
+            for (const acc of accesses) {
+                if (new Date(acc.timestamp).getTime() >= injTime) {
+                    for (const id of (acc.accessed_ids || [])) accessedAtOrAfter.add(id);
+                }
+            }
+            for (const id of ids) {
+                const viaAccess = accessedAtOrAfter.has(id);
+                const la = idLastAccessed[id];
+                const viaLastAccessed = la && new Date(la).getTime() >= injTime;
+                if (viaAccess || viaLastAccessed) numerator++;
+            }
+        }
+        const hitRateValue = denominator > 0 ? Number((numerator / denominator).toFixed(3)) : null;
+
+        return {
+            timestamp: new Date().toISOString(),
+            cap,
+            cap_utilization: capUtilization,
+            decay: { total_stale: totalStale, total_archive_candidates: totalArchive },
+            usage: { never_used: totalNeverUsed, top_used: topUsed },
+            prune: {
+                candidates: pruneCandidates,
+                current_size: totalMemories,
+                projected_size_after: totalMemories - pruneCandidates.length,
+            },
+            injection: {
+                has_telemetry: hasLines && injections.length > 0,
+                events: injections.length,
+                avg_injected_count: avgInjected,
+                default_limit: defaultLimit,
+                cliff,   // decayed-confidence drop at the injection cutoff
+            },
+            hit_rate: {
+                has_telemetry: hasLines && injections.length > 0,
+                value: hitRateValue,
+                numerator,
+                denominator,
+                sample_injections: recent.length,
+                lower_bound: true,   // implicit reads of an injected memory are uncounted
+            },
+        };
     }
 
     // ────────────────────────────────────────────────────────────────────────

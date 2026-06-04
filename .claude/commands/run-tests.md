@@ -369,7 +369,7 @@ Why: bugs found during testing and blocked checkpoints are high-value context fo
 
 ### Step 13: Commit test artifacts + handoff
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 test: {Task} — {PassCount}/{Total} passed, {BlockedCount} blocked

@@ -41,6 +41,22 @@ grep -L "^description: \"Use WHEN" .claude/skills/*/SKILL.md
 
 Any file returned by that command violates the rule and MUST be flagged in Step 9's Issues Found section as **CSO VIOLATION**. Skills whose descriptions merely summarize capability ("X expert. Triggers: ...") cause Claude to follow the description as a shortcut and skip reading the skill body.
 
+### 2b. Skill Spec Conformance
+
+Run the deterministic conformance check against the Agent Skills open standard:
+
+```bash
+node .claude/core/skill-conformance.js
+```
+
+The script scans every `.claude/skills/*/SKILL.md` and applies three rules:
+
+- **Body budget** — `SKILL.md` > 500 lines → **WARN: OVER_BUDGET** (activation cost; advisory, does not fail the gate)
+- **Name match** — `name:` frontmatter ≠ parent directory name → **ERROR: NAME_MISMATCH**
+- **Description length** — `description:` > 1024 characters → **ERROR: DESC_TOO_LONG**
+
+Exit code is 0 when clean or WARN-only, non-zero only when an ERROR is present. Capture stdout — each line names the offending skill, the rule, and the measured value (e.g. `WARN tailwind-css-patterns: 877 lines (budget 500)`). Any output MUST appear in Step 9's Issues Found section: ERRORs as **SPEC VIOLATION**, WARNs as **OVER BUDGET**.
+
 ### 3. Scan Hook Inventory
 
 ```
@@ -151,7 +167,7 @@ Rate each category 0-10:
 
 After the report file is written, commit it:
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:check-templates — {score}/50, {N} issues found

@@ -584,7 +584,7 @@ Why per-wave: if the session dies after this wave, the next session's `/prime` s
 
 **8f. Commit (wave + TODO updates + plan + handoff, all atomic)**
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: wave {N} — {story IDs joined}
@@ -708,7 +708,7 @@ After the plan file is updated, regenerate `docs/__handoff.md` ONE MORE TIME usi
 
 The plan file update + final handoff need a small follow-up commit (the last wave's commit already covered implementation):
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /run-todo {slug} — final report + handoff

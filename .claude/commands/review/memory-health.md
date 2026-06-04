@@ -6,6 +6,8 @@ description: Run extract (opt-in) + lint + decay health check on the memory syst
 
 Run the memory health pipeline (optional Sonnet extraction, lint, decay report). Suitable for headless automation via `claude -p "/review:memory-health" --model sonnet --allowedTools Bash`.
 
+> **Complementary view:** this command covers *hygiene* (lint + decay). For the *performance/usage* view — cap utilization, usage distribution, prune list, and injection hit-rate — run `node .claude/core/memory-manager.js analytics`.
+
 ## Orchestration Rule
 
 > This command runs directly — do NOT delegate to subagents. No commits. No memory modifications.

@@ -20,6 +20,11 @@ module.exports = {
         DEFAULT_LIMIT: 10,                // Default maximum memories to load
         HIGH_USAGE_THRESHOLD: 5,          // Threshold for "frequently used"
         HIGH_CONFIDENCE_THRESHOLD: 0.8,   // Threshold for "high confidence"
+        // Per-category memory cap. Static here (no process.env read — keeps
+        // require('./constants') deterministic). The env override
+        // (MEMORY_MAX_PER_CATEGORY) is applied at the two call sites
+        // (memory-manager.js, memory-guard.cjs) with an identical expression.
+        MEMORY_MAX_PER_CATEGORY: 50,
     },
 
     // Agent limits

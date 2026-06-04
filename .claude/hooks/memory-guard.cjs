@@ -13,8 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 const { isAtLeast } = require('../core/profile');
+const CONSTANTS = require('../core/constants');
 
-const MAX_MEMORIES_PER_CATEGORY = 50;
+const MAX_MEMORIES_PER_CATEGORY = parseInt(process.env.MEMORY_MAX_PER_CATEGORY, 10) || CONSTANTS.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY;
 
 function readStdin() {
     return new Promise((resolve) => {

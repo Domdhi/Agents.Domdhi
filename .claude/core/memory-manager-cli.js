@@ -244,6 +244,65 @@ async function main() {
             if (boostReport.error) console.error('Error:', boostReport.error);
             break;
         }
+        case 'analytics': {
+            const a = await manager.generateAnalytics();
+            const pct = (n) => `${Math.round(n * 100)}%`;
+            const lines = [];
+            lines.push('Memory Analytics');
+            lines.push('================');
+            lines.push('');
+
+            // (a) cap utilization
+            lines.push(`Cap utilization (max ${a.cap}/category):`);
+            for (const [cat, c] of Object.entries(a.cap_utilization)) {
+                const flag = c.near_limit ? '  ⚠ near limit' : '';
+                lines.push(`  ${cat.padEnd(20)} ${String(c.count).padStart(3)}/${a.cap}  (${pct(c.pct_full)})${flag}`);
+            }
+            lines.push('');
+
+            // (b) decay distribution
+            lines.push(`Confidence/decay: ${a.decay.total_stale} stale (<0.3), ${a.decay.total_archive_candidates} archive-candidate (<0.1)`);
+
+            // (c) usage distribution
+            lines.push(`Usage: ${a.usage.never_used} never-used.`);
+            if (a.usage.top_used.length > 0) {
+                lines.push('  Top by usage_count:');
+                for (const m of a.usage.top_used) {
+                    lines.push(`    ${String(m.usage_count).padStart(4)}  ${m.category}/${m.id}`);
+                }
+            }
+            lines.push('');
+
+            // (d) prune list
+            lines.push(`Prune candidates (stale AND never-used): ${a.prune.candidates.length}`);
+            lines.push(`  Store size: ${a.prune.current_size} → ${a.prune.projected_size_after} after pruning`);
+            for (const p of a.prune.candidates.slice(0, 15)) {
+                lines.push(`    ${p.category}/${p.id}  (decayed ${p.decayed_confidence.toFixed(3)})`);
+            }
+            if (a.prune.candidates.length > 15) lines.push(`    …and ${a.prune.candidates.length - 15} more`);
+            lines.push('');
+
+            // (e) injection economics
+            if (a.injection.has_telemetry) {
+                lines.push('Injection economics:');
+                lines.push(`  Events logged: ${a.injection.events}; avg injected: ${a.injection.avg_injected_count} (default limit ${a.injection.default_limit})`);
+                lines.push(`  Decayed-confidence cliff at cutoff: ${a.injection.cliff == null ? 'n/a' : a.injection.cliff}`);
+            } else {
+                lines.push('Injection economics: no injection telemetry yet.');
+            }
+            lines.push('');
+
+            // (f) hit-rate
+            if (a.hit_rate.has_telemetry && a.hit_rate.denominator > 0) {
+                lines.push(`Hit-rate (LOWER BOUND — implicit reads uncounted):`);
+                lines.push(`  ${a.hit_rate.value == null ? 'n/a' : pct(a.hit_rate.value)} (${a.hit_rate.numerator}/${a.hit_rate.denominator} injected ids recalled/updated, over ${a.hit_rate.sample_injections} injection events)`);
+            } else {
+                lines.push('Hit-rate: no injection telemetry yet.');
+            }
+
+            console.log(lines.join('\n'));
+            break;
+        }
         default:
             console.log(`
 Memory Manager (JSON + SQLite FTS5)
@@ -260,6 +319,11 @@ Usage:
   node memory-manager-cli.js inbox-promote <draft-id> [--category C] [--id new-id]
   node memory-manager-cli.js inbox-discard <draft-id>
   node memory-manager-cli.js report
+  node memory-manager-cli.js analytics
+    Performance/usage view — cap utilization, decay + usage distribution,
+    prune list, injection economics, and injection hit-rate (a LOWER bound;
+    implicit reads of an injected memory leave no signal). Complements lint
+    (hygiene) and report (inventory).
   node memory-manager-cli.js rebuild-index
   node memory-manager-cli.js decay-report
   node memory-manager-cli.js boost-from-git [--limit N] [--dry-run]

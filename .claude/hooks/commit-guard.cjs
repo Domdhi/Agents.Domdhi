@@ -83,7 +83,7 @@ function processEvent(data) {
       '[commit-guard] BLOCKED: inline `git commit -m` is disabled for commit consistency.\n' +
       'Inline messages break across bash vs PowerShell quoting (stray `@`, mangled em-dashes)\n' +
       'and skip the Co-Authored-By trailer. Use the file-based helper instead:\n' +
-      '  1. Write subject + body to .git/CLAUDE_COMMIT_MSG  (Write tool — zero shell escaping)\n' +
+      '  1. Write subject + body to docs/.output/.commit-msg  (Write tool — zero shell escaping)\n' +
       '  2. node .claude/core/commit.js [--all] [--amend]\n' +
       '\n' +
       'Escape hatches (allowed): `git commit -F <file>`, `git commit --amend` (no -m), or plain\n' +

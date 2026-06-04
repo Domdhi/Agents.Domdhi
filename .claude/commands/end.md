@@ -40,7 +40,7 @@ Follow the `session-handoff` skill template. Tailor for the `/end` case (Step 4 
 
 ### 4. Commit the handoff
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /end — {brief summary of session focus}

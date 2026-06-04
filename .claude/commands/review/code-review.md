@@ -128,7 +128,7 @@ File format:
 
 Stage and commit the review output file:
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{minor}m)

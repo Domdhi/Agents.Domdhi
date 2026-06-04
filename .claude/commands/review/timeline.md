@@ -28,7 +28,7 @@ Report the script output to the user.
 
 After reporting, commit the updated timeline:
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:timeline — update project timeline

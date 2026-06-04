@@ -575,7 +575,7 @@ Why before commit: including the handoff in the same commit as the implementatio
 
 Stage the plan file (the one from Step 4c — it still says `**Status:** planning` right now; Step 10 will update it post-commit), the implementation files, TODO updates, and the handoff:
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: {story-id} — {summary}

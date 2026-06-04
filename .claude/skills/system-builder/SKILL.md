@@ -257,7 +257,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md.
 
 ### Description Field: Claude Search Optimization (CSO)
 
-The `description` field is how Claude decides whether to load a skill. It must describe **when to use** the skill, not what the skill does.
+The `description` field is how Claude decides whether to load a skill. It MUST describe **when to use** the skill, and per the Agent Skills open spec MAY also lead with a brief *what it does* clause (≤ 1024 characters). Naming *what* the skill covers is fine — but never summarize its step-by-step *workflow*, which lets Claude shortcut instead of reading the body.
 
 ```yaml
 # BAD: Summarizes workflow — Claude may follow this instead of reading the skill
@@ -277,7 +277,7 @@ description: "Use WHEN tests have race conditions, timing dependencies, or pass/
 ```yaml
 ---
 name: {kebab-case-name}
-description: "{triggering conditions — Use WHEN... Triggers: {keyword1}, {keyword2}}"
+description: "{[brief what-it-does clause — optional]. Use WHEN... Triggers: {keyword1}, {keyword2}}"
 metadata:
   version: 1.0.0
   author: Domdhi.Agents

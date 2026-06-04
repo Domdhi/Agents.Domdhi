@@ -8,7 +8,9 @@
 //
 // WORKFLOW:
 //   1. Write the commit message (subject line, blank line, body) to
-//      .git/CLAUDE_COMMIT_MSG using the Write tool — no shell escaping needed.
+//      docs/.output/.commit-msg using the Write tool — no shell escaping needed.
+//      (Working-tree path, NOT under .git/ — so it resolves correctly inside git
+//       worktrees, where .git is a file pointer rather than a directory.)
 //      Do NOT add the Co-Authored-By trailer; this script appends it.
 //   2. Run:
 //        node .claude/core/commit.js            # commit staged changes
@@ -40,7 +42,7 @@ const amend = has('--amend');
 const dryRun = has('--dry-run', '-n');
 
 const fileIdx = args.indexOf('--file');
-const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('.git', 'CLAUDE_COMMIT_MSG');
+const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
 
 function git(...a) {
   return execFileSync('git', a, { encoding: 'utf8' });

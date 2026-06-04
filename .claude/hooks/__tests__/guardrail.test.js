@@ -537,3 +537,59 @@ confirm_patterns:
         });
     });
 });
+
+// ─── Live guardrail-rules.yaml (the REAL repo file, not a fixture) ─────────────
+// These lock in the narrowed rm -rf / find -exec confirm patterns against the
+// actual shipped rule file — fixtures wouldn't catch a regression in the real
+// YAML. (fixture-test-checker-not-live-tree lesson.)
+
+const path = require('path');
+const REPO_ROOT = path.resolve(path.dirname(require.resolve('../guardrail.cjs')), '..', '..');
+
+describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)', () => {
+    let originalDir;
+
+    beforeEach(() => {
+        originalDir = process.env.CLAUDE_PROJECT_DIR;
+        process.env.CLAUDE_PROJECT_DIR = REPO_ROOT;
+    });
+
+    afterEach(() => {
+        if (originalDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+        else process.env.CLAUDE_PROJECT_DIR = originalDir;
+    });
+
+    const decision = (command) => {
+        const r = processEvent({ tool_input: { command } });
+        return r === null ? 'pass' : r.block ? 'block' : r.confirm ? 'confirm' : '?';
+    };
+
+    it('rmRf_tmpVar_passesWithoutConfirm', () => {
+        // sub-agent tmp cleanup — the exact shape that used to prompt every run
+        expect(decision('rm -rf "$T"')).toBe('pass');
+        expect(decision('rm -rf "$TMPDIR/scratch"')).toBe('pass');
+    });
+
+    it('rmRf_tmpPath_passesWithoutConfirm', () => {
+        expect(decision('rm -rf /tmp/tmp.abc123')).toBe('pass');
+    });
+
+    it('rmRf_realProjectPath_confirms', () => {
+        expect(decision('rm -rf dist')).toBe('confirm');
+        expect(decision('rm -fr build')).toBe('confirm');
+    });
+
+    it('findExec_readOnlyCommand_passes', () => {
+        expect(decision('find . -name "*.js" -exec grep foo {} ;')).toBe('pass');
+        expect(decision('find . -type f -exec cat {} ;')).toBe('pass');
+    });
+
+    it('findExec_destructiveCommand_confirms', () => {
+        expect(decision('find . -exec rm {} ;')).toBe('confirm');
+        expect(decision('find /var -name x -exec mv {} /dest ;')).toBe('confirm');
+    });
+
+    it('gitPushForce_stillBlocked', () => {
+        expect(decision('git push --force')).toBe('block');
+    });
+});

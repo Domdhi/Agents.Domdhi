@@ -20,6 +20,12 @@ describe('constants', () => {
     }
   });
 
+  it('memoryFilters_maxPerCategory_is50', () => {
+    // Arrange / Act / Assert — the single source of truth for the per-category
+    // cap (env-overridden at call sites). Static 50 keeps require() deterministic.
+    expect(constants.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY).toBe(50);
+  });
+
   it('memoryCategories_values_matchExpectedStrings', () => {
     // Arrange
     const expected = ['patterns', 'workflows', 'constraints', 'decisions', 'rejected-approaches'];

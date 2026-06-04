@@ -206,7 +206,7 @@ Stage the modified memory JSON files plus the plan file:
 git add docs/.output/memories/ docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
 ```
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool) then `node .claude/core/commit.js`:
+Write the commit message to `docs/.output/.commit-msg` (Write tool) then `node .claude/core/commit.js`:
 ```
 docs: /review:memory-defrag — N proposals applied
 
@@ -221,7 +221,7 @@ If zero proposals were accepted, commit only the plan file (it's still a useful 
 git add docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
 ```
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` then `node .claude/core/commit.js`:
+Write the commit message to `docs/.output/.commit-msg` then `node .claude/core/commit.js`:
 ```
 docs: /review:memory-defrag — analysis only (0 proposals applied)
 ```

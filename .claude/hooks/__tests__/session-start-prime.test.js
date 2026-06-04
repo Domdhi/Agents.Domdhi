@@ -307,3 +307,72 @@ describe('processEvent', () => {
         expect(result.output).not.toContain('readme');
     });
 });
+
+// ---------------------------------------------------------------------------
+// Injection telemetry (MP-1.2)
+//   - a real injection appends exactly one parseable `memory_injection` event
+//   - injected_ids equals the slugs of the rendered (injected) memories
+//   - an empty store injects nothing → writes no telemetry
+// ---------------------------------------------------------------------------
+
+const fs = require('fs');
+const path = require('path');
+
+function injectionLogPath(root) {
+    return path.join(root, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+}
+
+describe('injection telemetry', () => {
+    it('processEvent_withMemories_appendsOneMemoryInjectionEvent', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        createMemory(tmp, 'patterns', 'mp12-alpha', { description: 'Alpha lesson', confidence: 0.9 });
+        createMemory(tmp, 'decisions', 'mp12-beta', { description: 'Beta lesson', confidence: 0.8 });
+
+        const result = processEvent({});
+        expect(result.output).toBeTruthy();
+
+        const logPath = injectionLogPath(tmp.root);
+        expect(fs.existsSync(logPath)).toBe(true);
+
+        const lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(l => l.trim());
+        expect(lines).toHaveLength(1);
+
+        const event = JSON.parse(lines[0]);
+        expect(event.type).toBe('memory_injection');
+        expect(event.injected_count).toBe(2);
+        expect(event.total_available).toBe(2);
+        expect(Array.isArray(event.injected_ids)).toBe(true);
+        // injected_ids match the rendered memories (denominator for hit-rate)
+        expect(event.injected_ids.slice().sort()).toEqual(['mp12-alpha', 'mp12-beta']);
+        expect(event.session_proxy).toBe(event.timestamp.slice(0, 16));
+    });
+
+    it('processEvent_emptyStore_writesNoInjectionLog', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        // no memories seeded → nothing injected
+        const result = processEvent({});
+        expect(result).toEqual({ output: null });
+        expect(fs.existsSync(injectionLogPath(tmp.root))).toBe(false);
+    });
+
+    it('processEvent_injectedIdsMatchRenderedSlugs', () => {
+        process.env.MEMORY_PROFILE = 'standard';
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        process.env.MEMORY_PRIME_COUNT = '1';
+        createMemory(tmp, 'patterns', 'top-mem', { description: 'Top', confidence: 0.95 });
+        createMemory(tmp, 'patterns', 'low-mem', { description: 'Low', confidence: 0.5 });
+
+        const result = processEvent({});
+        const event = JSON.parse(
+            fs.readFileSync(injectionLogPath(tmp.root), 'utf8').trim().split('\n').pop()
+        );
+        // only the top-1 was rendered, so only its id is logged
+        expect(event.injected_count).toBe(1);
+        expect(event.total_available).toBe(2);
+        expect(event.injected_ids).toEqual(['top-mem']);
+        expect(result.output).toContain('top-mem');
+        expect(result.output).not.toContain('low-mem');
+    });
+});

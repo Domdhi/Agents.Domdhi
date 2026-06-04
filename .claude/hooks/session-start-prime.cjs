@@ -35,6 +35,7 @@ const fs = require('fs');
 const path = require('path');
 const { isAtLeast } = require('../core/profile');
 const CONSTANTS = require('../core/constants');
+const { appendJsonl } = require('../core/_lib/jsonl-writer');
 
 const HARD_TIMEOUT_MS = 2000;
 const SOFT_BUDGET_MS = 500;
@@ -184,6 +185,26 @@ function processEvent(_parsedJson) {
 
     const top = memories.slice(0, N);
     const output = renderOutput(top, memories.length);
+
+    // MP-1.2: record which memories were surfaced this session start, so hit-rate
+    // analysis has a denominator. Best-effort — a telemetry failure here must
+    // never break injection, so the whole write is wrapped and swallowed.
+    // When 0 memories are injected the function returns earlier (line ~179), so
+    // this only logs real injections (injected_count >= 1).
+    try {
+        const ts = new Date().toISOString();
+        const jsonlPath = path.join(projectDir, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+        appendJsonl(jsonlPath, {
+            timestamp: ts,
+            type: 'memory_injection',
+            injected_count: top.length,
+            total_available: memories.length,
+            injected_ids: top.map(c => c.slug),
+            session_proxy: ts.slice(0, 16),   // ISO-8601 truncated to the minute — session join key
+        });
+    } catch {
+        // best-effort — injection output still prints
+    }
 
     return { output };
 }

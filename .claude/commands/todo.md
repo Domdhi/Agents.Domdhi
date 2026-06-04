@@ -389,7 +389,7 @@ After the report, refresh `docs/__handoff.md` using the **`session-handoff`** sk
 
 ## Phase 8: Commit
 
-Write the commit message to `.git/CLAUDE_COMMIT_MSG` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /todo — create TODO for {slug} ({N} stories)

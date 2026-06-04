@@ -159,6 +159,20 @@ describe('memory-manager', () => {
       expect(updated.updated).not.toBe(originalUpdated);
     });
 
+    it('updateMemory_setsLastAccessedTimestamp', async () => {
+      // Arrange — MP-2.1: updateMemory stamps last_accessed for hit-rate attribution
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'access_me', { a: 1 });
+
+      // Act
+      const updated = await manager.updateMemory('patterns', 'access_me', { content: { b: 2 } });
+
+      // Assert — last_accessed is set, equals the update timestamp, and is ISO-8601
+      expect(updated.last_accessed).toBe(updated.updated);
+      expect(typeof updated.last_accessed).toBe('string');
+      expect(updated.last_accessed).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
     it('updateMemory_missingMemory_returnsNull', async () => {
       // Arrange
       const manager = makeManager();
@@ -350,6 +364,29 @@ describe('memory-manager', () => {
       expect(r).toHaveProperty('relevance');
       expect(r).toHaveProperty('confidence');
       expect(r).toHaveProperty('decayed_confidence');
+    });
+
+    it('searchMemories_logsMemoryAccessEvent', async () => {
+      // Arrange — MP-2.1: a recall (search) emits a memory_access telemetry event
+      // (the numerator for hit-rate). Force JSON fallback for determinism.
+      const manager = makeManager();
+      manager.initDb = () => false;
+      await manager.createMemory('patterns', 'access_log_mem', { description: 'uniquemango99' });
+
+      // Act
+      const results = await manager.searchMemories('uniquemango99');
+
+      // Assert — the returned ids are logged as one memory_access event
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      const logPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+      expect(fs.existsSync(logPath)).toBe(true);
+      const accessEvents = fs.readFileSync(logPath, 'utf8')
+        .split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
+        .filter(e => e.type === 'memory_access');
+      expect(accessEvents.length).toBeGreaterThanOrEqual(1);
+      const last = accessEvents[accessEvents.length - 1];
+      expect(last.accessed_ids).toEqual(results.map(r => r.id));
+      expect(last.session_proxy).toBe(last.timestamp.slice(0, 16));
     });
 
   }); // searchMemories
@@ -836,7 +873,117 @@ describe('memory-manager', () => {
       }
     });
 
+    it('capEnvOverride_lowersEffectiveCap', async () => {
+      // MP-2.1: MEMORY_MAX_PER_CATEGORY env override changes the effective cap.
+      // The cap is a module-load-time const, so reload the module with the env set.
+      const origLog = console.log;
+      console.log = () => {};
+      const modPath = require.resolve('../memory-manager');
+      const origCap = process.env.MEMORY_MAX_PER_CATEGORY;
+      let reloaded;
+      try {
+        process.env.MEMORY_MAX_PER_CATEGORY = '2';
+        delete require.cache[modPath];
+        const ReloadedMM = require('../memory-manager');
+        // CLAUDE_PROJECT_DIR is already tmp.root (beforeEach)
+        reloaded = new ReloadedMM();
+
+        expect(await reloaded.createMemory('patterns', 'cap_a', { n: 1 })).not.toBeNull();
+        expect(await reloaded.createMemory('patterns', 'cap_b', { n: 2 })).not.toBeNull();
+        // 3rd write exceeds the env-lowered cap of 2 → blocked
+        expect(await reloaded.createMemory('patterns', 'cap_c', { n: 3 })).toBeNull();
+        expect(await reloaded.getMemoryCount('patterns')).toBe(2);
+      } finally {
+        if (reloaded && reloaded.db) {
+          try { reloaded.db.close(); } catch { /* non-fatal */ }
+          reloaded.db = null;
+        }
+        // Restore env + module cache so later tests see the default-cap module
+        if (origCap === undefined) delete process.env.MEMORY_MAX_PER_CATEGORY;
+        else process.env.MEMORY_MAX_PER_CATEGORY = origCap;
+        delete require.cache[modPath];
+        require('../memory-manager');
+        console.log = origLog;
+      }
+    });
+
   }); // category limits
+
+  // ── generateAnalytics (MP-3.1) ──────────────────────────────────────────────
+
+  describe('generateAnalytics', () => {
+
+    function writeInjectionLog(lines) {
+      tmp.write(
+        'docs/.output/telemetry/memory-injection.jsonl',
+        lines.map(l => JSON.stringify(l)).join('\n') + '\n'
+      );
+    }
+
+    it('generateAnalytics_seededStore_returnsCapDecayUsageSections', async () => {
+      // Arrange — 3 fresh memories (usage_count 0, recent → not stale)
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'an_a', { description: 'alpha' });
+      await manager.createMemory('patterns', 'an_b', { description: 'beta' });
+      await manager.createMemory('constraints', 'an_c', { description: 'gamma' });
+
+      // Act
+      const a = await manager.generateAnalytics();
+
+      // Assert — (a) cap utilization
+      expect(a.cap).toBe(50);
+      expect(a.cap_utilization.patterns.count).toBe(2);
+      expect(a.cap_utilization.patterns.cap).toBe(50);
+      expect(a.cap_utilization.patterns.near_limit).toBe(false);
+      expect(a.cap_utilization.constraints.count).toBe(1);
+      // (b) decay distribution — fresh memories are not stale
+      expect(a.decay.total_stale).toBe(0);
+      expect(a.decay.total_archive_candidates).toBe(0);
+      // (c) usage distribution — all freshly created, usage_count 0
+      expect(a.usage.never_used).toBe(3);
+      expect(Array.isArray(a.usage.top_used)).toBe(true);
+      // (d) prune list — nothing stale yet
+      expect(a.prune.current_size).toBe(3);
+      expect(a.prune.candidates.length).toBe(0);
+      expect(a.prune.projected_size_after).toBe(3);
+    });
+
+    it('generateAnalytics_withInjectionAndAccess_computesHitRate', async () => {
+      // Arrange — one injection of 2 ids, one access of 1 of them (after injection)
+      const manager = makeManager();
+      writeInjectionLog([
+        { timestamp: '2026-06-03T10:00:00.000Z', type: 'memory_injection', injected_count: 2, total_available: 2, injected_ids: ['mem-a', 'mem-b'], session_proxy: '2026-06-03T10:00' },
+        { timestamp: '2026-06-03T10:05:00.000Z', type: 'memory_access', accessed_ids: ['mem-a'], session_proxy: '2026-06-03T10:05' },
+      ]);
+
+      // Act
+      const a = await manager.generateAnalytics();
+
+      // Assert — 1 of 2 injected ids recalled → 0.5
+      expect(a.hit_rate.has_telemetry).toBe(true);
+      expect(a.hit_rate.denominator).toBe(2);
+      expect(a.hit_rate.numerator).toBe(1);
+      expect(a.hit_rate.value).toBe(0.5);
+      expect(a.hit_rate.lower_bound).toBe(true);
+      expect(a.injection.has_telemetry).toBe(true);
+      expect(a.injection.avg_injected_count).toBe(2);
+    });
+
+    it('generateAnalytics_missingInjectionLog_degradesGracefully', async () => {
+      // Arrange — store exists, no telemetry file at all
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'no_tel', { description: 'x' });
+
+      // Act / Assert — no throw, hit-rate + injection sections flagged absent
+      const a = await manager.generateAnalytics();
+      expect(a.hit_rate.has_telemetry).toBe(false);
+      expect(a.hit_rate.value).toBeNull();
+      expect(a.hit_rate.denominator).toBe(0);
+      expect(a.injection.has_telemetry).toBe(false);
+      expect(a.injection.avg_injected_count).toBeNull();
+    });
+
+  }); // generateAnalytics
 
   // ── ingestAgentMemory ───────────────────────────────────────────────────────
 
