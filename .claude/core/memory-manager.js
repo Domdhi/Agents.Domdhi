@@ -35,6 +35,22 @@ const MAX_MEMORIES_PER_CATEGORY = parseInt(process.env.MEMORY_MAX_PER_CATEGORY, 
 const PRUNE_THRESHOLD_PERCENT = 0.8;
 const PRUNE_MIN_AGE_DAYS = 30;
 const PRUNE_MIN_CONFIDENCE = 0.3;
+// Dead-weight flagger (ME-1.1): min active-work-days since `created` for a
+// never-recalled memory to surface. Env override at the call site only —
+// constants.js stays static (per static-constants-env-override-at-callsite).
+const EXPOSURE_MIN_ACTIVE_DAYS = parseInt(process.env.MEMORY_EXPOSURE_MIN_DAYS, 10) || CONSTANTS.MEMORY_FILTERS.EXPOSURE_MIN_ACTIVE_DAYS;
+// Write-time importance default (ME-2.1). Env override at the call site only.
+const IMPORTANCE_DEFAULT = parseInt(process.env.MEMORY_IMPORTANCE_DEFAULT, 10) || CONSTANTS.MEMORY_FILTERS.IMPORTANCE_DEFAULT;
+const IMPORTANCE_MIN = 1;
+const IMPORTANCE_MAX = 5;
+
+// Coerce any author-supplied importance to an integer clamped to [1,5];
+// non-numeric / missing → IMPORTANCE_DEFAULT.
+function clampImportance(v) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return IMPORTANCE_DEFAULT;
+    return Math.max(IMPORTANCE_MIN, Math.min(IMPORTANCE_MAX, n));
+}
 
 /**
  * Convert a freeform search string into an FTS5 query.
@@ -124,12 +140,22 @@ class MemoryManager {
                     created TEXT NOT NULL,
                     updated TEXT NOT NULL,
                     usage_count INTEGER DEFAULT 0,
-                    confidence REAL DEFAULT 1.0
+                    confidence REAL DEFAULT 1.0,
+                    importance INTEGER DEFAULT 3,
+                    invalid_at TEXT,
+                    superseded_by TEXT
                 );
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
                     id, category, content, tokenize='porter'
                 );
             `);
+            // Idempotent additive migrations for databases created before a column
+            // existed. ensureColumn is the SINGLE migration seam — every new column
+            // (ME-2.1 importance; ME-3.1 invalid_at/superseded_by; …) goes through
+            // it. Do NOT author a second idempotency strategy elsewhere.
+            this.ensureColumn('memories', 'importance', 'importance INTEGER DEFAULT 3');
+            this.ensureColumn('memories', 'invalid_at', 'invalid_at TEXT');
+            this.ensureColumn('memories', 'superseded_by', 'superseded_by TEXT');
             return true;
         } catch (e) {
             // Close the handle if `new DatabaseSync()` succeeded but `exec()`
@@ -146,6 +172,29 @@ class MemoryManager {
     }
 
     /**
+     * Idempotent additive column migration. Checks PRAGMA table_info(table) for
+     * `column` and runs `ALTER TABLE ... ADD COLUMN ${ddl}` only if absent — never
+     * a blind catch-on-duplicate. Safe to call on every initDb; a no-op once the
+     * column exists. This is the contract every schema-adding story extends.
+     *
+     * @param {string} table  - table name (already trusted, internal use only)
+     * @param {string} column - the column to ensure exists
+     * @param {string} ddl    - the column definition for ADD COLUMN, e.g. 'importance INTEGER DEFAULT 3'
+     */
+    ensureColumn(table, column, ddl) {
+        if (!this.db) return;
+        try {
+            const cols = this.db.prepare(`PRAGMA table_info(${table})`).all();
+            if (cols.some((c) => c.name === column)) return; // already present — no-op
+            this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+        } catch (e) {
+            // Non-fatal: JSON remains the source of truth and reads default the
+            // missing column (e.g. importance ?? 3). A locked/old DB must not crash.
+            console.error(`ensureColumn(${table}.${column}) failed (non-fatal):`, e.message);
+        }
+    }
+
+    /**
      * Upsert a memory into SQLite index
      */
     indexMemory(memory) {
@@ -153,14 +202,16 @@ class MemoryManager {
         try {
             // Upsert main table
             const stmt = this.db.prepare(`
-                INSERT OR REPLACE INTO memories (id, category, content, metadata, created, updated, usage_count, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO memories (id, category, content, metadata, created, updated, usage_count, confidence, importance, invalid_at, superseded_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             stmt.run(
                 memory.id, memory.category,
                 JSON.stringify(memory.content), JSON.stringify(memory.metadata),
                 memory.created, memory.updated,
-                memory.usage_count || 0, memory.metadata?.confidence ?? 1.0
+                memory.usage_count || 0, memory.metadata?.confidence ?? 1.0,
+                clampImportance(memory.importance ?? memory.content?.importance),
+                memory.invalid_at ?? null, memory.superseded_by ?? null
             );
 
             // Upsert FTS
@@ -278,6 +329,11 @@ class MemoryManager {
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
             usage_count: 0,
+            // Write-time importance (1–5) — the retention floor. Read from the
+            // author-supplied content.importance, clamped; defaults to 3. Stored
+            // top-level (mirrors usage_count) so decay/ranking read it without a
+            // content round-trip; also persisted to the importance SQLite column.
+            importance: clampImportance(content.importance ?? IMPORTANCE_DEFAULT),
             content,
             metadata: {
                 sessions: [],
@@ -296,8 +352,94 @@ class MemoryManager {
         // Index in SQLite
         this.indexMemory(memory);
 
+        // Write-time supersession detection (ME-3.2) — cheap LLM-free FTS overlap
+        // against existing same-category memories. FLAG ONLY: attaches candidate
+        // predecessor ids to the returned object so the Main Agent can confirm a
+        // supersede at /end. Never auto-supersedes. Transient (not written to JSON).
+        const candidates = this.detectOverlap(category, content, id);
+        if (candidates.length > 0) memory.supersedes_candidates = candidates;
+
         console.log(`✅ Memory created: ${category}/${id}`);
         return memory;
+    }
+
+    /**
+     * Cheap, LLM-free write-time overlap detection: FTS5-match the new content's
+     * terms against EXISTING live same-category memories. Returns likely-superseded
+     * predecessor ids (flag only — the caller decides whether to supersede).
+     *
+     * @param {string} category
+     * @param {object} contentObj - the new memory's content
+     * @param {string} excludeId  - the new memory's own id (exclude self)
+     * @returns {string[]} predecessor ids (empty if none / no FTS / error)
+     */
+    detectOverlap(category, contentObj, excludeId) {
+        if (!this.initDb()) return [];
+        const text = (contentObj && contentObj.description) || (contentObj ? JSON.stringify(contentObj) : '');
+        const q = buildFtsQuery(text);
+        if (!q) return [];
+        try {
+            const rows = this.db.prepare(`
+                SELECT m.id
+                FROM memories_fts fts
+                JOIN memories m ON fts.id = m.id
+                WHERE memories_fts MATCH ?
+                  AND m.category = ?
+                  AND m.id != ?
+                  AND m.invalid_at IS NULL
+                ORDER BY rank
+                LIMIT 5
+            `).all(q, category, excludeId);
+            return rows.map(r => r.id);
+        } catch {
+            // FTS unavailable (node:sqlite without fts5) or query error — no flag
+            return [];
+        }
+    }
+
+    /**
+     * Supersede an old memory with a newer one: stamp invalid_at + superseded_by,
+     * deindex from active FTS (so it stops surfacing in current-state search), but
+     * keep the JSON + main db row as history (readable via includeSuperseded).
+     * Idempotent — a re-run keeps the original invalid_at and returns success.
+     * Flag-then-confirm: this is the CONFIRM half (the Main Agent calls it).
+     *
+     * @param {string} category
+     * @param {string} oldId
+     * @param {string} newId
+     * @returns {Promise<{superseded: boolean, error?: string, invalid_at?: string}>}
+     */
+    async supersede(category, oldId, newId) {
+        if (!this.categories.includes(category)) {
+            return { superseded: false, error: `Invalid category: ${category}` };
+        }
+        const memory = await this.readMemory(category, oldId);
+        if (!memory) {
+            return { superseded: false, error: `Memory not found: ${category}/${oldId}` };
+        }
+
+        // Idempotent: keep the original invalid_at if already superseded.
+        const invalidAt = memory.invalid_at || new Date().toISOString();
+        memory.invalid_at = invalidAt;
+        memory.superseded_by = newId;
+
+        // Persist to JSON (source of truth)
+        const filename = MemoryManager.idToFilename(oldId);
+        const filePath = path.join(this.memoriesDir, category, `${filename}.json`);
+        await fs.writeFile(filePath, JSON.stringify(memory, null, 2));
+
+        // Deindex from active FTS + stamp the db row (kept for history).
+        if (this.initDb()) {
+            try {
+                this.db.prepare('DELETE FROM memories_fts WHERE id = ?').run(oldId);
+                this.db.prepare('UPDATE memories SET invalid_at = ?, superseded_by = ? WHERE id = ?')
+                    .run(invalidAt, newId, oldId);
+            } catch (e) {
+                console.error('supersede: SQLite update failed (JSON already stamped):', e.message);
+            }
+        }
+
+        return { superseded: true, category, oldId, newId, invalid_at: invalidAt };
     }
 
     /**
@@ -340,7 +482,10 @@ class MemoryManager {
         }
 
         memory.updated = new Date().toISOString();
-        memory.usage_count = (memory.usage_count || 0) + 1;
+        // ME-4.1: updateMemory no longer bumps usage_count. A write (metadata
+        // patch, echo-boost, confidence update) is NOT a genuine recall — the
+        // honest usage increment moved to searchMemories(). Keeping it here
+        // over-credited incidental writes and made usage a one-way ratchet.
         // MP-2.1: explicit access timestamp — lets analytics attribute a hit to an
         // injected memory that was later updated within the same session window.
         memory.last_accessed = memory.updated;
@@ -358,167 +503,19 @@ class MemoryManager {
     }
 
     /**
-     * Delete a memory: unlink the JSON file + remove it from the SQLite/FTS index.
-     * Returns {deleted, error?} rather than throwing — matches the create/update
-     * return-shape convention. Required by /review:memory-defrag merge/split ops.
+     * List all memories in a category.
+     *
+     * Supersession (ME-3.1): memories with a non-null `invalid_at` are hidden by
+     * default — this is the single chokepoint every current-state consumer flows
+     * through (analytics, lint, prune, search JSON-fallback). Pass
+     * `{ includeSuperseded: true }` to read history (audit, rebuildIndex). Legacy
+     * memories with no `invalid_at` field default to live (default-on-read).
      *
      * @param {string} category
-     * @param {string} id
-     * @returns {Promise<{deleted: boolean, error?: string}>}
+     * @param {{ includeSuperseded?: boolean }} [opts]
      */
-    async deleteMemory(category, id) {
-        if (!this.categories.includes(category)) {
-            return { deleted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
-        }
-
-        // Locate the JSON file — createMemory hyphenates ids at write time but
-        // accepts either form, so try the hyphenated filename then the raw id.
-        const hyphenated = MemoryManager.idToFilename(id);
-        const candidates = [
-            path.join(this.memoriesDir, category, `${hyphenated}.json`),
-            path.join(this.memoriesDir, category, `${id}.json`),
-        ];
-        let filePath = null;
-        for (const candidate of candidates) {
-            try {
-                await fs.access(candidate);
-                filePath = candidate;
-                break;
-            } catch { /* try next */ }
-        }
-        if (!filePath) {
-            return { deleted: false, error: `Memory not found: ${category}/${id}` };
-        }
-
-        try {
-            await fs.unlink(filePath);
-        } catch (e) {
-            return { deleted: false, error: `Failed to unlink ${filePath}: ${e.message}` };
-        }
-
-        // Deindex from SQLite (non-fatal if it fails; the JSON file is already gone)
-        this.deindexMemory(id);
-
-        return { deleted: true };
-    }
-
-    // -------------------------------------------------------------------------
-    // Inbox staging — sub-agents flag draft memories to _inbox/ during their
-    // work; the Main Agent reviews and promotes (or discards) them afterward,
-    // so nothing is written straight into the curated store unreviewed.
-    // -------------------------------------------------------------------------
-
-    _inboxDir() {
-        return path.join(this.memoriesDir, '_inbox');
-    }
-
-    /**
-     * List all draft memories staged in the inbox (chronological by id).
-     * @returns {Promise<Array<{id, file, mtime, content_preview, category, suggested_id, flagged_by, flagged_at}>>}
-     */
-    async inboxList() {
-        const dir = this._inboxDir();
-        let files;
-        try {
-            files = await fs.readdir(dir);
-        } catch (e) {
-            if (e.code === 'ENOENT') return [];
-            throw e;
-        }
-
-        const entries = [];
-        for (const file of files) {
-            if (!file.endsWith('.json')) continue;
-            const filePath = path.join(dir, file);
-            try {
-                const stat = await fs.stat(filePath);
-                const draft = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-                const description = draft.content?.description || '';
-                entries.push({
-                    id: file.replace(/\.json$/, ''),
-                    file: filePath,
-                    mtime: stat.mtime.toISOString(),
-                    content_preview: description.slice(0, 120),
-                    category: draft.category,
-                    suggested_id: draft.suggested_id,
-                    flagged_by: draft.flagged_by,
-                    flagged_at: draft.flagged_at,
-                });
-            } catch {
-                // Skip unreadable / malformed drafts — surfaced at promote time.
-            }
-        }
-        // Lex-sort = chronological for {YYYY-MM-DD}-{HHMM}-{slug} naming.
-        entries.sort((a, b) => a.id.localeCompare(b.id));
-        return entries;
-    }
-
-    /**
-     * Promote an inbox draft to a real memory: read draft, validate category,
-     * createMemory, then unlink the draft. Returns {promoted, error?} — never throws.
-     * @param {string} id - inbox filename stem (without .json)
-     * @param {{categoryOverride?: string, idOverride?: string}} [opts]
-     */
-    async inboxPromote(id, opts = {}) {
-        const filePath = path.join(this._inboxDir(), `${id}.json`);
-        let raw;
-        try {
-            raw = await fs.readFile(filePath, 'utf-8');
-        } catch (e) {
-            if (e.code === 'ENOENT') return { promoted: false, error: `Inbox draft not found: ${id}` };
-            return { promoted: false, error: `Failed to read inbox draft: ${e.message}` };
-        }
-
-        let draft;
-        try {
-            draft = JSON.parse(raw);
-        } catch (e) {
-            return { promoted: false, error: `Inbox draft has malformed JSON: ${e.message}` };
-        }
-
-        const category = opts.categoryOverride || draft.category;
-        const memoryId = opts.idOverride || draft.suggested_id;
-
-        if (!this.categories.includes(category)) {
-            return { promoted: false, error: `Invalid category: ${category}. Allowed: ${this.categories.join(', ')}` };
-        }
-        if (!memoryId || typeof memoryId !== 'string') {
-            return { promoted: false, error: 'Missing or invalid suggested_id (no idOverride supplied)' };
-        }
-
-        const created = await this.createMemory(category, memoryId, draft.content || {});
-        if (!created) {
-            return { promoted: false, error: 'createMemory returned null (category limit reached?)' };
-        }
-
-        try {
-            await fs.unlink(filePath);
-        } catch {
-            console.error(`⚠ Promoted ${category}/${memoryId} but failed to unlink ${filePath}`);
-        }
-
-        return { promoted: true, category, id: memoryId };
-    }
-
-    /**
-     * Discard an inbox draft without promoting it.
-     * @param {string} id - inbox filename stem (without .json)
-     */
-    async inboxDiscard(id) {
-        const filePath = path.join(this._inboxDir(), `${id}.json`);
-        try {
-            await fs.unlink(filePath);
-            return { discarded: true };
-        } catch (e) {
-            if (e.code === 'ENOENT') return { discarded: false, error: `Inbox draft not found: ${id}` };
-            return { discarded: false, error: e.message };
-        }
-    }
-
-    /**
-     * List all memories in a category
-     */
-    async listMemories(category) {
+    async listMemories(category, opts = {}) {
+        const { includeSuperseded = false } = opts;
         const dir = path.join(this.memoriesDir, category);
         try {
             const files = await fs.readdir(dir);
@@ -529,12 +526,22 @@ class MemoryManager {
                     const fileId = file.replace('.json', '');
                     const memory = await this.readMemory(category, fileId);
                     if (memory) {
+                        // Hide superseded memories from current-state queries unless
+                        // explicitly asked for. invalid_at absent/null = live.
+                        if (memory.invalid_at && !includeSuperseded) continue;
                         memories.push({
                             id: memory.id,
                             created: memory.created,
                             updated: memory.updated,
                             usage_count: memory.usage_count,
                             confidence: memory.metadata?.confidence ?? 1.0,
+                            // Backfill-on-read: legacy memories (and any written
+                            // before this column) read back at the default of 3.
+                            importance: clampImportance(memory.importance ?? memory.content?.importance),
+                            // Supersession (ME-3.1) — null/absent = live. Surfaced
+                            // so ME-3.2 analytics can count superseded entries.
+                            invalid_at: memory.invalid_at ?? null,
+                            superseded_by: memory.superseded_by ?? null,
                             decayed_confidence: this.calculateDecayedConfidence(memory)
                         });
                     }
@@ -548,38 +555,50 @@ class MemoryManager {
     }
 
     /**
-     * Search memories — uses SQLite FTS5 when available, falls back to JSON scan
+     * Search memories — uses SQLite FTS5 when available, falls back to JSON scan.
+     * Supersession (ME-3.1): superseded memories (invalid_at set) are excluded by
+     * default on both paths; pass `{ includeSuperseded: true }` to read history.
+     *
+     * @param {string} searchTerm
+     * @param {{ includeSuperseded?: boolean }} [opts]
      */
-    async searchMemories(searchTerm) {
+    async searchMemories(searchTerm, opts = {}) {
+        const { includeSuperseded = false } = opts;
         // Try SQLite FTS5 first
         if (this.initDb()) {
             try {
                 const stmt = this.db.prepare(`
-                    SELECT m.id, m.category, m.content, m.metadata, m.confidence, m.usage_count, m.updated,
+                    SELECT m.id, m.category, m.content, m.metadata, m.confidence, m.usage_count, m.updated, m.importance,
                            rank
                     FROM memories_fts fts
                     JOIN memories m ON fts.id = m.id
                     WHERE memories_fts MATCH ?
+                      ${includeSuperseded ? '' : 'AND m.invalid_at IS NULL'}
                     ORDER BY rank
                     LIMIT 20
                 `);
                 const rows = stmt.all(buildFtsQuery(searchTerm));
                 if (rows.length > 0) {
                     const mapped = rows.map(row => {
+                        const importance = clampImportance(row.importance);
                         // Reconstruct enough of the memory shape to compute decay
+                        // (importance included so the floor applies on this path too)
                         const mockMemory = {
                             updated: row.updated,
                             usage_count: row.usage_count || 0,
+                            importance,
                             metadata: { confidence: row.confidence ?? 1.0 }
                         };
                         return {
                             category: row.category,
                             id: row.id,
-                            relevance: Math.abs(row.rank) * 10 + (row.confidence || 0) * 10 + (row.usage_count || 0) * 5,
+                            // ME-2.2 — importance term (+4..+20) mirrors the JSON path
+                            relevance: Math.abs(row.rank) * 10 + (row.confidence || 0) * 10 + (row.usage_count || 0) * 5 + importance * 4,
                             confidence: row.confidence ?? 1.0,
                             decayed_confidence: this.calculateDecayedConfidence(mockMemory)
                         };
                     });
+                    await this._recordRecall(mapped);
                     this._logMemoryAccess(mapped);
                     return mapped;
                 }
@@ -588,10 +607,11 @@ class MemoryManager {
             }
         }
 
-        // Fallback: JSON scan
+        // Fallback: JSON scan — listMemories already applies the supersession
+        // filter, so pass the opt through to keep both paths consistent.
         const results = [];
         for (const category of this.categories) {
-            const memories = await this.listMemories(category);
+            const memories = await this.listMemories(category, { includeSuperseded });
             for (const memSummary of memories) {
                 const memory = await this.readMemory(category, memSummary.id);
                 if (memory) {
@@ -609,8 +629,41 @@ class MemoryManager {
             }
         }
         const sorted = results.sort((a, b) => b.relevance - a.relevance);
+        await this._recordRecall(sorted);
         this._logMemoryAccess(sorted);
         return sorted;
+    }
+
+    /**
+     * Record genuine recalls (ME-4.1): bump usage_count by exactly 1 for each
+     * recalled memory and persist to BOTH the JSON source of truth and the SQLite
+     * row (write-through — the SQLite search path returns a throwaway row object,
+     * so we re-read the JSON and UPDATE the column rather than mutating a copy).
+     * This is the ONLY place usage_count grows now; passive injection never calls
+     * search, so injection reads still leave no signal (honest lower bound).
+     *
+     * @param {Array<{category: string, id: string}>} results
+     */
+    async _recordRecall(results) {
+        for (const r of results) {
+            const memory = await this.readMemory(r.category, r.id);
+            if (!memory) continue;
+            memory.usage_count = (memory.usage_count || 0) + 1;
+            const filename = MemoryManager.idToFilename(r.id);
+            const filePath = path.join(this.memoriesDir, r.category, `${filename}.json`);
+            try {
+                await fs.writeFile(filePath, JSON.stringify(memory, null, 2));
+            } catch (e) {
+                console.error(`_recordRecall: JSON write failed for ${r.category}/${r.id}:`, e.message);
+                continue;
+            }
+            if (this.db) {
+                try {
+                    this.db.prepare('UPDATE memories SET usage_count = ? WHERE id = ?')
+                        .run(memory.usage_count, r.id);
+                } catch { /* non-fatal: JSON is the source of truth */ }
+            }
+        }
     }
 
     /**
@@ -655,13 +708,22 @@ class MemoryManager {
      * the shared function's parameter contract. Formula lives in the shared lib.
      */
     calculateDecayedConfidence(memory) {
-        return calcDecay({
+        const base = calcDecay({
             confidence: memory.metadata?.confidence ?? 1.0,
             category: memory.category,
             usageCount: memory.usage_count || 0,
             updated: memory.updated,
             activeDays: this._activeDaysResolver.getActiveDaysSince(memory.updated),
         });
+        // ME-2.2 importance retention floor — an ADDED factor on top of the
+        // active-work-day curve (the curve in _lib stays untouched). Normalized
+        // around IMPORTANCE_DEFAULT (3): importance 3 → factor 1.0 (default and
+        // legacy memories unchanged), importance ≤2 → factor <1 so a low-value
+        // never-recalled memory can cross STALE_THRESHOLD even on an actively
+        // committed repo, importance ≥4 → factor >1 to resist decay. Capped at 1.0.
+        const importance = clampImportance(memory.importance ?? memory.content?.importance);
+        const importanceFactor = importance / IMPORTANCE_DEFAULT;
+        return Math.min(1.0, base * importanceFactor);
     }
 
     /**
@@ -857,6 +919,9 @@ class MemoryManager {
 
         score += memory.usage_count * 5;
         score += memory.metadata.confidence * 10;
+        // ME-2.2 — importance term (1–5 → +4..+20) so a higher-importance memory
+        // scores strictly higher than an otherwise-identical lower-importance one.
+        score += clampImportance(memory.importance ?? memory.content?.importance) * 4;
 
         return score;
     }
@@ -875,7 +940,9 @@ class MemoryManager {
 
         let count = 0;
         for (const category of this.categories) {
-            const memories = await this.listMemories(category);
+            // Re-index EVERYTHING including superseded memories so their rows
+            // (with invalid_at) persist in the db for includeSuperseded history.
+            const memories = await this.listMemories(category, { includeSuperseded: true });
             for (const memSummary of memories) {
                 const memory = await this.readMemory(category, memSummary.id);
                 if (memory) {
@@ -1006,14 +1073,20 @@ class MemoryManager {
         const allUsage = [];        // { category, id, usage_count }
         const allDecayed = [];      // decayed_confidence values (for the cliff)
         const pruneCandidates = []; // stale AND usage_count === 0
+        const deadWeightCandidates = []; // never-used AND exposed past EXPOSURE_MIN_ACTIVE_DAYS (decay-independent)
         const idLastAccessed = {};  // id -> last_accessed ISO (for hit-rate)
         let totalMemories = 0;
         let totalNeverUsed = 0;
         let totalStale = 0;
         let totalArchive = 0;
+        let totalSuperseded = 0;
 
         for (const category of this.categories) {
-            const memories = await this.listMemories(category);
+            // One pass: read all (including superseded) so we can both count the
+            // superseded entries (ME-3.2) and run the existing active-only stats.
+            const withSuperseded = await this.listMemories(category, { includeSuperseded: true });
+            const memories = withSuperseded.filter(m => !m.invalid_at);
+            totalSuperseded += withSuperseded.length - memories.length;
             const count = memories.length;
             totalMemories += count;
 
@@ -1040,6 +1113,21 @@ class MemoryManager {
                 allDecayed.push(m.decayed_confidence);
                 if (m.decayed_confidence < MEMORY_DECAY.STALE_THRESHOLD && (m.usage_count || 0) === 0) {
                     pruneCandidates.push({ category, id: m.id, decayed_confidence: m.decayed_confidence });
+                }
+                // Decay-independent dead-weight: never recalled AND exposed to enough
+                // active work-days since CREATION (not update) to have earned a recall.
+                // Keys off `created` so it catches memories that decay can never reach
+                // on an actively-committed project. usage_count is a LOWER BOUND.
+                if ((m.usage_count || 0) === 0) {
+                    const activeDaysSinceCreated = this.getActiveDaysSince(m.created);
+                    if (activeDaysSinceCreated >= EXPOSURE_MIN_ACTIVE_DAYS) {
+                        deadWeightCandidates.push({
+                            category,
+                            id: m.id,
+                            active_days_since_created: activeDaysSinceCreated,
+                            decayed_confidence: m.decayed_confidence,
+                        });
+                    }
                 }
                 // last_accessed lives in the full memory JSON, not the summary
                 const full = await this.readMemory(category, m.id);
@@ -1104,6 +1192,17 @@ class MemoryManager {
                 candidates: pruneCandidates,
                 current_size: totalMemories,
                 projected_size_after: totalMemories - pruneCandidates.length,
+            },
+            supersession: {
+                active: totalMemories,
+                superseded: totalSuperseded,
+            },
+            dead_weight: {
+                candidates: deadWeightCandidates,
+                exposure_min_active_days: EXPOSURE_MIN_ACTIVE_DAYS,
+                current_size: totalMemories,
+                projected_size_after: totalMemories - deadWeightCandidates.length,
+                caveat: 'usage_count is a LOWER BOUND — passive session-start injection reads are not counted, so a flagged memory may actually have been recalled. Review before deleting.',
             },
             injection: {
                 has_telemetry: hasLines && injections.length > 0,

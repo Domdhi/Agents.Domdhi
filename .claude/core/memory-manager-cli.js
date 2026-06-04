@@ -168,61 +168,6 @@ async function main() {
             );
             break;
         }
-        case 'delete': {
-            const [category, id] = args;
-            if (!category || !id) {
-                console.error('Error: delete requires <category> <id>');
-                process.exit(1);
-            }
-            const result = await manager.deleteMemory(category, id);
-            if (result.deleted) {
-                console.log(`🗑️  Deleted: ${category}/${id}`);
-            } else {
-                console.error(`❌ Delete failed: ${result.error}`);
-                process.exit(1);
-            }
-            break;
-        }
-        case 'inbox-list': {
-            const entries = await manager.inboxList();
-            console.log(JSON.stringify(entries, null, 2));
-            break;
-        }
-        case 'inbox-promote': {
-            const [id] = args;
-            if (!id) {
-                console.error('Error: inbox-promote requires an inbox draft id');
-                process.exit(1);
-            }
-            const opts = {};
-            for (let i = 1; i < args.length; i++) {
-                if (args[i] === '--category' && args[i + 1]) { opts.categoryOverride = args[++i]; }
-                else if (args[i] === '--id' && args[i + 1]) { opts.idOverride = args[++i]; }
-            }
-            const result = await manager.inboxPromote(id, opts);
-            if (result.promoted) {
-                console.log(`✅ Promoted: ${result.category}/${result.id}`);
-            } else {
-                console.error(`❌ Promote failed: ${result.error}`);
-                process.exit(1);
-            }
-            break;
-        }
-        case 'inbox-discard': {
-            const [id] = args;
-            if (!id) {
-                console.error('Error: inbox-discard requires an inbox draft id');
-                process.exit(1);
-            }
-            const result = await manager.inboxDiscard(id);
-            if (result.discarded) {
-                console.log(`🗑️  Discarded inbox draft: ${id}`);
-            } else {
-                console.error(`❌ Discard failed: ${result.error}`);
-                process.exit(1);
-            }
-            break;
-        }
         case 'boost-from-git': {
             const opts = {};
             for (let i = 0; i < args.length; i++) {
@@ -282,6 +227,27 @@ async function main() {
             if (a.prune.candidates.length > 15) lines.push(`    …and ${a.prune.candidates.length - 15} more`);
             lines.push('');
 
+            // (d2) dead-weight candidates
+            lines.push(`Dead-weight candidates (REVIEW, do not auto-delete): ${a.dead_weight.candidates.length}`);
+            lines.push(`  Threshold: ${a.dead_weight.exposure_min_active_days} active-work-days since created, usage_count = 0`);
+            const dwSlice = a.dead_weight.candidates.slice(0, 15);
+            for (const dw of dwSlice) {
+                lines.push(`    ${dw.category}/${dw.id}  (created ${dw.active_days_since_created} active-days ago, decayed ${dw.decayed_confidence.toFixed(3)})`);
+            }
+            if (a.dead_weight.candidates.length > 15) lines.push(`    …and ${a.dead_weight.candidates.length - 15} more`);
+            // per-category count summary
+            const dwByCat = {};
+            for (const dw of a.dead_weight.candidates) {
+                dwByCat[dw.category] = (dwByCat[dw.category] || 0) + 1;
+            }
+            if (Object.keys(dwByCat).length > 0) {
+                const catSummary = Object.entries(dwByCat).map(([c, n]) => `${c}: ${n}`).join(', ');
+                lines.push(`  By category: ${catSummary}`);
+            }
+            lines.push(`  Store size: ${a.dead_weight.current_size} → ${a.dead_weight.projected_size_after}`);
+            lines.push(`  Caveat: ${a.dead_weight.caveat}`);
+            lines.push('');
+
             // (e) injection economics
             if (a.injection.has_telemetry) {
                 lines.push('Injection economics:');
@@ -303,6 +269,89 @@ async function main() {
             console.log(lines.join('\n'));
             break;
         }
+        case 'supersede': {
+            const [category, oldId, newId] = args;
+            if (!category || !oldId || !newId) {
+                console.error('Error: supersede requires <category> <oldId> <newId>');
+                process.exit(1);
+            }
+            const result = await manager.supersede(category, oldId, newId);
+            if (result.superseded) {
+                console.log(`🗞️  Superseded: ${category}/${oldId} → ${newId} (invalid_at ${result.invalid_at})`);
+            } else {
+                console.error(`❌ Supersede failed: ${result.error}`);
+                process.exit(1);
+            }
+            break;
+        }
+        case 'prune-unused': {
+            // Optional positional [category] filter — any non-flag arg that isn't
+            // a value for --min-exposure is treated as the category.
+            let categoryFilter = null;
+            let minExposureOverride = null;
+            const commitMode = args.includes('--commit');
+            for (let i = 0; i < args.length; i++) {
+                if (args[i] === '--min-exposure' && args[i + 1]) {
+                    minExposureOverride = parseInt(args[++i], 10);
+                } else if (args[i] === '--commit') {
+                    // already handled above
+                } else if (!args[i].startsWith('--')) {
+                    categoryFilter = args[i];
+                }
+            }
+
+            const analytics = await manager.generateAnalytics();
+            let candidates = analytics.dead_weight.candidates;
+
+            if (categoryFilter) {
+                candidates = candidates.filter(c => c.category === categoryFilter);
+            }
+            if (minExposureOverride != null) {
+                candidates = candidates.filter(c => c.active_days_since_created >= minExposureOverride);
+            }
+
+            if (!commitMode) {
+                // DRY RUN — list victims, delete nothing
+                console.log(`prune-unused — DRY RUN (${candidates.length} candidate${candidates.length !== 1 ? 's' : ''})`);
+                if (categoryFilter) console.log(`  Category filter: ${categoryFilter}`);
+                if (minExposureOverride != null) console.log(`  Min-exposure filter: ${minExposureOverride} active-days`);
+                console.log(`  Configured threshold: ${analytics.dead_weight.exposure_min_active_days} active-days`);
+                console.log('');
+                if (candidates.length === 0) {
+                    console.log('  No dead-weight candidates match the current filters.');
+                } else {
+                    for (const c of candidates) {
+                        console.log(`  WOULD DELETE  ${c.category}/${c.id}  (${c.active_days_since_created} active-days, decayed ${c.decayed_confidence.toFixed(3)})`);
+                    }
+                }
+                console.log('');
+                console.log('Run with --commit to actually delete. NOTE: loosening below the configured');
+                console.log('threshold requires the MEMORY_EXPOSURE_MIN_DAYS env var (threshold is');
+                console.log('captured at module load); --min-exposure can only tighten.');
+            } else {
+                // COMMIT — actually delete
+                console.log(`prune-unused — COMMITTING (${candidates.length} candidate${candidates.length !== 1 ? 's' : ''})`);
+                if (categoryFilter) console.log(`  Category filter: ${categoryFilter}`);
+                if (minExposureOverride != null) console.log(`  Min-exposure filter: ${minExposureOverride} active-days`);
+                console.log('');
+                let deleted = 0;
+                let failed = 0;
+                for (const c of candidates) {
+                    const result = await manager.deleteMemory(c.category, c.id);
+                    if (result.deleted) {
+                        console.log(`  DELETED  ${c.category}/${c.id}`);
+                        deleted++;
+                    } else {
+                        console.error(`  FAILED   ${c.category}/${c.id}  — ${result.error}`);
+                        failed++;
+                    }
+                }
+                console.log('');
+                console.log(`Done: ${deleted} deleted, ${failed} failed.`);
+                if (failed > 0) process.exit(1);
+            }
+            break;
+        }
         default:
             console.log(`
 Memory Manager (JSON + SQLite FTS5)
@@ -314,6 +363,7 @@ Usage:
   node memory-manager-cli.js update <category> <id> <content-json>
   node memory-manager-cli.js list <category>
   node memory-manager-cli.js delete <category> <id>
+  node memory-manager-cli.js supersede <category> <oldId> <newId>
   node memory-manager-cli.js search <term>
   node memory-manager-cli.js inbox-list
   node memory-manager-cli.js inbox-promote <draft-id> [--category C] [--id new-id]
@@ -321,9 +371,17 @@ Usage:
   node memory-manager-cli.js report
   node memory-manager-cli.js analytics
     Performance/usage view — cap utilization, decay + usage distribution,
-    prune list, injection economics, and injection hit-rate (a LOWER bound;
-    implicit reads of an injected memory leave no signal). Complements lint
-    (hygiene) and report (inventory).
+    prune list, dead-weight candidates, injection economics, and injection
+    hit-rate (a LOWER bound; implicit reads of an injected memory leave no
+    signal). Complements lint (hygiene) and report (inventory).
+  node memory-manager-cli.js prune-unused [category] [--min-exposure N] [--commit]
+    List (or delete) never-used memories exposed past the dead-weight threshold.
+    Default (no flags): DRY RUN — lists victims, deletes nothing.
+    --commit: actually delete each candidate via deleteMemory.
+    [category]: optional positional arg — filters to that category only.
+    --min-exposure N: tightening filter (active-days >= N). Loosening below the
+      configured threshold requires the MEMORY_EXPOSURE_MIN_DAYS env var, because
+      the threshold constant is captured at module load.
   node memory-manager-cli.js rebuild-index
   node memory-manager-cli.js decay-report
   node memory-manager-cli.js boost-from-git [--limit N] [--dry-run]

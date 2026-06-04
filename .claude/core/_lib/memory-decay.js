@@ -48,6 +48,29 @@ function calculateDecayedConfidence({ confidence, category, usageCount, updated,
 }
 
 /**
+ * Halving aging for the usage counter (ME-4.1). Silence decays usage WITHOUT
+ * needing a "not-accessed" event: the counter halves every `halveEveryDays`
+ * active-work-days since the last genuine recall. Pure arithmetic — no LLM, no
+ * I/O. This demotes a once-popular-but-now-cold memory's usage signal so it stops
+ * being a permanent ratchet (TinyLFU-style aging sketch).
+ *
+ * @param {number} usageCount        Current usage count
+ * @param {number} activeDaysSilent  Active-work-days since the last recall
+ * @param {number} halveEveryDays    Halving period in active-work-days (>0)
+ * @returns {number} The aged usage value (>= 0; fractional allowed)
+ */
+function halveUsageCount(usageCount, activeDaysSilent, halveEveryDays) {
+    const u = Number(usageCount);
+    if (!Number.isFinite(u) || u <= 0) return 0;
+    if (!halveEveryDays || halveEveryDays <= 0) return u;       // disabled → unchanged
+    const silent = Number(activeDaysSilent);
+    if (!Number.isFinite(silent) || silent <= 0) return u;      // no silence → unchanged
+    const halvings = Math.floor(silent / halveEveryDays);
+    if (halvings <= 0) return u;
+    return u / Math.pow(2, halvings);
+}
+
+/**
  * Create a resolver that counts active work days (days with git commits) since a date.
  *
  * The resolver lazily reads `git log --format="%ad" --date=short` on first call and
@@ -105,4 +128,4 @@ function createActiveDaysResolver({ projectRoot }) {
     };
 }
 
-module.exports = { calculateDecayedConfidence, createActiveDaysResolver };
+module.exports = { calculateDecayedConfidence, createActiveDaysResolver, halveUsageCount };

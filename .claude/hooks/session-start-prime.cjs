@@ -13,10 +13,17 @@
  * Source: docs/.output/memories/{category}/*.json
  *   where category in {patterns, constraints, decisions, workflows, rejected-approaches}
  *
- * Ranking: decayed_confidence × recency_factor × log(1 + usage_count)
- *   - decayed_confidence: via MemoryManager.calculateDecayedConfidence()
+ * Ranking (ME-4.2): importance_floored_decayed × recency_factor, with usage as a
+ * TIEBREAKER only (not a primary multiplier — usage_count is a lower bound that
+ * passive injection can't see, so it must not dominate ranking).
+ *   - importance:         1–5 write-time score, fed into calculateDecayedConfidence
+ *                         as the retention floor (importance ≤2 sinks, ≥4 resists)
+ *   - decayed_confidence: via MemoryManager.calculateDecayedConfidence() (importance-aware)
  *   - recency_factor:     1 / (1 + daysSinceLastUpdated); 1.0 if missing
- *   - usage_count:        floored at 1 so unused memories still rank
+ *   - usage tiebreaker:   halved-on-silence raw usage, only breaks score ties
+ *   - size budget:        top-N slice (N = MEMORY_PRIME_COUNT or DEFAULT_N=8, ≤MAX_N)
+ *                         forces ranking down even when nothing has aged
+ *   - superseded memories (invalid_at set) are never injected
  *
  * Output: XML-tagged markdown block written to stdout. Claude Code injects
  * hook stdout as a session system-reminder — no JSON envelope required.
@@ -36,6 +43,10 @@ const path = require('path');
 const { isAtLeast } = require('../core/profile');
 const CONSTANTS = require('../core/constants');
 const { appendJsonl } = require('../core/_lib/jsonl-writer');
+const { halveUsageCount } = require('../core/_lib/memory-decay');
+
+const USAGE_HALVE_EVERY_DAYS = CONSTANTS.MEMORY_DECAY.USAGE_HALVE_EVERY_DAYS;
+const IMPORTANCE_DEFAULT = CONSTANTS.MEMORY_FILTERS.IMPORTANCE_DEFAULT;
 
 const HARD_TIMEOUT_MS = 2000;
 const SOFT_BUDGET_MS = 500;
@@ -78,6 +89,15 @@ function parseMemory(content, category, filename) {
     const rawUsage = Number.isFinite(json.usage_count) ? json.usage_count : 0;
     const usage_count = Math.max(1, rawUsage);
 
+    // ME-4.2: importance (1–5) is the PRIMARY ranking signal — top-level, then
+    // content, default 3. raw_usage (unfloored) is the tiebreaker input.
+    let importance = 3;
+    if (Number.isFinite(json.importance)) importance = json.importance;
+    else if (json.content && Number.isFinite(json.content.importance)) importance = json.content.importance;
+
+    // Supersession (ME-3.x): a superseded memory must never be injected.
+    const invalid_at = typeof json.invalid_at === 'string' ? json.invalid_at : null;
+
     const updated = typeof json.updated === 'string' ? json.updated : null;
 
     return {
@@ -87,6 +107,9 @@ function parseMemory(content, category, filename) {
         confidence,
         updated,
         usage_count,
+        raw_usage: rawUsage,
+        importance,
+        invalid_at,
         summary: summary || '(no summary)'
     };
 }
@@ -95,31 +118,48 @@ function rankConcepts(concepts, manager) {
     const now = Date.now();
 
     for (const c of concepts) {
+        const importance = Number.isFinite(c.importance) ? c.importance : IMPORTANCE_DEFAULT;
         let decayed = 0.6;
         try {
+            // Pass importance so the ME-2.2 retention floor applies — importance is
+            // the PRIMARY signal, expressed through decayed_confidence (a low-
+            // importance memory sinks, a high-importance one resists decay).
             decayed = manager.calculateDecayedConfidence({
                 metadata: { confidence: c.confidence },
                 category: c.category,
                 updated: c.updated || new Date().toISOString(),
-                usage_count: c.usage_count
+                usage_count: c.usage_count,
+                importance
             });
         } catch {
             decayed = c.confidence;
         }
 
         let recency = 1.0;
+        let daysSinceUpdated = 0;
         if (c.updated) {
             const days = (now - new Date(c.updated).getTime()) / (1000 * 60 * 60 * 24);
-            if (Number.isFinite(days) && days >= 0) recency = 1 / (1 + days);
+            if (Number.isFinite(days) && days >= 0) {
+                daysSinceUpdated = days;
+                recency = 1 / (1 + days);
+            }
         }
 
-        const usageTerm = Math.log(1 + c.usage_count);
-
-        c.score = decayed * recency * usageTerm;
+        // Primary score: importance-floored decay × recency. Usage is NOT a factor
+        // here — it only breaks ties below (it's a lower bound, must not dominate).
+        c.score = decayed * recency;
         c.decayed = decayed;
+        // Tiebreaker: raw usage, halved as it goes silent (TinyLFU-style aging) so
+        // a once-popular-now-cold memory doesn't win ties forever.
+        const rawUsage = Number.isFinite(c.raw_usage) ? c.raw_usage : 0;
+        c.usageTiebreak = halveUsageCount(rawUsage, daysSinceUpdated, USAGE_HALVE_EVERY_DAYS);
     }
 
-    concepts.sort((a, b) => b.score - a.score);
+    // Importance-floored decay × recency is primary; usage only breaks ties.
+    concepts.sort((a, b) => {
+        if (Math.abs(b.score - a.score) > 1e-9) return b.score - a.score;
+        return (b.usageTiebreak || 0) - (a.usageTiebreak || 0);
+    });
     return concepts;
 }
 
@@ -133,7 +173,7 @@ function renderOutput(topConcepts, totalCount) {
     return `<project_memory>
 # Project Memory
 
-Top ${topConcepts.length} of ${totalCount} structured memories (ranked by decayed confidence × recency × usage).
+Top ${topConcepts.length} of ${totalCount} structured memories (ranked by importance-floored confidence × recency; usage breaks ties).
 
 ${lines.join('\n')}
 </project_memory>
@@ -170,7 +210,8 @@ function processEvent(_parsedJson) {
             try {
                 const content = fs.readFileSync(path.join(catDir, file), 'utf8');
                 const parsed = parseMemory(content, category, file);
-                if (parsed) memories.push(parsed);
+                // Never inject a superseded memory (ME-3.x / ME-4.2).
+                if (parsed && !parsed.invalid_at) memories.push(parsed);
             } catch {
                 // skip unreadable memory
             }
@@ -183,6 +224,9 @@ function processEvent(_parsedJson) {
     const manager = new MemoryManager();
     rankConcepts(memories, manager);
 
+    // Size budget (ME-4.2): hard top-N cap. Even on an active project where
+    // nothing has aged below threshold, this forces ranking down to the budget so
+    // the injected tier always earns its tokens.
     const top = memories.slice(0, N);
     const output = renderOutput(top, memories.length);
 

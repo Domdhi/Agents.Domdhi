@@ -215,6 +215,8 @@ The single biggest failure mode is writing one thin sentence when you have ten r
 
 The `description` is the cover; the other fields are the body. Use both.
 
+4. **What is the retention priority?** Set `importance` (1–5) before you write. Score 1 for ephemeral or story-specific tips that will be obsolete in weeks, 3 for the default useful cross-project insight, 5 for architecture-level decisions or platform constraints that rarely change. When in doubt, use 3. A memory written without `importance` defaults to 3, but explicit scoring keeps low-value entries from persisting past their shelf-life.
+
 ### Optional content fields (all categories)
 
 | Field | Use when |
@@ -228,6 +230,7 @@ The `description` is the cover; the other fields are the body. Use both.
 | `reference` | File:line pointer to where the fix/rule lives in code. |
 | `evidence` | Concrete incident — story ID, commit hash, or one-line scenario that triggered the learning. |
 | `confidence` | 0.0–1.0 numeric. See the scale above. |
+| `importance` | Integer 1–5, write-time retention priority; default 3. 1 = ephemeral/narrow/will-be-obsolete-soon, 3 = default useful, 5 = architecture-level/foundational/rarely-changes. Used as the decay floor: low-importance memories decay out even on an active repo; high-importance memories resist decay. |
 
 **Category-specific defaults:**
 - `decisions` — add `rationale` or `supersedes` when applicable; confidence 0.8–0.9.
@@ -244,7 +247,7 @@ The three examples below show the richness range deliberately — a multi-paragr
 > "Plan-first discipline paid off again — locked function signatures and AC table before dispatching agents, zero signature drift across 8 agents in Wave 4."
 
 ```bash
-node .claude/core/memory-manager.js create patterns plan-first-before-agent-dispatch '{"description": "Before /run-todo dispatches dev agents, Main Agent writes a plan file that locks three things: the exact file list each story owns, the function signatures agents must implement, and the AC reconciliation table. Every dispatched agent then sees the same contract — no agent invents its own variable names, no two agents fight over the same file.\n\nThe cost is ~10 minutes of context assembly. The payoff scales with wave size: for 8+ agent waves, the alternative is cascading signature-drift fixes that take longer than the plan itself. Below 3 agents, the overhead usually outweighs the benefit — Main-Agent-direct is faster.", "evidence": "Field-tested across 4 epics: Wave 4 TDD-5 (8 agents, zero drift), Wave 6 TDD-6 (10 agents, zero drift), MU Wave 2 (3 agents, zero drift).", "confidence": 0.9}'
+node .claude/core/memory-manager.js create patterns plan-first-before-agent-dispatch '{"description": "Before /run-todo dispatches dev agents, Main Agent writes a plan file that locks three things: the exact file list each story owns, the function signatures agents must implement, and the AC reconciliation table. Every dispatched agent then sees the same contract — no agent invents its own variable names, no two agents fight over the same file.\n\nThe cost is ~10 minutes of context assembly. The payoff scales with wave size: for 8+ agent waves, the alternative is cascading signature-drift fixes that take longer than the plan itself. Below 3 agents, the overhead usually outweighs the benefit — Main-Agent-direct is faster.", "evidence": "Field-tested across 4 epics: Wave 4 TDD-5 (8 agents, zero drift), Wave 6 TDD-6 (10 agents, zero drift), MU Wave 2 (3 agents, zero drift).", "confidence": 0.9, "importance": 4}'
 ```
 
 #### Example 2 — constraint with wrong/correct pattern pair + code_example
@@ -252,7 +255,7 @@ node .claude/core/memory-manager.js create patterns plan-first-before-agent-disp
 > "Rejected spawning the memory compiler with detached:true + windowsHide:true — the two flags conflict at CreateProcess, causing a brief console flash. Switched to stdio:'ignore' + windowsHide:true + child.unref()."
 
 ```bash
-node .claude/core/memory-manager.js create constraints windows-detached-hide-conflict '{"description": "On Windows, combining spawn options detached:true with windowsHide:true causes a brief console flash — the child briefly owns a visible console before hide applies. The two flags conflict at the CreateProcess API layer.", "wrong_pattern": "spawn(cmd, args, { detached: true, windowsHide: true })", "correct_pattern": "spawn(cmd, args, { stdio: '\''ignore'\'', windowsHide: true }); child.unref();", "code_example": "// Fire-and-forget child on Windows without a console flash\nconst child = spawn(nodeBin, [script], {\n  stdio: '\''ignore'\'',\n  windowsHide: true,\n});\nchild.unref(); // parent can exit without waiting", "reference": ".claude/hooks/memory-capture.cjs spawnCurate() lines 67-78", "evidence": "Observed during MU testing on Windows 11 — flash was ~80ms, enough to be jarring."}'
+node .claude/core/memory-manager.js create constraints windows-detached-hide-conflict '{"description": "On Windows, combining spawn options detached:true with windowsHide:true causes a brief console flash — the child briefly owns a visible console before hide applies. The two flags conflict at the CreateProcess API layer.", "wrong_pattern": "spawn(cmd, args, { detached: true, windowsHide: true })", "correct_pattern": "spawn(cmd, args, { stdio: '\''ignore'\'', windowsHide: true }); child.unref();", "code_example": "// Fire-and-forget child on Windows without a console flash\nconst child = spawn(nodeBin, [script], {\n  stdio: '\''ignore'\'',\n  windowsHide: true,\n});\nchild.unref(); // parent can exit without waiting", "reference": ".claude/hooks/memory-capture.cjs spawnCurate() lines 67-78", "evidence": "Observed during MU testing on Windows 11 — flash was ~80ms, enough to be jarring.", "importance": 5}'
 ```
 
 #### Example 3 — workflow with alternatives array
@@ -260,7 +263,7 @@ node .claude/core/memory-manager.js create constraints windows-detached-hide-con
 > "Code-review gate caught two real AC gaps before commit in Wave 3 — a missing dup-count assertion and an order-sensitive toEqual. Fixing MAJOR findings inline before commit (not deferring) is what kept the suite trustworthy."
 
 ```bash
-node .claude/core/memory-manager.js create workflows major-review-fix-before-commit '{"description": "MAJOR findings from code-reviewer must be fixed inline before the wave commit, never deferred to a follow-up story. Code-review is a quality gate, not advisory — deferring creates drift between the story status (done) and the actual correctness (incomplete).", "alternatives": [{"approach": "Defer MAJOR findings to a follow-up cleanup story", "why_not": "Follow-up stories get reprioritized or forgotten; the drift compounds."}, {"approach": "Downgrade MAJOR to MINOR if the test still passes", "why_not": "Conflates 'builds' with 'correct' — hides the real AC gap."}, {"approach": "Block the wave commit entirely until ALL findings (including MINOR) are fixed", "why_not": "MINOR findings are often cosmetic; blocking on them slows cadence without commensurate quality gain."}], "evidence": "Wave 3 of TDD-5 caught a missing dup-count assertion (would have let silent seeding failures pass); Wave 4 caught an order-sensitive toEqual (would have caused flaky tests on parallel runs).", "confidence": 0.85}'
+node .claude/core/memory-manager.js create workflows major-review-fix-before-commit '{"description": "MAJOR findings from code-reviewer must be fixed inline before the wave commit, never deferred to a follow-up story. Code-review is a quality gate, not advisory — deferring creates drift between the story status (done) and the actual correctness (incomplete).", "alternatives": [{"approach": "Defer MAJOR findings to a follow-up cleanup story", "why_not": "Follow-up stories get reprioritized or forgotten; the drift compounds."}, {"approach": "Downgrade MAJOR to MINOR if the test still passes", "why_not": "Conflates 'builds' with 'correct' — hides the real AC gap."}, {"approach": "Block the wave commit entirely until ALL findings (including MINOR) are fixed", "why_not": "MINOR findings are often cosmetic; blocking on them slows cadence without commensurate quality gain."}], "evidence": "Wave 3 of TDD-5 caught a missing dup-count assertion (would have let silent seeding failures pass); Wave 4 caught an order-sensitive toEqual (would have caused flaky tests on parallel runs).", "confidence": 0.85, "importance": 3}'
 ```
 
 **Note the shape difference:** the pre-bundle skill (before 2026-04-20) modeled thin one-sentence descriptions. These three examples are the new floor. If your bullet has enough substance to be worth a memory, it has enough substance for a payload of this richness.

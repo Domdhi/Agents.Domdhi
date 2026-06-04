@@ -54,6 +54,26 @@ function tryAction(label, fn, stats) {
     }
 }
 
+/**
+ * Load the set of skill names the target project has opted out of, from its
+ * .claude/update-config.json (`{ "skillExclude": ["tailwind-css-patterns", ...] }`).
+ * Missing/invalid config → empty set (no exclusions). Never throws.
+ *
+ * @param {string} targetClaudeDir  — absolute path to the target's .claude/
+ * @returns {Set<string>}
+ */
+function loadExcludedSkills(targetClaudeDir) {
+    const cfgPath = path.join(targetClaudeDir, 'update-config.json');
+    if (!fs.existsSync(cfgPath)) return new Set();
+    try {
+        const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+        return Array.isArray(cfg.skillExclude) ? new Set(cfg.skillExclude) : new Set();
+    } catch (err) {
+        console.error(`  WARN     could not parse .claude/update-config.json — ignoring exclusions (${err.message})`);
+        return new Set();
+    }
+}
+
 // ── Main Command: update ──────────────────────────────────────────────────────
 
 function runUpdate(targetPath, options) {
@@ -79,6 +99,16 @@ function runUpdate(targetPath, options) {
     const stats    = { copied: 0, merged: 0, skipped: 0, warned: 0, errors: 0 };
     const warnings = [];
 
+    // Per-project skill exclusions — the target declares template skills it does
+    // not want (e.g. tailwind-css-patterns in a non-Tailwind project). Read from
+    // the target's own .claude/update-config.json (Project zone, never overwritten).
+    // Without this, every update re-imports skills the project deliberately dropped.
+    const excludedSkills = loadExcludedSkills(targetClaudeDir);
+    if (excludedSkills.size > 0) {
+        console.log(`  Excluding skills (per update-config.json): ${[...excludedSkills].join(', ')}`);
+        console.log('');
+    }
+
     // ── .claude/ files ────────────────────────────────────────────────────────
 
     const sourceClaudeDir = path.join(projectRoot, '.claude');
@@ -87,6 +117,14 @@ function runUpdate(targetPath, options) {
         const zone        = classifyClaudeFile(relToClause);
         const destAbs     = path.join(targetClaudeDir, relToClause);
         const rel         = relToClause.replace(/\\/g, '/');
+
+        // Per-project skill exclusion — skip any file under an excluded skill dir.
+        const skillMatch = rel.match(/^skills\/([^/]+)\//);
+        if (skillMatch && excludedSkills.has(skillMatch[1])) {
+            console.log(`  SKIP     .claude/${rel} (excluded by update-config.json)`);
+            stats.skipped++;
+            continue;
+        }
 
         if (zone === 'template') {
             if (rel === 'version.json') continue; // deferred — copy last
@@ -237,10 +275,14 @@ Usage:
 Zone behavior:
   Template zone   — Overwritten: commands/, core/, hooks/, skills/**/*,
                     skills-optional/, templates/, version.json, guardrail-rules.yaml
-  Project zone    — Skipped: settings.json, settings.local.json
+  Project zone    — Skipped: settings.json, settings.local.json, update-config.json
   Mixed zone      — Skipped with warning (default): agents/*.md
                     With --merge: section-aware merge preserving customizations
+                    (Soul Zone, Project Context, and tuned descriptions are kept)
   Exceptions      — Skipped with warning: skills/brand-guidelines/**
+  Skill opt-out   — Skills named in the target's .claude/update-config.json
+                    ("skillExclude": [...]) are never copied, so a project can
+                    permanently drop template skills it doesn't use (e.g. Tailwind).
   Doc redirect    — Source CLAUDE.md → target .claude/README.md
 
 Flags:
@@ -280,7 +322,7 @@ if (require.main === module) { main(); }
 // from this file without change. walkDir shim keeps the old array-returning API.
 const _libFW = require('./_lib/file-walker');
 module.exports = Object.assign(
-    { copyFile, runUpdate },
+    { copyFile, runUpdate, loadExcludedSkills },
     zoneClassifier,
     agentMerger,
     { walkDir: (dirPath) => [..._libFW.walkDir(dirPath, ALWAYS_SKIP_DIRS)] }

@@ -25,6 +25,16 @@ module.exports = {
         // (MEMORY_MAX_PER_CATEGORY) is applied at the two call sites
         // (memory-manager.js, memory-guard.cjs) with an identical expression.
         MEMORY_MAX_PER_CATEGORY: 50,
+        // Min active-work-days since `created` for a never-recalled memory to
+        // appear in the dead-weight review queue (decay-independent flagger).
+        // Static here; env override (MEMORY_EXPOSURE_MIN_DAYS) applied at the
+        // memory-manager.js call site with an identical expression.
+        EXPOSURE_MIN_ACTIVE_DAYS: 30,
+        // Write-time importance score (1–5) assigned to a memory when authored;
+        // the retention floor. Default 3 (mid-scale) when the author omits it and
+        // for legacy memories with no importance field (backfill-on-read). Static
+        // here; env override (MEMORY_IMPORTANCE_DEFAULT) applied at the call site.
+        IMPORTANCE_DEFAULT: 3,
     },
 
     // Agent limits
@@ -117,7 +127,11 @@ module.exports = {
         RECENT_UPDATE_DAYS: 7,
         ECHO_BOOST: 0.05,        // confidence bump per commit-echo match (AMEM-4.1)
         STALE_THRESHOLD: 0.3,
-        ARCHIVE_THRESHOLD: 0.1
+        ARCHIVE_THRESHOLD: 0.1,
+        // Usage-counter halving period in active-work-days (ME-4.1). The honest
+        // usage signal halves after this many silent active days so a once-popular
+        // memory's count stops being a permanent ratchet (TinyLFU-style aging).
+        USAGE_HALVE_EVERY_DAYS: 14
     },
 
     // Session phases

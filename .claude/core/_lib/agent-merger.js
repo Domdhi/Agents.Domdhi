@@ -8,7 +8,9 @@
  *   projectCtx   — from `## Project Context` to end, or '' if absent
  *
  * Merge strategy (when dest exists):
- *   - frontmatter: take src, but preserve nickname: and aliases: from dest
+ *   - frontmatter: take src, but preserve nickname: and aliases: from dest; also
+ *                  preserve a tuned description: when the agent is personalized or
+ *                  specialized (those are written by /review:* commands, not the template)
  *   - soulZone:    preserve if dest is personalized (has nickname:); else take src
  *   - skillsZone:  always from src (template-owned)
  *   - projectCtx:  preserve if dest has it; otherwise omit
@@ -106,14 +108,38 @@ function isPersonalized(frontmatter) {
 }
 
 /**
+ * Extract the line range [start, end) of a frontmatter field, including any
+ * indented continuation lines — so YAML folded/block scalars (`description: >`
+ * spanning several indented lines) are captured as a single unit.
+ *
+ * @param {string[]} lines
+ * @param {string} key
+ * @returns {{ start: number, end: number }|null}
+ */
+function extractFieldBlock(lines, key) {
+    const re = new RegExp('^' + key + '\\s*:');
+    const start = lines.findIndex(l => re.test(l));
+    if (start === -1) return null;
+    let end = start + 1;
+    // Consume indented continuation lines (the folded/block scalar body).
+    while (end < lines.length && /^\s+\S/.test(lines[end])) end++;
+    return { start, end };
+}
+
+/**
  * Merge frontmatter strings: take src lines as the base, but preserve
- * `nickname:` and `aliases:` from dst if they exist.
+ * `nickname:` and `aliases:` from dst if they exist. When opts.preserveDescription
+ * is set, also preserve dst's `description:` block (multi-line safe) — used when the
+ * agent is personalized/specialized so /review:* tuned descriptions survive updates.
  *
  * @param {string} srcFm  — frontmatter string from src (no --- delimiters)
  * @param {string} dstFm  — frontmatter string from dst (no --- delimiters)
+ * @param {object} [opts]
+ * @param {boolean} [opts.preserveDescription]  — keep dst's description block
  * @returns {string}       — merged frontmatter string (no --- delimiters)
  */
-function mergeFrontmatter(srcFm, dstFm) {
+function mergeFrontmatter(srcFm, dstFm, opts) {
+    opts = opts || {};
     const srcLines = srcFm.split('\n');
     const destLines = dstFm.split('\n');
 
@@ -144,6 +170,28 @@ function mergeFrontmatter(srcFm, dstFm) {
         const insertAfter = afterIdx >= 0 ? afterIdx : result.findIndex(l => /^name\s*:/.test(l));
         if (insertAfter >= 0) {
             result.splice(insertAfter + 1, 0, aliasesMatch);
+        }
+    }
+
+    // Preserve a tuned description block from dest (multi-line / folded-scalar safe).
+    // Descriptions are project specialization (written by /review:specialize and
+    // /review:optimize-agents), so without this a template update reverts them to
+    // the generic one-liner. Gated by opts.preserveDescription so unmodified agents
+    // still pick up template description improvements.
+    if (opts.preserveDescription) {
+        const destDesc = extractFieldBlock(destLines, 'description');
+        if (destDesc) {
+            const destBlock = destLines.slice(destDesc.start, destDesc.end);
+            const resDesc = extractFieldBlock(result, 'description');
+            if (resDesc) {
+                result.splice(resDesc.start, resDesc.end - resDesc.start, ...destBlock);
+            } else {
+                // src had no description — insert after aliases / nickname / name
+                let insertAt = result.findIndex(l => /^aliases\s*:/.test(l));
+                if (insertAt < 0) insertAt = result.findIndex(l => /^nickname\s*:/.test(l));
+                if (insertAt < 0) insertAt = result.findIndex(l => /^name\s*:/.test(l));
+                if (insertAt >= 0) result.splice(insertAt + 1, 0, ...destBlock);
+            }
         }
     }
 
@@ -185,10 +233,15 @@ function mergeAgentFile(srcPath, dstPath, opts) {
 
     const personalized = isPersonalized(dest.frontmatter);
     const hasProjectCtx = dest.projectCtx.length > 0;
+    // A description is project specialization once the agent has been personalized
+    // or specialized (/review:personalize, /review:specialize, /review:optimize-agents
+    // all author project-specific descriptions). Preserve it in those cases so the
+    // generic template description doesn't clobber routing-tuned text on update.
+    const preserveDescription = personalized || hasProjectCtx;
 
-    // Merge frontmatter
-    const mergedFrontmatter = personalized
-        ? mergeFrontmatter(src.frontmatter, dest.frontmatter)
+    // Merge frontmatter (preserves nickname/aliases always; description when tuned)
+    const mergedFrontmatter = preserveDescription
+        ? mergeFrontmatter(src.frontmatter, dest.frontmatter, { preserveDescription })
         : src.frontmatter;
 
     // Choose soul zone
@@ -226,6 +279,7 @@ function mergeAgentFile(srcPath, dstPath, opts) {
     const details = [];
     if (personalized) details.push('preserved Soul Zone');
     if (hasProjectCtx) details.push('preserved Project Context');
+    if (preserveDescription && /^description\s*:/m.test(dest.frontmatter)) details.push('preserved description');
     const detail = details.length > 0
         ? `merged (${details.join(', ')})`
         : changed ? 'merged (no personalization)' : 'unchanged';
@@ -236,6 +290,7 @@ function mergeAgentFile(srcPath, dstPath, opts) {
 module.exports = {
     parseAgentSections,
     isPersonalized,
+    extractFieldBlock,
     mergeFrontmatter,
     mergeAgentFile,
 };

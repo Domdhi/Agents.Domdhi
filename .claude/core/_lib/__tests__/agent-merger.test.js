@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const fs = require('node:fs');
 const path = require('node:path');
 const { createTmpDir } = require('../../__tests__/_helpers/tmp-dir');
-const { parseAgentSections, mergeFrontmatter, mergeAgentFile } = require('../agent-merger');
+const { parseAgentSections, mergeFrontmatter, mergeAgentFile, extractFieldBlock } = require('../agent-merger');
 
 let tmp;
 
@@ -376,5 +376,158 @@ old-docs
         const merged = fs.readFileSync(destPath, 'utf8');
         expect(merged).toContain('nickname: Penny');
         expect(merged).toContain('aliases: [penny, doc]');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// extractFieldBlock
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('extractFieldBlock', () => {
+    it('returns the single line range for an inline field', () => {
+        const lines = ['name: a', 'description: hello world', 'tools: Read'];
+        expect(extractFieldBlock(lines, 'description')).toEqual({ start: 1, end: 2 });
+    });
+
+    it('captures indented continuation lines of a folded scalar', () => {
+        const lines = ['description: >', '  line one', '  line two', 'tools: Read'];
+        expect(extractFieldBlock(lines, 'description')).toEqual({ start: 0, end: 3 });
+    });
+
+    it('returns null when the field is absent', () => {
+        expect(extractFieldBlock(['name: a', 'model: sonnet'], 'description')).toBeNull();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeFrontmatter — description preservation (opt-in)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeFrontmatter description preservation', () => {
+    it('takes src description by default (no opts)', () => {
+        const src = 'name: a\ndescription: Generic template text.\nmodel: sonnet';
+        const dst = 'name: a\ndescription: Tuned project text.\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst);
+        expect(result).toContain('Generic template text.');
+        expect(result).not.toContain('Tuned project text.');
+    });
+
+    it('preserves dst description when preserveDescription is set', () => {
+        const src = 'name: a\ndescription: Generic template text.\nmodel: sonnet';
+        const dst = 'name: a\ndescription: Tuned project text.\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst, { preserveDescription: true });
+        expect(result).toContain('Tuned project text.');
+        expect(result).not.toContain('Generic template text.');
+    });
+
+    it('preserves a folded multi-line dst description block', () => {
+        const src = 'name: a\ndescription: Short.\ntools: Read';
+        const dst = 'name: a\ndescription: >\n  Tuned line one.\n  Tuned line two.\ntools: Read';
+        const result = mergeFrontmatter(src, dst, { preserveDescription: true });
+        expect(result).toContain('Tuned line one.');
+        expect(result).toContain('Tuned line two.');
+        expect(result).not.toMatch(/description: Short\./);
+    });
+
+    it('inserts dst description when src has none', () => {
+        const src = 'name: a\nmodel: sonnet';
+        const dst = 'name: a\ndescription: Tuned project text.\nmodel: sonnet';
+        const result = mergeFrontmatter(src, dst, { preserveDescription: true });
+        expect(result).toContain('description: Tuned project text.');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeAgentFile — description preservation by zone
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeAgentFile description preservation', () => {
+    const srcWithGenericDesc = `---
+name: architect
+description: Generic template description.
+model: inherit
+---
+
+# Architect
+
+Template soul.
+
+## Skills
+
+architecture-writer
+`;
+
+    it('preserves the tuned description when dest is personalized (has nickname)', () => {
+        const dst = `---
+name: architect
+nickname: Mason
+description: "Use when making architectural decisions: ADRs, tech stack."
+model: inherit
+---
+
+# Mason — System Architect
+
+Custom soul.
+
+## Skills
+
+old-skills
+`;
+        const srcPath = tmp.write('src/agents/architect.md', srcWithGenericDesc);
+        const destPath = tmp.write('dest/agents/architect.md', dst);
+        mergeAgentFile(srcPath, destPath);
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('Use when making architectural decisions');
+        expect(merged).not.toContain('Generic template description.');
+    });
+
+    it('preserves the tuned description when dest is specialized (Project Context, no nickname)', () => {
+        const dst = `---
+name: architect
+description: "Use when documenting ADRs for this project."
+model: inherit
+---
+
+# Architect
+
+Template soul.
+
+## Skills
+
+architecture-writer
+
+## Project Context
+
+This project uses .NET 10.
+`;
+        const srcPath = tmp.write('src/agents/architect-spec.md', srcWithGenericDesc);
+        const destPath = tmp.write('dest/agents/architect-spec.md', dst);
+        mergeAgentFile(srcPath, destPath);
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('Use when documenting ADRs for this project.');
+        expect(merged).not.toContain('Generic template description.');
+    });
+
+    it('takes the src description for a thin agent (no nickname, no Project Context)', () => {
+        const dst = `---
+name: architect
+description: Stale old description.
+model: inherit
+---
+
+# Architect
+
+Template soul.
+
+## Skills
+
+architecture-writer
+`;
+        const srcPath = tmp.write('src/agents/architect-thin.md', srcWithGenericDesc);
+        const destPath = tmp.write('dest/agents/architect-thin.md', dst);
+        mergeAgentFile(srcPath, destPath);
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).toContain('Generic template description.');
+        expect(merged).not.toContain('Stale old description.');
     });
 });

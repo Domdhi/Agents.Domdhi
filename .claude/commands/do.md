@@ -294,7 +294,7 @@ Main Agent holds both the spec and the codebase in context — no translation lo
    - Did I cover every AC bullet?
    - Did I follow the existing patterns from Step 3?
    - Did I stay within the file list from the plan?
-   - **Did I backtrack or abandon an approach during this story?** If yes, capture the rejected approach as a `rejected-approaches` memory BEFORE committing. Example payload: `{"content":{"approach":"tried X","why_rejected":"caused Y","story":"<story-id>"}}`. Use `/remember` for quick capture or `node .claude/core/memory-manager.js create rejected-approaches <slug> '<json>'` for structured. This prevents cross-session retry of the same dead ends.
+   - **Did I backtrack or abandon an approach during this story?** If yes, capture the rejected approach as a `rejected-approaches` memory BEFORE committing. Example payload: `{"content":{"approach":"tried X","why_rejected":"caused Y","story":"<story-id>","importance":2}}`. Include an `importance` score (rejected-approaches are usually 1–2 — narrow and will be obsolete once the story ships). Use `/remember` for quick capture or `node .claude/core/memory-manager.js create rejected-approaches <slug> '<json>'` for structured. This prevents cross-session retry of the same dead ends.
 
 Proceed to Step 7 (gate).
 

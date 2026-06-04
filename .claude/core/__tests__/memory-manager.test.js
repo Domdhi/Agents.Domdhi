@@ -139,8 +139,10 @@ describe('memory-manager', () => {
       expect(result.id).toBe('under_score_id');
     });
 
-    it('updateMemory_mergesContent_incrementsUsageCount', async () => {
-      // Arrange
+    it('updateMemory_mergesContent_doesNotIncrementUsageCount', async () => {
+      // ME-4.1: a write (content/metadata patch) is NOT a genuine recall, so
+      // updateMemory no longer bumps usage_count — the honest increment moved to
+      // searchMemories(). It still merges content and refreshes `updated`.
       const manager = makeManager();
       const created = await manager.createMemory('patterns', 'update_me', { a: 1 });
       const originalUpdated = created.updated;
@@ -155,7 +157,7 @@ describe('memory-manager', () => {
       expect(updated).not.toBeNull();
       expect(updated.content.a).toBe(1);
       expect(updated.content.b).toBe(2);
-      expect(updated.usage_count).toBe(1);
+      expect(updated.usage_count).toBe(0); // unchanged — update is not a recall
       expect(updated.updated).not.toBe(originalUpdated);
     });
 
@@ -983,7 +985,376 @@ describe('memory-manager', () => {
       expect(a.injection.avg_injected_count).toBeNull();
     });
 
+    // ME-1.1 — decay-independent dead-weight flagger
+    function writeBackdated(category, id, createdISO, overrides = {}) {
+      const base = {
+        id,
+        type: category.slice(0, -1),
+        category,
+        created: createdISO,
+        updated: createdISO,
+        usage_count: 0,
+        content: { description: 'seed' },
+        metadata: { confidence: 1.0 },
+        ...overrides,
+      };
+      tmp.write(`docs/.output/memories/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
+      return base;
+    }
+
+    it('generateAnalytics_neverUsedExposed40Days_flaggedAsDeadWeight', async () => {
+      // Arrange — tmp.root is not a git repo, so getActiveDaysSince falls back to
+      // calendar days. A never-used memory created 40 calendar-days ago is exposed
+      // past the 30-day window; a never-used 5-day-old one is NOT.
+      const manager = makeManager();
+      const old = new Date(Date.now() - 40 * 86400000).toISOString();
+      const recent = new Date(Date.now() - 5 * 86400000).toISOString();
+      writeBackdated('patterns', 'dead_old', old);
+      writeBackdated('patterns', 'fresh_new', recent);
+
+      // Act
+      const a = await manager.generateAnalytics();
+
+      // Assert — dead_weight section shape + correct flagging
+      expect(a.dead_weight).toBeDefined();
+      expect(a.dead_weight.exposure_min_active_days).toBe(30);
+      const ids = a.dead_weight.candidates.map(c => c.id);
+      expect(ids).toContain('dead_old');
+      expect(ids).not.toContain('fresh_new');
+
+      const cand = a.dead_weight.candidates.find(c => c.id === 'dead_old');
+      expect(cand.category).toBe('patterns');
+      expect(cand.active_days_since_created).toBeGreaterThanOrEqual(30);
+      expect(typeof cand.decayed_confidence).toBe('number');
+
+      // current → projected accounting + lower-bound caveat
+      expect(a.dead_weight.current_size).toBeGreaterThanOrEqual(2);
+      expect(a.dead_weight.projected_size_after).toBe(
+        a.dead_weight.current_size - a.dead_weight.candidates.length
+      );
+      expect(typeof a.dead_weight.caveat).toBe('string');
+      expect(a.dead_weight.caveat.toLowerCase()).toContain('lower bound');
+    });
+
+    it('generateAnalytics_usedButOldMemory_notDeadWeight', async () => {
+      // A memory with usage_count > 0 is never dead-weight regardless of exposure.
+      const manager = makeManager();
+      const old = new Date(Date.now() - 60 * 86400000).toISOString();
+      writeBackdated('patterns', 'old_but_used', old, { usage_count: 3 });
+
+      const a = await manager.generateAnalytics();
+
+      const ids = a.dead_weight.candidates.map(c => c.id);
+      expect(ids).not.toContain('old_but_used');
+    });
+
   }); // generateAnalytics
+
+  // ── importance (ME-2.1) ──────────────────────────────────────────────────────
+
+  describe('importance', () => {
+    it('createMemory_authorImportance_persistsTopLevelAndList', async () => {
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'imp_five', { description: 'x', importance: 5 });
+
+      // Top-level on the stored JSON (mirrors usage_count), not in content/metadata
+      const mem = await manager.readMemory('patterns', 'imp_five');
+      expect(mem.importance).toBe(5);
+
+      // Surfaced in the listMemories summary
+      const list = await manager.listMemories('patterns');
+      expect(list.find(m => m.id === 'imp_five').importance).toBe(5);
+    });
+
+    it('createMemory_noImportance_defaultsToThree', async () => {
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'imp_def', { description: 'x' });
+      const mem = await manager.readMemory('patterns', 'imp_def');
+      expect(mem.importance).toBe(3);
+      const list = await manager.listMemories('patterns');
+      expect(list.find(m => m.id === 'imp_def').importance).toBe(3);
+    });
+
+    it('createMemory_outOfRangeImportance_clampedToOneFive', async () => {
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'imp_hi', { description: 'x', importance: 9 });
+      await manager.createMemory('patterns', 'imp_lo', { description: 'x', importance: 0 });
+      expect((await manager.readMemory('patterns', 'imp_hi')).importance).toBe(5);
+      expect((await manager.readMemory('patterns', 'imp_lo')).importance).toBe(1);
+    });
+
+    it('listMemories_legacyMemoryNoImportance_backfillsThree', async () => {
+      // Legacy memory written before the importance field existed.
+      const manager = makeManager();
+      const legacy = {
+        id: 'legacy_mem', type: 'pattern', category: 'patterns',
+        created: '2020-01-01T00:00:00.000Z', updated: '2020-01-01T00:00:00.000Z',
+        usage_count: 0, content: { description: 'old' }, metadata: { confidence: 1.0 },
+      };
+      tmp.write('docs/.output/memories/patterns/legacy-mem.json', JSON.stringify(legacy, null, 2));
+
+      const list = await manager.listMemories('patterns');
+      expect(list.find(m => m.id === 'legacy_mem').importance).toBe(3);
+    });
+
+    it('ensureColumn_preExistingDbWithoutColumn_migratesIdempotently', async () => {
+      // Backend-agnostic (node:sqlite OR better-sqlite3): use the manager's own
+      // db handle. Simulate the pre-migration adopter schema by DROPping the
+      // importance column, then prove ensureColumn re-adds it and is a no-op on
+      // a second call. Skips only if SQLite is entirely unavailable.
+      const probe = makeManager();
+      if (!probe.initDb()) return; // JSON-only env — migration path N/A
+
+      // Simulate "old" DB: remove the column CREATE TABLE just added.
+      probe.db.exec('ALTER TABLE memories DROP COLUMN importance');
+      let cols = probe.db.prepare('PRAGMA table_info(memories)').all().map(c => c.name);
+      expect(cols).not.toContain('importance');
+
+      // Act — the migration seam re-adds it.
+      probe.ensureColumn('memories', 'importance', 'importance INTEGER DEFAULT 3');
+      cols = probe.db.prepare('PRAGMA table_info(memories)').all().map(c => c.name);
+      expect(cols).toContain('importance');
+
+      // Idempotent — a second call does not throw and adds nothing.
+      probe.ensureColumn('memories', 'importance', 'importance INTEGER DEFAULT 3');
+      const count = probe.db.prepare('PRAGMA table_info(memories)').all()
+        .filter(c => c.name === 'importance').length;
+      expect(count).toBe(1);
+
+      // A new memory persists its importance to the migrated column.
+      await probe.createMemory('patterns', 'mig_mem', { description: 'x', importance: 4 });
+      const row = probe.db.prepare('SELECT importance FROM memories WHERE id = ?').get('mig_mem');
+      expect(row.importance).toBe(4);
+    });
+  }); // importance
+
+  // ── importance retention floor (ME-2.2) ──────────────────────────────────────
+
+  describe('importance retention floor', () => {
+    it('calculateDecayedConfidence_lowImportanceNeverUsed_crossesStaleHighDoesNot', () => {
+      // Two memories identical except importance, both never used, on an "active
+      // repo" (tmp has no git → calendar fallback; ~14 days of decay puts the base
+      // decayed_confidence in a band where the importance factor decides STALE).
+      const manager = makeManager();
+      const updated = new Date(Date.now() - 14 * 86400000).toISOString();
+      const base = { category: 'patterns', usage_count: 0, updated, metadata: { confidence: 1.0 } };
+
+      const dLow = manager.calculateDecayedConfidence({ ...base, importance: 1 });
+      const dMid = manager.calculateDecayedConfidence({ ...base, importance: 3 });
+      const dHigh = manager.calculateDecayedConfidence({ ...base, importance: 5 });
+
+      // importance-1 falls below the 0.3 STALE_THRESHOLD; importance-5 does not
+      expect(dLow).toBeLessThan(0.3);
+      expect(dHigh).toBeGreaterThanOrEqual(0.3);
+      // monotonic in importance
+      expect(dLow).toBeLessThan(dMid);
+      expect(dMid).toBeLessThan(dHigh);
+    });
+
+    it('calculateDecayedConfidence_defaultAndLegacy_unchangedFromBaseCurve', () => {
+      // importance 3 (default) and a legacy memory with NO importance must produce
+      // the SAME decayed_confidence — the importance factor is normalized at 3 so
+      // existing memories are untouched (AC: no change to the decay curve itself).
+      const manager = makeManager();
+      const updated = new Date(Date.now() - 10 * 86400000).toISOString();
+      const base = { category: 'patterns', usage_count: 0, updated, metadata: { confidence: 1.0 } };
+
+      const dDefault = manager.calculateDecayedConfidence({ ...base, importance: 3 });
+      const dLegacy = manager.calculateDecayedConfidence({ ...base }); // no importance field
+      expect(dLegacy).toBeCloseTo(dDefault, 10);
+    });
+
+    it('calculateRelevance_higherImportance_scoresStrictlyHigher', () => {
+      // JSON fallback scoring site (:858-equivalent): identical except importance.
+      const manager = makeManager();
+      const mk = (importance) => ({
+        content: { description: 'a searchable token here' },
+        updated: new Date().toISOString(),
+        usage_count: 0,
+        importance,
+        metadata: { confidence: 1.0 },
+      });
+      const sLow = manager.calculateRelevance(mk(1), 'token');
+      const sHigh = manager.calculateRelevance(mk(5), 'token');
+      expect(sHigh).toBeGreaterThan(sLow);
+    });
+
+    it('searchMemories_sqlitePath_higherImportanceRelevanceStrictlyHigher', async () => {
+      // SQLite FTS relevance site (:578-equivalent). Identical content so FTS rank,
+      // confidence, and usage all match — only the importance term differs.
+      const manager = makeManager();
+      if (!manager.initDb()) return; // requires SQLite FTS path
+      await manager.createMemory('patterns', 'imp_low_s', { description: 'zebrafish marker token', importance: 1 });
+      await manager.createMemory('patterns', 'imp_high_s', { description: 'zebrafish marker token', importance: 5 });
+
+      const results = await manager.searchMemories('zebrafish');
+      const low = results.find(r => r.id === 'imp_low_s');
+      const high = results.find(r => r.id === 'imp_high_s');
+      expect(low).toBeTruthy();
+      expect(high).toBeTruthy();
+      expect(high.relevance).toBeGreaterThan(low.relevance);
+    });
+  }); // importance retention floor
+
+  // ── supersession (ME-3.1) ────────────────────────────────────────────────────
+
+  describe('supersession filter', () => {
+    function writeMem(category, id, overrides = {}) {
+      const base = {
+        id, type: category.slice(0, -1), category,
+        created: '2024-01-01T00:00:00.000Z', updated: '2024-01-01T00:00:00.000Z',
+        usage_count: 0, content: { description: 'seed token here' }, metadata: { confidence: 1.0 },
+        ...overrides,
+      };
+      tmp.write(`docs/.output/memories/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
+      return base;
+    }
+
+    it('listMemories_supersededMemory_hiddenByDefaultVisibleWithFlag', async () => {
+      const manager = makeManager();
+      writeMem('patterns', 'live_one');
+      writeMem('patterns', 'dead_one', { invalid_at: '2024-02-01T00:00:00.000Z', superseded_by: 'live_one' });
+
+      const def = await manager.listMemories('patterns');
+      expect(def.map(m => m.id)).toContain('live_one');
+      expect(def.map(m => m.id)).not.toContain('dead_one');
+
+      const all = await manager.listMemories('patterns', { includeSuperseded: true });
+      expect(all.map(m => m.id)).toContain('dead_one');
+      // summary surfaces invalid_at for downstream (ME-3.2 count)
+      expect(all.find(m => m.id === 'dead_one').invalid_at).toBe('2024-02-01T00:00:00.000Z');
+    });
+
+    it('listMemories_legacyNoSupersedeColumns_treatedAsNotSuperseded', async () => {
+      // default-on-read: a memory with no invalid_at field is live
+      const manager = makeManager();
+      writeMem('patterns', 'legacy_live'); // no invalid_at key at all
+      const def = await manager.listMemories('patterns');
+      expect(def.map(m => m.id)).toContain('legacy_live');
+    });
+
+    it('searchMemories_sqlitePath_excludesSupersededByDefault', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return;
+      await manager.createMemory('patterns', 'srch_live', { description: 'kangaroo token' });
+      await manager.createMemory('patterns', 'srch_dead', { description: 'kangaroo token' });
+      // Mark one superseded directly in the db (ME-3.2 adds the supersede() method).
+      manager.db.prepare('UPDATE memories SET invalid_at = ? WHERE id = ?')
+        .run('2024-02-01T00:00:00.000Z', 'srch_dead');
+
+      const def = await manager.searchMemories('kangaroo');
+      expect(def.map(r => r.id)).toContain('srch_live');
+      expect(def.map(r => r.id)).not.toContain('srch_dead');
+
+      const all = await manager.searchMemories('kangaroo', { includeSuperseded: true });
+      expect(all.map(r => r.id)).toContain('srch_dead');
+    });
+
+    it('ensureColumn_supersedeColumns_addedIdempotently', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return;
+      const cols = manager.db.prepare('PRAGMA table_info(memories)').all().map(c => c.name);
+      expect(cols).toContain('invalid_at');
+      expect(cols).toContain('superseded_by');
+    });
+  }); // supersession filter
+
+  // ── supersede + overlap detection (ME-3.2) ───────────────────────────────────
+
+  describe('supersede and overlap', () => {
+    it('createMemory_overlappingSameCategory_flagsPredecessor', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return; // FTS5 required
+      await manager.createMemory('patterns', 'overlap_old', { description: 'kangaroo marsupial pouch token' });
+      const created = await manager.createMemory('patterns', 'overlap_new', { description: 'kangaroo marsupial pouch token' });
+
+      // Detection FLAGS the predecessor on the returned object — does NOT auto-supersede
+      expect(Array.isArray(created.supersedes_candidates)).toBe(true);
+      expect(created.supersedes_candidates).toContain('overlap_old');
+      // old memory is still live (flag only)
+      const oldMem = await manager.readMemory('patterns', 'overlap_old');
+      expect(oldMem.invalid_at == null).toBe(true);
+    });
+
+    it('createMemory_noOverlap_noCandidatesOrEmpty', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return;
+      const created = await manager.createMemory('patterns', 'unique_one', { description: 'xylophone quokka zeppelin' });
+      expect(created.supersedes_candidates ?? []).toEqual([]);
+    });
+
+    it('supersede_marksOldInvalidHidesFromReads_idempotent', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return;
+      await manager.createMemory('patterns', 'sup_old', { description: 'wombat token findme' });
+      await manager.createMemory('patterns', 'sup_new', { description: 'wombat token findme improved' });
+
+      const res = await manager.supersede('patterns', 'sup_old', 'sup_new');
+      expect(res.superseded).toBe(true);
+
+      // JSON now carries invalid_at + superseded_by
+      const oldMem = await manager.readMemory('patterns', 'sup_old');
+      expect(typeof oldMem.invalid_at).toBe('string');
+      expect(oldMem.superseded_by).toBe('sup_new');
+
+      // hidden from default list + search; new one still present
+      const list = await manager.listMemories('patterns');
+      expect(list.map(m => m.id)).not.toContain('sup_old');
+      const found = await manager.searchMemories('wombat');
+      expect(found.map(r => r.id)).not.toContain('sup_old');
+
+      // idempotent — re-run does not error and keeps the original timestamp
+      const firstTs = oldMem.invalid_at;
+      const res2 = await manager.supersede('patterns', 'sup_old', 'sup_new');
+      expect(res2.superseded).toBe(true);
+      expect((await manager.readMemory('patterns', 'sup_old')).invalid_at).toBe(firstTs);
+    });
+
+    it('generateAnalytics_reportsSupersededCount', async () => {
+      const manager = makeManager();
+      if (!manager.initDb()) return;
+      await manager.createMemory('patterns', 'an_live', { description: 'active one' });
+      await manager.createMemory('patterns', 'an_old', { description: 'old one' });
+      await manager.createMemory('patterns', 'an_repl', { description: 'replacement' });
+      await manager.supersede('patterns', 'an_old', 'an_repl');
+
+      const a = await manager.generateAnalytics();
+      expect(a.supersession).toBeDefined();
+      expect(a.supersession.superseded).toBe(1);
+      // active count excludes the superseded memory
+      expect(a.supersession.active).toBe(2);
+    });
+  }); // supersede and overlap
+
+  // ── honest usage (ME-4.1) ────────────────────────────────────────────────────
+
+  describe('honest usage', () => {
+    it('updateMemory_noLongerIncrementsUsageCount', async () => {
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'upd_mem', { description: 'seed' });
+      expect((await manager.readMemory('patterns', 'upd_mem')).usage_count).toBe(0);
+
+      // a metadata/content patch is NOT a recall — usage must stay put
+      await manager.updateMemory('patterns', 'upd_mem', { content: { extra: 'patch' } });
+      expect((await manager.readMemory('patterns', 'upd_mem')).usage_count).toBe(0);
+    });
+
+    it('searchMemories_genuineRecall_incrementsOncePersistsSurvivesReload', async () => {
+      const manager = makeManager();
+      await manager.createMemory('patterns', 'recall_mem', { description: 'platypus token here' });
+      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(0);
+
+      // each search = one genuine recall = +1, persisted to the JSON source of truth
+      await manager.searchMemories('platypus');
+      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(1);
+      await manager.searchMemories('platypus');
+      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(2);
+
+      // survives a reload (new manager reading the same store)
+      const reopened = makeManager();
+      expect((await reopened.readMemory('patterns', 'recall_mem')).usage_count).toBe(2);
+    });
+  }); // honest usage
 
   // ── ingestAgentMemory ───────────────────────────────────────────────────────
 

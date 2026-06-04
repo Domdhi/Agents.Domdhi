@@ -1,6 +1,7 @@
 // AC→source map (session-start-prime, structured-memory source):
-//   - parseMemory: parses JSON memory; handles missing fields; returns null on bad JSON
-//   - rankConcepts: orders by decayed_confidence × recency × log(1+usage_count)
+//   - parseMemory: parses JSON memory; handles missing fields; returns null on bad JSON;
+//                  extracts importance (top-level/content, default 3) + invalid_at + raw_usage
+//   - rankConcepts (ME-4.2): importance-floored decayed × recency primary; usage tiebreaker only
 //   - renderOutput: returns '<project_memory>...' XML block with slug/conf/summary lines
 //   - processEvent: profile gate (minimal → null); missing memoriesDir → null; with memories → output string
 //   - processEvent: CLAUDE_PROJECT_DIR env var controls source path
@@ -94,6 +95,23 @@ describe('parseMemory', () => {
         });
         const result = parseMemory(json, 'patterns', 'unused.json');
         expect(result.usage_count).toBe(1);
+        expect(result.raw_usage).toBe(0); // unfloored, for the tiebreaker
+    });
+
+    it('parseMemory_importance_topLevelThenContentThenDefault', () => {
+        const top = parseMemory(JSON.stringify({ id: 'a', importance: 5, content: { description: 'x' } }), 'patterns', 'a.json');
+        expect(top.importance).toBe(5);
+        const inContent = parseMemory(JSON.stringify({ id: 'b', content: { description: 'x', importance: 2 } }), 'patterns', 'b.json');
+        expect(inContent.importance).toBe(2);
+        const def = parseMemory(JSON.stringify({ id: 'c', content: { description: 'x' } }), 'patterns', 'c.json');
+        expect(def.importance).toBe(3);
+    });
+
+    it('parseMemory_invalidAt_surfacedForSupersededSkip', () => {
+        const sup = parseMemory(JSON.stringify({ id: 'd', invalid_at: '2026-01-01T00:00:00.000Z', content: { description: 'x' } }), 'patterns', 'd.json');
+        expect(sup.invalid_at).toBe('2026-01-01T00:00:00.000Z');
+        const live = parseMemory(JSON.stringify({ id: 'e', content: { description: 'x' } }), 'patterns', 'e.json');
+        expect(live.invalid_at).toBeNull();
     });
 
     it('parseMemory_missingId_fallsBackToFilename', () => {
@@ -132,19 +150,59 @@ describe('parseMemory', () => {
 // ---------------------------------------------------------------------------
 
 describe('rankConcepts', () => {
-    it('rankConcepts_ordersByDecayedTimesRecencyTimesUsage', () => {
+    it('rankConcepts_ordersByImportanceFlooredDecayTimesRecency_usageNotPrimary', () => {
         const today = new Date().toISOString().slice(0, 10);
         const stubManager = {
             calculateDecayedConfidence: vi.fn(({ metadata }) => metadata.confidence)
         };
         const concepts = [
-            { slug: 'low-conf', confidence: 0.3, updated: today, usage_count: 10, category: 'patterns' },
-            { slug: 'high-conf', confidence: 0.9, updated: today, usage_count: 10, category: 'patterns' },
-            { slug: 'stale', confidence: 0.9, updated: '2025-01-01', usage_count: 10, category: 'patterns' },
+            { slug: 'low-conf', confidence: 0.3, updated: today, usage_count: 10, raw_usage: 10, category: 'patterns' },
+            { slug: 'high-conf', confidence: 0.9, updated: today, usage_count: 10, raw_usage: 10, category: 'patterns' },
+            { slug: 'stale', confidence: 0.9, updated: '2025-01-01', usage_count: 10, raw_usage: 10, category: 'patterns' },
         ];
         const ranked = rankConcepts(concepts, stubManager);
         expect(ranked[0].slug).toBe('high-conf');
         expect(ranked[0].slug).not.toBe('stale');
+    });
+
+    it('rankConcepts_usageIsNoLongerPrimary_highUsageLowConfRanksBelowLowUsageHighConf', () => {
+        // Under the OLD formula (decayed × recency × log(1+usage)) the heavy-usage
+        // low-confidence memory would win. Under ME-4.2 it must NOT — usage is only
+        // a tiebreaker, so the high-confidence memory ranks first.
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = { calculateDecayedConfidence: vi.fn(({ metadata }) => metadata.confidence) };
+        const concepts = [
+            { slug: 'heavy-usage-low-conf', confidence: 0.3, updated: today, usage_count: 100, raw_usage: 100, category: 'patterns' },
+            { slug: 'light-usage-high-conf', confidence: 0.9, updated: today, usage_count: 1, raw_usage: 1, category: 'patterns' },
+        ];
+        const ranked = rankConcepts(concepts, stubManager);
+        expect(ranked[0].slug).toBe('light-usage-high-conf');
+    });
+
+    it('rankConcepts_usageBreaksTies_whenScoresEqual', () => {
+        // Identical confidence + recency → equal primary score → usage breaks the tie.
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = { calculateDecayedConfidence: vi.fn(({ metadata }) => metadata.confidence) };
+        const concepts = [
+            { slug: 'tie-low-usage', confidence: 0.7, updated: today, usage_count: 1, raw_usage: 1, category: 'patterns' },
+            { slug: 'tie-high-usage', confidence: 0.7, updated: today, usage_count: 9, raw_usage: 9, category: 'patterns' },
+        ];
+        const ranked = rankConcepts(concepts, stubManager);
+        expect(ranked[0].slug).toBe('tie-high-usage');
+    });
+
+    it('rankConcepts_passesImportanceIntoDecayCalc', () => {
+        // Importance is the primary signal — it must reach calculateDecayedConfidence
+        // (the ME-2.2 floor) rather than being ignored.
+        const today = new Date().toISOString().slice(0, 10);
+        const stubManager = { calculateDecayedConfidence: vi.fn(({ metadata }) => metadata.confidence) };
+        const concepts = [
+            { slug: 'imp', confidence: 0.7, updated: today, usage_count: 1, raw_usage: 1, importance: 5, category: 'patterns' },
+        ];
+        rankConcepts(concepts, stubManager);
+        expect(stubManager.calculateDecayedConfidence).toHaveBeenCalledWith(
+            expect.objectContaining({ importance: 5 })
+        );
     });
 
     it('rankConcepts_mutatesConceptsWithScore', () => {

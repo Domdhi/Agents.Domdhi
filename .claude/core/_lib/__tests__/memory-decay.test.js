@@ -14,7 +14,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
-const { calculateDecayedConfidence, createActiveDaysResolver } = require('../memory-decay');
+const { calculateDecayedConfidence, createActiveDaysResolver, halveUsageCount } = require('../memory-decay');
 const { createTmpDir } = require('../../__tests__/_helpers/tmp-dir');
 const { createGitRepo, gitAvailable } = require('../../__tests__/_helpers/git-fixture');
 
@@ -250,5 +250,29 @@ describe('createActiveDaysResolver', () => {
       expect(result).toBeLessThanOrEqual(3);
     }
   );
+
+  // ── halveUsageCount (ME-4.1) ───────────────────────────────────────────────
+  describe('halveUsageCount', () => {
+    it('halves once per full halving period of silent active days', () => {
+      expect(halveUsageCount(8, 14, 14)).toBe(4);   // exactly one halving
+      expect(halveUsageCount(8, 28, 14)).toBe(2);   // two halvings
+      expect(halveUsageCount(8, 42, 14)).toBe(1);   // three halvings
+    });
+
+    it('does not reduce before a full period has elapsed', () => {
+      expect(halveUsageCount(8, 0, 14)).toBe(8);
+      expect(halveUsageCount(8, 13, 14)).toBe(8);   // <1 period → unchanged (floor)
+    });
+
+    it('returns 0 for a zero/invalid counter and is safe on bad inputs', () => {
+      expect(halveUsageCount(0, 100, 14)).toBe(0);
+      expect(halveUsageCount(-5, 100, 14)).toBe(0);
+      expect(halveUsageCount(NaN, 100, 14)).toBe(0);
+    });
+
+    it('disabled (halveEveryDays <= 0) leaves the counter unchanged', () => {
+      expect(halveUsageCount(8, 100, 0)).toBe(8);
+    });
+  });
 
 });

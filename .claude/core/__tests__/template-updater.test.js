@@ -22,6 +22,7 @@ const {
   mergeAgentFile,
   walkDir,
   runUpdate,
+  loadExcludedSkills,
 } = updater;
 
 let tmp;
@@ -711,6 +712,82 @@ describe('runUpdate dry-run', () => {
     // Neither the test file nor the real file should be written in dry-run
     expect(fs.existsSync(path.join(tmp.root, 'target', '.claude', '__tests__', 'foo.test.js'))).toBe(false);
     expect(fs.existsSync(path.join(tmp.root, 'target', '.claude', 'core', 'real.js'))).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-project skill exclusion (update-config.json → skillExclude)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('loadExcludedSkills', () => {
+  it('returns empty set when update-config.json is absent', () => {
+    const claudeDir = tmp.mkdir('t1/.claude');
+    expect(loadExcludedSkills(claudeDir).size).toBe(0);
+  });
+
+  it('reads the skillExclude array', () => {
+    tmp.mkdir('t2/.claude');
+    tmp.write('t2/.claude/update-config.json', JSON.stringify({ skillExclude: ['tailwind-css-patterns', 'redesign-existing-projects'] }));
+    const set = loadExcludedSkills(path.join(tmp.root, 't2', '.claude'));
+    expect(set.has('tailwind-css-patterns')).toBe(true);
+    expect(set.has('redesign-existing-projects')).toBe(true);
+    expect(set.size).toBe(2);
+  });
+
+  it('returns empty set (no throw) on malformed JSON', () => {
+    tmp.mkdir('t3/.claude');
+    tmp.write('t3/.claude/update-config.json', '{ not valid json');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const set = loadExcludedSkills(path.join(tmp.root, 't3', '.claude'));
+    spy.mockRestore();
+    expect(set.size).toBe(0);
+  });
+
+  it('returns empty set when skillExclude is missing or not an array', () => {
+    tmp.mkdir('t4/.claude');
+    tmp.write('t4/.claude/update-config.json', JSON.stringify({ skillExclude: 'tailwind' }));
+    expect(loadExcludedSkills(path.join(tmp.root, 't4', '.claude')).size).toBe(0);
+  });
+});
+
+describe('runUpdate — skill exclusion', () => {
+  let originalProjectDir;
+  beforeEach(() => { originalProjectDir = process.env.CLAUDE_PROJECT_DIR; });
+  afterEach(() => {
+    if (originalProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = originalProjectDir;
+  });
+
+  it('skips an excluded skill but copies others', () => {
+    // Source ships two skills
+    tmp.write('src/.claude/skills/tailwind-css-patterns/SKILL.md', '# tailwind');
+    tmp.write('src/.claude/skills/architecture-writer/SKILL.md', '# architecture');
+    // Target opts out of tailwind
+    tmp.mkdir('target/.claude');
+    tmp.write('target/.claude/update-config.json', JSON.stringify({ skillExclude: ['tailwind-css-patterns'] }));
+
+    process.env.CLAUDE_PROJECT_DIR = path.join(tmp.root, 'src');
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), {});
+    spy.mockRestore();
+
+    const twPath = path.join(tmp.root, 'target', '.claude', 'skills', 'tailwind-css-patterns', 'SKILL.md');
+    const awPath = path.join(tmp.root, 'target', '.claude', 'skills', 'architecture-writer', 'SKILL.md');
+    expect(fs.existsSync(twPath)).toBe(false);   // excluded — not copied
+    expect(fs.existsSync(awPath)).toBe(true);    // not excluded — copied
+  });
+
+  it('copies all skills when no update-config.json exists', () => {
+    tmp.write('src/.claude/skills/tailwind-css-patterns/SKILL.md', '# tailwind');
+    tmp.mkdir('target/.claude');
+
+    process.env.CLAUDE_PROJECT_DIR = path.join(tmp.root, 'src');
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), {});
+    spy.mockRestore();
+
+    const twPath = path.join(tmp.root, 'target', '.claude', 'skills', 'tailwind-css-patterns', 'SKILL.md');
+    expect(fs.existsSync(twPath)).toBe(true);
   });
 });
 

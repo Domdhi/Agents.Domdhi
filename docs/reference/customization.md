@@ -16,6 +16,7 @@ When updating the template (via subtree, copy, or future update mechanism), some
 | `.claude/agents/*.md` (11 base) | **Mixed** | **Merge** — see Agent File Zones below |
 | `.claude/agents/*.md` (project-added) | **Project** | **Preserve** — agents added by `/specialize` or manually |
 | `.claude/settings.json` | **Project** | **Preserve** — project-specific permissions, env vars, hook paths |
+| `.claude/update-config.json` | **Project** | **Preserve** — per-project updater config (`skillExclude`); read by the updater to skip opted-out skills |
 | `docs/reference/customization.md` | Template | **Overwrite** — this file |
 | `CLAUDE.md` (target's root) | **Project** | **Never touch** — projects own their root Claude Code instructions |
 | Source `CLAUDE.md` → target `.claude/README.md` | Doc redirect | **Overwrite** — template self-documentation co-located with the files it documents |
@@ -32,7 +33,7 @@ name: agent-name                   Overwrite on update — except:
 nickname: {name}                     nickname  → Preserve (set by /personalize)
 aliases: [...]                       aliases   → Preserve (set by /personalize)
 model: sonnet                        model     → Overwrite
-description: ...                     description → Overwrite
+description: ...                     description → Preserve if personalized/specialized; else Overwrite
 tools: ...                           tools     → Overwrite
 skills: ...                          skills    → Overwrite
 memory: project                      memory    → Overwrite
@@ -57,11 +58,12 @@ Tech Stack, ADRs, Conventions      this section doesn't exist (nothing to preser
 ```
 
 **Update algorithm for agents:**
-1. Overwrite frontmatter (except `nickname` and `aliases`)
-2. If Soul Zone was personalized (not thin defaults) → preserve it
-3. Overwrite Skills section
-4. If Project Context section exists → preserve it
-5. If neither personalized nor specialized → full overwrite is safe
+1. Overwrite frontmatter (except `nickname` and `aliases`, always preserved)
+2. If the agent is personalized (`nickname`) or specialized (`## Project Context`) → also preserve its `description` — it's tuned by `/personalize`, `/specialize`, and `/optimize-agents`, and the generic template description would otherwise clobber routing-critical text
+3. If Soul Zone was personalized (not thin defaults) → preserve it
+4. Overwrite Skills section
+5. If Project Context section exists → preserve it
+6. If neither personalized nor specialized → full overwrite is safe (so thin agents still pick up template description improvements)
 
 ## Skill Exceptions
 
@@ -71,6 +73,16 @@ Most skills are template content. One exception:
 |-------|------|-------|
 | `brand-guidelines/**` (whole tree) | **Project** | Customized per-project with brand colors, typography, visual identity, logo assets, palette files. Whole subtree preserved on update — any sub-docs added in the target stay project-owned. |
 | All others (including `references/`, `examples/`, sibling `.md`/`.ts`/`.dot`/`.sh`) | Template | Overwrite on update. SKILL.md **and** its sibling support files (anthropic-best-practices, graphviz-conventions, references/*, etc.) propagate together — they're authored as a unit in the template, so partial propagation leaves SKILL.md pointing at missing references. |
+
+### Opting out of template skills
+
+A project can permanently decline template skills it doesn't use — e.g. `tailwind-css-patterns` in a DevExpress/Blazor project, or the atomic workflow skills in a project that consolidated them — by listing the skill directory names in `.claude/update-config.json`:
+
+```json
+{ "skillExclude": ["tailwind-css-patterns", "design-taste-frontend", "redesign-existing-projects"] }
+```
+
+`template-updater.js` reads this file from the **target** project and skips any listed skill on every update, so skills a project deliberately removed don't silently return on the next sync. The config is Project zone — the updater never overwrites it. (Description preservation, above, prevents the parallel problem of `/optimize-agents`-tuned descriptions reverting on update.)
 
 ## Detection Heuristics
 

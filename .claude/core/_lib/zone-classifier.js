@@ -41,6 +41,9 @@ const TEMPLATE_GLOBS = [
 const PROJECT_FILES = [
     'settings.json',
     'settings.local.json',
+    // Per-project updater config (e.g. skillExclude). Owned by the target — the
+    // updater reads it to decide what to skip, so it must never be overwritten.
+    'update-config.json',
 ];
 
 /**

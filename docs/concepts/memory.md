@@ -67,6 +67,42 @@ Both paths feed the same ranking and decay pipeline. `memory-promoter.js scan` a
 
 Note: compiled concept articles produced by `memory-compiler.js` were retired 2026-04-20 — the file remains for backward compat in adopter projects but is not part of the active pipeline.
 
+## Importance (the retention floor)
+
+Confidence answers "how sure are we this is true?" — it doesn't answer "how much does this matter?" Those are different questions, and on an actively-committed project they pull apart: a true-but-trivial memory and a true-and-foundational one both sit at high confidence and neither decays, so the store only grows. **Importance** is the second axis that fixes this.
+
+Every memory carries an `importance` score from 1 to 5, assigned **once at write time** by the author (the Main Agent, at session-handoff). It lives at `content.importance` and defaults to 3 when omitted (and for legacy memories with no score — backfill-on-read).
+
+| Importance | Meaning |
+|------------|---------|
+| 5 | Architecture-level / foundational — platform constraints, ADR-locked decisions, things that rarely change |
+| 3 | Default — a useful cross-project insight |
+| 1 | Ephemeral / narrow — story-specific tips that will be obsolete in weeks (e.g. most `rejected-approaches`) |
+
+Importance is the **retention floor**: `calculateDecayedConfidence` multiplies the active-work-day decay curve by `importance / 3`. A score of 3 leaves a memory unchanged (so the whole existing store is untouched); importance ≤2 lowers the effective floor so a low-value, never-recalled memory can cross the stale threshold **even on an active repo where decay alone never fires**; importance ≥4 resists decay. This is the fix for the hoarding root cause — decay-based pruning could never reach never-recalled memories on a project that keeps committing.
+
+Why write-time and not measured-after: the signal you'd want — "was this memory actually used?" — is unmeasurable here, because the biggest consumer (session-start injection) reads memories without leaving any trace. So `usage_count` is a *lower bound*, not a usage truth. Scoring intrinsic importance once, at the moment of authoring (when full context is in hand), sidesteps the unmeasurable signal entirely. See [[importance-at-write-beats-usage-after]] and [[memory-eviction-prefer-admission-over-access-count]].
+
+## Supersession (forgetting by validity)
+
+Some memories don't decay — they become *wrong*. A memory that was true when written but has since been replaced should be forgotten, regardless of confidence or importance. Supersession handles this as a pure validity filter, no live model at query time.
+
+Each memory has two nullable columns: `invalid_at` (an ISO timestamp) and `superseded_by` (the replacing memory's id). A memory with `invalid_at` set is **hidden from all current-state reads** — `listMemories`, `searchMemories`, and session-start injection all exclude it by default — but kept on disk as history (readable with `{ includeSuperseded: true }`).
+
+It's **flag-then-confirm**, never automatic: at write time `createMemory` runs a cheap FTS5 same-category overlap query and attaches likely-superseded predecessor ids to the result as `supersedes_candidates` (an LLM-free flag). The Main Agent reviews these at `/end` and confirms each with `memory-manager.js supersede <category> <oldId> <newId>`, which stamps the columns and deindexes the old entry from the active FTS. Nothing is forgotten without a human/Main-Agent decision. See [[forget-by-validity-not-usage-signal]].
+
+## Honest usage and injection ranking
+
+`usage_count` used to grow on any write (metadata patch, echo-boost, confidence bump) and was a primary multiplier in injection ranking — both wrong, because a write isn't a recall and an unmeasurable lower bound shouldn't dominate. Now:
+
+- `usage_count` increments **only on genuine retrieval** (`searchMemories`), write-through to both the JSON source of truth and the SQLite row, exactly once per recall. `updateMemory` no longer touches it, and passive session-start injection still never does (so the lower-bound honesty is preserved).
+- It ages: `halveUsageCount` (in `_lib/memory-decay.js`) halves the counter every `USAGE_HALVE_EVERY_DAYS` (14) silent active-days, so a once-popular-now-cold memory stops winning forever.
+- **Injection ranking** (`session-start-prime.cjs`) is now `importance-floored decayed_confidence × recency` as the primary score, with the aged usage count as a **tiebreaker only**. A hard top-N size budget (`MEMORY_PRIME_COUNT` or `DEFAULT_N=8`) forces ranking down to the budget even when nothing has aged.
+
+The custom retrieval-accuracy harness (`node .claude/core/memory-eval.js`, or `npm run memory:eval`) validates that this pruning *improves* retrieval rather than just shrinking the store: it scores hit@k for a pruned store vs a keep-everything store and reports the delta (keep-everything is measurably worse — consistent with LongMemEval's finding).
+
+Design record: `docs/.output/research/2026-06-04-memory-eviction-retention-research.md`.
+
 ## Key scripts
 
 | Script | What it does |
