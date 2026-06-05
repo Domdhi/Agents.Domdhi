@@ -110,11 +110,33 @@ confirm_patterns:
   - git stash clear                    # permanently removes ALL stash entries
 
   # --- Filesystem: Recursive deletion ---
-  # rm -rf / -fr: confirm EXCEPT when the target is a tmp path (/tmp/...) or a
-  # $T*/$TMPDIR-style variable. Sub-agent tmp-dir cleanups (rm -rf "$T") during
-  # /run-todo e2e work were prompting on every run; real project-path deletes
-  # still confirm. (Dom, 2026-06-03)
-  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!.*(\/tmp\/|\$\{?T))/
+  # rm -rf / -fr: confirm EXCEPT when the FIRST argument is a clearly-disposable
+  # path. Autonomous sub-agents (code-reviewer verification, /run-todo e2e)
+  # routinely create + delete scratch dirs; prompting on every cleanup stalled
+  # the whole flow waiting for a confirmation no sub-agent can answer.
+  #
+  # CRITICAL — the exemption binds to the FIRST rm argument (the lookahead sits
+  # immediately after the flags, with NO leading `.*`). An earlier version used
+  # `(?!.*(…))` which scanned the whole line, so a trailing exempt token disarmed
+  # the guard for a dangerous target — e.g. `rm -rf ~/important && echo /tmp`
+  # passed silently. Binding to the first arg closes that bypass: the temp token
+  # must be the rm target itself. Chained dangerous deletes still confirm because
+  # the matcher also fires on a later `rm -rf <dangerous>` segment; substring
+  # look-alikes like `~/node_modules_backup` confirm (token must START the arg).
+  #
+  # Exempted (no prompt) — only when it is the rm's first argument:
+  #   /tmp, /tmp/...            (Linux/WSL temp)
+  #   ./tmp/ or tmp/ relative   scratch dirs
+  #   $TMPDIR / $TMP / $T*      variables
+  #   mktemp                    (rare: mktemp literal right after the flags)
+  #   node_modules              (always reinstallable)
+  #   /var/folders/             (macOS GUI temp)
+  #   .sandbox                  (the repo's gitignored disposable area)
+  # Real project-path deletes (rm -rf ./src, repo root, ~, /, sudo rm -rf /etc)
+  # STILL confirm. The path-tier check (zeroAccess/readOnly/noDelete) remains the
+  # enforcing guard for explicitly-protected paths. (Dom 2026-06-03; widened then
+  # first-arg-bound to close a whole-line-lookahead bypass 2026-06-05)
+  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
   - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
   - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
 

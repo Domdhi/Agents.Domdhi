@@ -27,6 +27,9 @@ node_modules/
 # Ephemeral output (rebuilt from source or session-specific)
 # Tracked (NOT listed here): plans/, reviews/, research/, investigations/, work/
 .claude/.agents.docs/
+# commit.js scratch file — rewritten on every commit; tracking it leaves the
+# tree perpetually dirty (and re-tracks itself when commit.js --all runs).
+docs/.output/.commit-msg
 docs/.output/memories/
 docs/.output/screenshots*/
 docs/.output/sessions*/

@@ -22,8 +22,9 @@ Commands are the **orchestration layer** of the three-tier architecture. They do
 | `/create:project-epics-todo` | Per-epic story checklists → `todo/TODO_epic{NN}.md` |
 | `/create:component` | Create a new agent, command, or skill following conventions |
 | `/create:new-project` | Master orchestrator — scaffolds `docs/` and runs the full Setup pipeline → `_project-context.md` |
+| `/onboard` | Brownfield bootstrapper — reverse-engineers `_project-architecture.md` + `_project-context.md` from existing code; merges CLAUDE.md additively; chains `/review:specialize` |
 
-Twelve commands. Run them in roughly that order the first time you drop this template into a repo. The `/create:project-*` chain has hard gates — each one checks that the previous artifact exists before it runs (see "Hard gates" below).
+Thirteen commands. Run them in roughly that order the first time you drop this template into a repo — or run `/onboard` first if the repo already has code. The `/create:project-*` chain has hard gates — each one checks that the previous artifact exists before it runs (see "Hard gates" below).
 
 ### Build Loop (daily)
 
@@ -106,6 +107,7 @@ Two commands own their own commit logic instead: `/do` and `/run-todo`. They com
 Start with intent, not inventory:
 
 - **I want to start a new project** → `/brainstorm`, then work down the Setup list.
+- **I have an existing codebase and want to bootstrap docs** → `/onboard`.
 - **I'm resuming a session** → `/prime`.
 - **I have a story ID and want to ship it** → `/do {story-id}`.
 - **I have a whole epic ready to execute** → `/run-todo {epic-or-path}`.

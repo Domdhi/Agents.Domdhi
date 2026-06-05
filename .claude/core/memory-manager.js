@@ -79,32 +79,55 @@ function buildFtsQuery(searchTerm) {
 
 // SQLite backend resolution — preference order:
 //   1. better-sqlite3 (npm, optionalDependency) — ships its own SQLite compiled
-//      with FTS5. The only backend where full-text search actually works.
-//   2. node:sqlite (built-in, Node 22+ flagged / 24+ stable) — convenient, but
-//      Node's bundled SQLite ships WITHOUT FTS5 as of v24, so CREATE VIRTUAL
-//      TABLE...USING fts5 throws "no such module: fts5". indexMemory()'s
-//      try/catch survives this, but the FTS index is dead weight.
+//      with FTS5. A fallback for Node < 24, where the built-in may lack FTS5.
+//   2. node:sqlite (built-in, Node 22+ flagged / 24+ stable) — on Node 24+ this
+//      ships WITH FTS5 compiled in, so full-text search works with ZERO npm
+//      dependencies. Older bundles may not have it, so don't assume either way:
+//      we PROBE FTS5 capability once at require time (in-memory CREATE VIRTUAL
+//      TABLE ... USING fts5).
 //   3. JSON-only — linear scan over per-category JSON files. Fine up to a few
 //      thousand memories.
 //
 // All three paths satisfy the same minimal API: new DatabaseSync(path),
 // db.exec(sql), db.prepare(sql).run/get/all, db.close().
+//
+// NOTE: sqliteSupportsFts5 is a CAPABILITY PROBE, not a backend label. A prior
+// version hardcoded it false for node:sqlite — which produced a misleading
+// health report (search worked fine, but the report claimed FTS5 was
+// unavailable) and sent a whole work session down a phantom "mandatory npm
+// install" remediation. Probe; never assume.
 let DatabaseSync = null;
 let sqliteBackend = 'json-only';
 let sqliteSupportsFts5 = false;
+
+// Probe whether a DatabaseSync constructor can create an FTS5 virtual table.
+// Cheap (in-memory), runs once at require time, never throws to callers.
+function probeFts5(DS) {
+    let probe = null;
+    try {
+        probe = new DS(':memory:');
+        probe.exec('CREATE VIRTUAL TABLE _fts5_probe USING fts5(x)');
+        return true;
+    } catch {
+        return false;
+    } finally {
+        if (probe) { try { probe.close(); } catch { /* non-fatal */ } }
+    }
+}
 
 try {
     const BetterSqlite3 = require('better-sqlite3');
     // Adapter so callers keep using `new DatabaseSync(path)`.
     DatabaseSync = function(dbPath) { return new BetterSqlite3(dbPath); };
     sqliteBackend = 'better-sqlite3';
-    sqliteSupportsFts5 = true;
+    sqliteSupportsFts5 = true; // better-sqlite3 always bundles FTS5
 } catch {
     try {
-        DatabaseSync = require('node:sqlite').DatabaseSync;
+        const { DatabaseSync: NodeDatabaseSync } = require('node:sqlite');
+        DatabaseSync = NodeDatabaseSync;
         sqliteBackend = 'node:sqlite';
-        // FTS5 absence detected lazily in initDb() — Node's bundle decision can
-        // change between versions; don't assume.
+        // Node 24+ bundles FTS5; older bundles may not. Probe, don't assume.
+        sqliteSupportsFts5 = probeFts5(NodeDatabaseSync);
     } catch {
         // Neither backend available — JSON-only mode.
     }

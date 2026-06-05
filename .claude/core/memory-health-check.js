@@ -36,12 +36,37 @@ class MemoryHealthChecker {
         }
     }
 
+    async checkBackend() {
+        console.log('🔎 Checking memory search backend...');
+        const report = await this.manager.generateReport();
+        const storage = report.storage || {};
+        const { sqliteBackend, sqliteSupportsFts5 } = storage;
+
+        if (sqliteSupportsFts5) {
+            this.results.passed.push(
+                `✅ FTS5 search active (backend: ${sqliteBackend})`
+            );
+        } else {
+            // Genuine degradation only — on Node 24+ the built-in node:sqlite
+            // ships FTS5 and this branch never fires. Warn, don't fail.
+            this.results.warnings.push(
+                `⚠️  FTS5 search unavailable (backend: ${sqliteBackend || 'json-only'}) — ` +
+                `memory search is falling back to a slower JSON linear scan. ` +
+                `To enable FTS5: run on Node 24+ (built-in node:sqlite ships FTS5, ` +
+                `zero deps) or 'npm install' for the optional better-sqlite3 fallback.`
+            );
+        }
+    }
+
     async checkMemoryPerformance() {
         console.log('⚡ Checking memory performance...');
 
-        // Test memory creation speed
+        // Test memory creation speed.
+        // Fixed key (not a timestamped id) + delete-after so the diagnostic never
+        // pollutes the curated store. The old `health_check_${Date.now()}` left a
+        // new junk memory on EVERY run, inflating the store unboundedly.
         const startCreate = Date.now();
-        const testId = `health_check_${Date.now()}`;
+        const testId = '_health_check_probe';
         await this.manager.createMemory(CONSTANTS.MEMORY_CATEGORIES.PATTERNS, testId, {
             test: true,
             timestamp: new Date().toISOString()
@@ -66,6 +91,11 @@ class MemoryHealthChecker {
         } else {
             this.results.warnings.push(`⚠️  Memory search: ${searchTime}ms (exceeds ${CONSTANTS.PERFORMANCE.SIMPLE_QUERY_MS}ms target)`);
         }
+
+        // Clean up the probe — diagnostics must not accumulate in the curated store.
+        try {
+            await this.manager.deleteMemory(CONSTANTS.MEMORY_CATEGORIES.PATTERNS, testId);
+        } catch { /* non-fatal — fixed key means next run overwrites anyway */ }
     }
 
     async checkMemoryQuality() {
@@ -143,6 +173,7 @@ class MemoryHealthChecker {
         console.log('='.repeat(60) + '\n');
 
         await this.checkMemoryDirectories();
+        await this.checkBackend();
         await this.checkMemoryPerformance();
         await this.checkMemoryQuality();
         await this.checkRecentMemories();

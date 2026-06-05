@@ -60,6 +60,8 @@ Is it well-built — clean, tested, maintainable?
 
 **MAJOR-Fix-Inline Discipline:** MAJORs are fixed before commit, not deferred. If a MAJOR genuinely needs design discussion, file a follow-up story in the TODO and block the commit until it is filed. Never silently downgrade MAJOR to MINOR to clear the review.
 
+**Security-control changes — mandatory bypass attempt.** Any change that touches a security hook, guardrail, exemption list, or matching regex (e.g. `guardrail-rules.yaml`, `secret-patterns.cjs`, path-tier logic) MUST include an explicit bypass attempt before approval: construct at least one input that *should* be caught and check the new logic still catches it (chained commands, trailing/sibling tokens, substring look-alikes, encoding tricks). Field-proven twice: a guardrail `rm -rf` exemption regex shipped a whole-line-lookahead bypass (`rm -rf ~/x && echo /tmp` passed), and a widening amplified it. Loosening a control without an adversarial check is how a "fix" becomes a hole. Treat the widened-control change itself as HIGH-risk regardless of file.
+
 ---
 
 ## 4. The "Never Out of Scope" Rule

@@ -12,6 +12,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 | I want to... | Use |
 |---|---|
+| Drop this template into an existing codebase | [`/onboard`](#onboard) |
 | Start a brand-new project from scratch | [`/brainstorm`](#brainstorm) |
 | Validate an assumption before writing docs | [`/research`](#research) |
 | Gather requirements interactively | [`/interview`](#interview) |
@@ -55,7 +56,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 ## Contents
 
-- [Setup](#setup) — 12 commands for project initialization
+- [Setup](#setup) — 13 commands for project initialization
 - [Build Loop](#build-loop) — 6 commands for the daily development cycle
 - [Supporting](#supporting) — 5 utility commands
 - [Review](#review) — 16 commands for quality, governance, and optimization
@@ -68,7 +69,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 # Setup
 
-Twelve commands for project initialization — from brainstorm through per-epic TODO generation, plus module scaffolding, component creation, and the `/create:new-project` master orchestrator. Run them in roughly this order the first time you drop the template into a repo. The `/create:project-*` chain enforces hard gates.
+Thirteen commands for project initialization — from brainstorm through per-epic TODO generation, plus module scaffolding, component creation, the `/create:new-project` master orchestrator, and the `/onboard` brownfield bootstrapper. Run them in roughly this order the first time you drop the template into a repo. The `/create:project-*` chain enforces hard gates. Use `/onboard` instead of `/create:new-project` when source code already exists.
 
 ## /brainstorm
 
@@ -584,6 +585,53 @@ flowchart TD
 ```
 
 **Output:** `docs/_project-context.md` + the full planning chain (`_project-brief.md` per tier, `_project-requirements.md`, `_project-design.md` per UI flag, `_project-architecture.md`, `todo/_backlog.md`) + specialized `.claude/agents/*.md`. Each sub-command commits its own output; the orchestrator's wrap-up commit captures only the project-context file and the interview scratch.
+
+---
+
+## /onboard
+
+Brownfield bootstrapper — reverse-engineers the doc chain from an existing codebase. The brownfield analog of `/create:new-project`: no templates, no vision interview, no blank-slate assumptions. Reads the code first, asks only 2–3 questions code cannot answer, then writes `docs/_project-architecture.md` and `docs/_project-context.md` from reality. Chains `/review:specialize` once the architecture doc exists.
+
+**Hard-gate posture:** `/onboard` has no doc prerequisites — it is the entry point. It refuses only when no source code is detectable (then points at `/create:new-project`).
+
+```mermaid
+flowchart TD
+    START(["/onboard"]) --> SRC{Source code\ndetectable?}
+    SRC -->|No, no --yolo| EXIT(["ABORT: no source found\nUse /create:new-project"])
+    SRC -->|Yes| DETECT["Step 2: Detect stack\ngate.js heuristics:\npackage.json / Cargo.toml /\ngo.mod / *.csproj /\npyproject.toml / Makefile"]
+
+    DETECT --> MAP["Step 3: Map codebase\n(parallel Explore agents)\nThread A: entry points & structure\nThread B: dependency graph\nThread C: test layout\nThread D: existing docs + git log"]
+
+    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to .output/work/{date}/\nonboard-scan.md"]
+
+    QUESTIONS --> ARCH["Step 5: Delegate to architect\nTask: subagent_type=architect\nReverse-Engineering Mode\nADRs marked Status: Inferred\nOutput: docs/_project-architecture.md"]
+
+    ARCH --> CTX["Step 6: Delegate to doc-writer\nTask: subagent_type=doc-writer\nCurrent-state quick-reference\nOutput: docs/_project-context.md"]
+
+    CTX --> CLAUDEMD{CLAUDE.md\nexists?}
+    CLAUDEMD -->|No| GEN["Step 7A: Generate lean CLAUDE.md\nfrom scan — project desc,\nstack, build/test, key paths"]
+    CLAUDEMD -->|Yes| MERGE["Step 7B: Propose additive merge\n(diff for approval)\nNEVER clobber existing content"]
+
+    GEN --> SPECIALIZE
+    MERGE --> SPECIALIZE
+
+    SPECIALIZE["Step 8: /review:specialize --fix\nCustomize agents for detected stack\nSeed memory with inferred ADRs"]
+
+    SPECIALIZE --> COMMIT["Step 9: Commit\n_project-architecture.md\n_project-context.md\nonboard-scan.md\nCLAUDE.md (if modified)"]
+
+    COMMIT --> REPORT(["Step 10: Final report\nDocs created, specialization summary,\ncommit hash, next commands"])
+
+    style START fill:#4a9eff,color:#fff
+    style EXIT fill:#e74c3c,color:#fff
+    style MAP fill:#f5a623,color:#fff
+    style ARCH fill:#7b68ee,color:#fff
+    style CTX fill:#7b68ee,color:#fff
+    style SPECIALIZE fill:#7b68ee,color:#fff
+    style COMMIT fill:#2ecc71,color:#fff
+    style REPORT fill:#888,color:#fff
+```
+
+**Output:** `docs/_project-architecture.md` + `docs/_project-context.md` + `docs/.output/work/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
 
 ---
 

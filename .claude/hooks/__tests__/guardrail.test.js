@@ -593,3 +593,65 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
         expect(decision('git push --force')).toBe('block');
     });
 });
+
+// ─── Real rules file: rm autonomy exemptions (regression for 2026-06-05 widen) ──
+//
+// Guards the actual shipped .claude/guardrail-rules.yaml so the temp-path
+// exemption that keeps autonomous sub-agents from stalling on `rm -rf` cleanups
+// can't silently regress, while real project-path deletes still confirm.
+describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const here = path.dirname(new URL(import.meta.url).pathname);
+    const realRules = parseYaml(
+        fs.readFileSync(path.resolve(here, '..', '..', 'guardrail-rules.yaml'), 'utf8')
+    );
+    const act = (cmd) => checkRules(cmd, realRules).action;
+
+    it('allows recursive deletes of clearly-disposable paths (no confirm)', () => {
+        for (const cmd of [
+            'rm -rf /tmp/install-test-xY',
+            'rm -rf /tmp',
+            'rm -rf "$TMPDIR/foo"',
+            'rm -rf ./tmp/scratch',
+            'rm -rf node_modules',
+            'rm -rf .sandbox/mfahub',
+            'rm -rf /var/folders/ab/cd/T/scratch',
+        ]) {
+            expect(act(cmd)).toBe('allow');
+        }
+    });
+
+    it('still confirms recursive deletes of real project paths', () => {
+        for (const cmd of [
+            'rm -rf ./src',
+            'rm -rf /home/dom/code/Domdhi.Agents',
+            'rm -rf ~/Documents',
+            'sudo rm -fr /etc',
+        ]) {
+            expect(act(cmd)).toBe('confirm');
+        }
+    });
+
+    it('confirms dangerous deletes even when an exempt token appears LATER on the line (no whole-line bypass)', () => {
+        // Regression for the whole-line-lookahead bypass: a trailing /tmp, a
+        // chained safe rm, a node_modules comment, etc. must NOT disarm the guard
+        // for a dangerous first target. The exemption binds to the FIRST arg.
+        for (const cmd of [
+            'rm -rf ~/important && echo /tmp',
+            'rm -rf ~/important && echo done; ls /tmp',
+            'rm -rf "$HOME" --no-preserve-root; mktemp -d',
+            'rm -rf ~/data && npm run build  # node_modules',
+            'rm -rf /tmp/a && rm -rf ~/b',          // chained: dangerous 2nd rm
+            'rm -rf ~/node_modules_backup_critical', // substring look-alike
+            'rm -rf ~/my-tmp/photos',
+        ]) {
+            expect(act(cmd)).toBe('confirm');
+        }
+    });
+
+    it('still blocks catastrophic commands', () => {
+        expect(act('git push --force')).toBe('block');
+        expect(act('mkfs.ext4 /dev/sda')).toBe('block');
+    });
+});

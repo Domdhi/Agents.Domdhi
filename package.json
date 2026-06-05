@@ -3,6 +3,9 @@
   "private": true,
   "license": "MIT",
   "type": "commonjs",
+  "bin": {
+    "domdhi-install": ".claude/core/install.js"
+  },
   "scripts": {
     "build": "echo \"No build step — template-only\"",
     "test": "vitest run",

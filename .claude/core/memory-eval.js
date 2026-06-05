@@ -52,6 +52,30 @@ const FIXTURE_PATH = path.join(
 
 const DEFAULT_K = 3;
 
+// Inlined fallback for the query fixture. CRITICAL: the fixture above lives under
+// __tests__/, which template-updater.js EXCLUDES from propagation — so adopters
+// receive memory-eval.js WITHOUT the fixture and the harness used to die on a
+// missing-file FATAL. These queries mirror the SEED_MEMORIES below (which are
+// already inlined), keeping the self-seeding demo fully self-contained for any
+// adopter. The external fixture, when present (the workshop), takes precedence.
+const DEFAULT_QUERIES = [
+    { query: 'DbContext factory concurrent blazor', expected: ['blazor-dbcontext-factory'] },
+    { query: 'integration tests database no mocks', expected: ['integration-test-real-db'] },
+    { query: 'terse responses no summary trailing', expected: ['terse-response-style'] },
+    { query: 'git clean destructive delete untracked', expected: ['destructive-git-guard'] },
+    { query: 'memory pruning importance supersession retrieval accuracy', expected: ['memory-pruning-improves-retrieval'] },
+    { query: 'slash command telemetry usage logs', expected: ['command-usage-telemetry'] },
+    { query: 'worktree isolation feature branch', expected: ['worktree-isolation-pattern'] },
+    { query: 'secret scanner credential hook write edit', expected: ['secret-scanner-hook'] },
+    { query: 'skill SKILL.md progressive disclosure references', expected: ['skill-progressive-disclosure'] },
+    { query: 'memory decay active work days confidence', expected: ['memory-decay-active-days'] },
+    { query: 'publish public repo manifest allowlist', expected: ['publish-two-repo-workflow'] },
+    { query: 'sqlite FTS5 fulltext search fallback json scan', expected: ['sqlite-fts5-backend'] },
+    { query: 'importance floor retention low importance memory', expected: ['importance-retention-floor'] },
+    { query: 'hard gate prerequisite command sequence', expected: ['hard-gate-prereq'] },
+    { query: 'agent memory inbox draft review promotion', expected: ['inbox-staging-protocol'] },
+];
+
 // Synthetic memories for the self-seeding demo.
 // Each entry: { category, id, content, importance, supersede? }
 // "supersede" means we create it THEN immediately supersede it with a newer id
@@ -330,14 +354,23 @@ const SEED_MEMORIES = [
  * Load fixture query pairs from disk.
  * @returns {Array<{query: string, expected: string[]}>}
  */
-function loadFixture() {
+function loadFixture(fixturePath = FIXTURE_PATH) {
+    // Prefer the external fixture (workshop). When it's absent — the normal case
+    // in an adopter project, since __tests__/ isn't propagated — fall back to the
+    // inlined DEFAULT_QUERIES so the harness still runs. Only a malformed (present
+    // but invalid) fixture is fatal. (fixturePath is parameterized for testability;
+    // the CLI always calls loadFixture() with the default.)
+    if (!fs.existsSync(fixturePath)) {
+        console.log(`[memory-eval] fixture not present (expected in adopter projects); using ${DEFAULT_QUERIES.length} inlined queries`);
+        return DEFAULT_QUERIES;
+    }
     try {
-        const raw = fs.readFileSync(FIXTURE_PATH, 'utf-8');
+        const raw = fs.readFileSync(fixturePath, 'utf-8');
         const data = JSON.parse(raw);
         if (!Array.isArray(data)) throw new Error('Fixture must be a JSON array');
         return data;
     } catch (err) {
-        console.error(`[memory-eval] FATAL: could not load fixture at ${FIXTURE_PATH}`);
+        console.error(`[memory-eval] FATAL: fixture at ${fixturePath} is present but unreadable`);
         console.error(`  ${err.message}`);
         process.exit(1);
     }
@@ -619,8 +652,14 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error('[memory-eval] FATAL:', err.message);
-    console.error(err.stack);
-    process.exit(1);
-});
+// Run as CLI only when invoked directly; importing the module (e.g. from tests)
+// must NOT trigger a full eval.
+if (require.main === module) {
+    main().catch(err => {
+        console.error('[memory-eval] FATAL:', err.message);
+        console.error(err.stack);
+        process.exit(1);
+    });
+}
+
+module.exports = { loadFixture, DEFAULT_QUERIES, FIXTURE_PATH };
