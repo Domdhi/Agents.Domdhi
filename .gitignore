@@ -28,6 +28,7 @@ package-lock.json
 # Ephemeral output (rebuilt from source or session-specific)
 # Tracked (NOT listed here): plans/, reviews/, research/, investigations/, work/
 .claude/.agents.docs/
+docs/.output/.commit-msg
 docs/.output/memories/
 docs/.output/screenshots*/
 docs/.output/sessions*/
