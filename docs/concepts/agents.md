@@ -8,13 +8,13 @@ The agents are not redundant with each other. `general-purpose` (Forge) implemen
 
 | Agent | Model | Role | Auto-loaded skills |
 |-------|-------|------|--------------------|
-| `product-strategist` | inherit | Brainstorming, research, briefs, PRDs | project-analyst, prd-writer, project-brief-writer |
+| `product-strategist` | inherit | Brainstorming, research, briefs, PRDs | project-planning |
 | `architect` | inherit | System design, ADRs, tech stack | architecture-writer |
 | `ux-designer` | inherit | UX specs, wireframes, themes | ux-designer, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects |
 | `project-planner` | inherit | Epics, stories, backlog | epic-writer |
 | `general-purpose` | sonnet | Code implementation | full-output-enforcement, systematic-debugging, verification-before-completion, finishing-a-development-branch, using-git-worktrees |
-| `code-reviewer` | sonnet | Code quality review (read-only) | code-reviewer, code-review-playbook |
-| `security-auditor` | sonnet | Security review (write scope limited to review artifacts) | code-reviewer, code-review-playbook |
+| `code-reviewer` | sonnet | Code quality review (read-only) | code-review |
+| `security-auditor` | sonnet | Security review (write scope limited to review artifacts) | code-review |
 | `qa-engineer` | sonnet | Test strategy and test generation | qa-engineer |
 | `doc-writer` | haiku | Documentation and changelogs | project-context, documentation |
 | `playwright` | haiku | Browser testing and automation | playwright-cli |

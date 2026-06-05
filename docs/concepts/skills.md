@@ -1,6 +1,6 @@
 # Skills
 
-A skill in this system is a folder at `.claude/skills/{name}/` with a `SKILL.md` file that carries domain knowledge — a template, a quality checklist, a set of interview questions, an investigation procedure, a style guide. Skills don't *do* anything on their own; they get loaded into a conversation (by an agent, a command, or the user directly) so that whoever is acting has the right reference material already in context. There are 26 of them in this template as of today.
+A skill in this system is a folder at `.claude/skills/{name}/` with a `SKILL.md` file that carries domain knowledge — a template, a quality checklist, a set of interview questions, an investigation procedure, a style guide. Skills don't *do* anything on their own; they get loaded into a conversation (by an agent, a command, or the user directly) so that whoever is acting has the right reference material already in context. There are 23 of them in this template as of today.
 
 Skills are the **knowledge layer** of the three-tier architecture. Commands orchestrate procedures. Agents execute delegated work. Skills carry the shared reference material both layers lean on. Put another way: if the same checklist or template appears in three different commands, it belongs in a skill. The payoff is that changing the rule in one place updates every downstream consumer — no search-and-replace, no inline-copy drift.
 
@@ -12,23 +12,20 @@ A skill can reach an agent or a command in one of three ways. Most skills travel
 2. **Checklist reference by a command.** A command may mention a skill by name in its instructions — for example, `/do` tells the main agent to "regenerate the handoff using the `session-handoff` skill" at Step 9d. The command doesn't inline the skill's rules; it names it and lets the main agent pull the file. This keeps command files thin and keeps the rules in one place.
 3. **Direct user invocation.** Every SKILL.md with proper frontmatter is discoverable by Claude Code as `/skill-name`. Useful when you want to trigger a skill's procedure outside a command — for example, running `/simplify` on code you just wrote, or `/writing-skills` when authoring a new skill.
 
-The story heading for this doc calls out "user-invocable vs internal," and in practice that distinction is fuzzy: all 26 skills are technically user-invocable because Claude Code picks them up from frontmatter. The meaningful question isn't "is it invocable?" — it's "what's the primary consumer?" For `architecture-writer` the answer is the `architect` agent. For `session-handoff` the answer is five different session-boundary commands. For `writing-skills` and `content-formats` there is no primary consumer — they're designed for direct invocation when you're extending the system.
+The story heading for this doc calls out "user-invocable vs internal," and in practice that distinction is fuzzy: all 23 skills are technically user-invocable because Claude Code picks them up from frontmatter. The meaningful question isn't "is it invocable?" — it's "what's the primary consumer?" For `architecture-writer` the answer is the `architect` agent. For `session-handoff` the answer is five different session-boundary commands. For `writing-skills` and `content-formats` there is no primary consumer — they're designed for direct invocation when you're extending the system.
 
-## The 26 skills
+## The 23 skills
 
 | Skill | Primary consumer | Purpose |
 |-------|------------------|---------|
 | `architecture-writer` | `architect` agent + `/create:project-architecture`, `/review:check-readiness` | Architecture doc template + quality criteria |
-| `prd-writer` | `product-strategist` agent + `/create:project-requirements`, `/review:check-readiness` | PRD template + quality criteria |
-| `project-brief-writer` | `product-strategist` agent + `/create:project-brief` | Brief template + quality criteria |
+| `project-planning` | `product-strategist` agent + `/brainstorm`, `/research`, `/create:project-brief`, `/create:project-requirements`, `/review:check-readiness` | Brainstorm + research methodology, brief + PRD templates + quality criteria |
 | `epic-writer` | `project-planner` agent + `/create:project-epics`, `/create:project-todo`, `/create:project-epics-todo`, `/review:optimize-backlog`, `/create:module` | Epic/story template + quality criteria |
-| `project-analyst` | `product-strategist` agent + `/brainstorm`, `/research` | Research methodology + brainstorm facilitation |
 | `project-context` | `doc-writer` agent + `/review:changelog`, `/review:update-docs`, `/review:retro` | Project context doc format |
 | `documentation` | `doc-writer` agent | Documentation wayfinding + verification rules |
 | `ux-designer` | `ux-designer` agent + `/create:project-design`, `/review:check-readiness` | UX spec template + quality criteria |
 | `brand-guidelines` | `ux-designer` agent (updates `/create:project-design`) | Brand colors/typography guide |
-| `code-reviewer` | `code-reviewer` + `security-auditor` agents + `/review:code-review` | Review severity + patterns |
-| `code-review-playbook` | `code-reviewer` + `security-auditor` agents + `/review:code-review` | Review process + checklists |
+| `code-review` | `code-reviewer` + `security-auditor` agents + `/review:code-review` | Two-stage review process, severity routing + checklists |
 | `qa-engineer` | `qa-engineer` agent + `/review:qa` | Test strategy + generation patterns |
 | `playwright-cli` | `playwright` agent + `/run-tests` | Browser automation patterns |
 | `article-writer` | `shadow` agent | Blog/article writing patterns |
@@ -67,7 +64,7 @@ Don't add a skill for:
 
 - **Project-specific one-off knowledge.** That belongs in `CLAUDE.md` or the module's `_brief.md`.
 - **Rules that only apply to one agent and never change.** Just put them in the agent's persona.
-- **Knowledge that's already covered by an existing skill.** Check the catalog above first — there are 26 skills, and most territory is already mapped.
+- **Knowledge that's already covered by an existing skill.** Check the catalog above first — there are 23 skills, and most territory is already mapped.
 
 Use the [`writing-skills`](../../.claude/skills/writing-skills/SKILL.md) skill when authoring a new one. It applies TDD to skill creation: write a failing baseline test before writing the skill, then iterate until the test passes. This keeps new skills grounded in a concrete scenario rather than floating in abstraction.
 

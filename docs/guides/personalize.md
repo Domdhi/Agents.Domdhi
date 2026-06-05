@@ -29,7 +29,7 @@ aliases: [reviewer, judge]          as the template sets them)
 model: sonnet
 description: ...
 tools: Read, Grep, Glob, Bash, Write
-skills: [code-reviewer, code-review-playbook]
+skills: [code-review]
 memory: project
 ---
 
