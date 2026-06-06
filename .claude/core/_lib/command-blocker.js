@@ -87,6 +87,44 @@ function formatFrozen(command, frozenPath) {
     ].join('\n');
 }
 
+// ─── Nudge message formatter ───────────────────────────────────────────────────
+
+/**
+ * Format the stderr message for a `nudge` decision — a soft deny (exit 2) that
+ * tells the agent to try a reversible alternative first, and exactly how to
+ * escalate to a user confirm if there genuinely is none.
+ *
+ * @param {string} command        - The original command (before sanitization)
+ * @param {string} matchedPattern - The nudge_pattern that triggered the nudge
+ * @returns {string}
+ */
+function formatNudge(command, matchedPattern) {
+    return [
+        '',
+        '========================================',
+        '  GUARDRAIL — TRY A SAFER ALTERNATIVE FIRST',
+        '========================================',
+        '',
+        '  Command : ' + command,
+        '  Matched : ' + matchedPattern,
+        '  Reason  : This is destructive / hard to reverse. Before running it,',
+        '            prefer a reversible alternative:',
+        '              - move the target aside (mv to a temp dir) instead of deleting',
+        '              - `git rm` for tracked files (keeps history)',
+        '              - trash/recycle, or scope the path more tightly',
+        '              - dry-run first (e.g. `git clean -n`, `rm -i`)',
+        '',
+        '  If you have genuinely confirmed there is no reversible alternative,',
+        '  re-run the SAME command with the escalation marker appended and the',
+        '  user will be asked to approve it:',
+        '',
+        '      ' + command + '  # guardrail:confirm',
+        '',
+        '========================================',
+        '',
+    ].join('\n');
+}
+
 // ─── Confirm message formatter ─────────────────────────────────────────────────
 
 function formatConfirmJson(reason) {
@@ -110,7 +148,7 @@ function formatConfirmJson(reason) {
  *   - Write result.stderr to process.stderr (empty string = no write needed)
  *   - Call process.exit(result.exitCode)
  *
- * @param {'block'|'confirm'|'pass'|'frozen'|string} decision - Decision label
+ * @param {'block'|'nudge'|'confirm'|'pass'|'frozen'|string} decision - Decision label
  * @param {object} [opts]
  * @param {string} [opts.command]      - Original command (for block message)
  * @param {string} [opts.pattern]      - Matched pattern (for block message)
@@ -132,6 +170,14 @@ function buildHookResponse(decision, opts = {}) {
         return {
             stdout: '',
             stderr: formatFrozen(opts.command || '', opts.frozenPath || ''),
+            exitCode: 2,
+        };
+    }
+
+    if (decision === 'nudge') {
+        return {
+            stdout: '',
+            stderr: formatNudge(opts.command || '', opts.pattern || ''),
             exitCode: 2,
         };
     }

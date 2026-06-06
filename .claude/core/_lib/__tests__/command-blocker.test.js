@@ -94,6 +94,31 @@ describe('buildHookResponse', () => {
         });
     });
 
+    describe('nudge decision', () => {
+        it('buildHookResponse_nudge_exitCode2', () => {
+            // Nudge is a soft deny — same exit code as block (2), different message.
+            const result = buildHookResponse('nudge', { command: 'rm -rf dist', pattern: 'rm -rf' });
+            expect(result.exitCode).toBe(2);
+        });
+
+        it('buildHookResponse_nudge_stdoutEmpty', () => {
+            const result = buildHookResponse('nudge', { command: 'rm -rf dist', pattern: 'rm -rf' });
+            expect(result.stdout).toBe('');
+        });
+
+        it('buildHookResponse_nudge_stderrTellsAgentToTryAlternative', () => {
+            const result = buildHookResponse('nudge', { command: 'rm -rf dist', pattern: 'rm -rf' });
+            expect(result.stderr).toEqual(expect.stringContaining('SAFER ALTERNATIVE'));
+        });
+
+        it('buildHookResponse_nudge_stderrShowsEscalationMarker', () => {
+            // The message must tell the agent exactly how to escalate to a confirm.
+            const result = buildHookResponse('nudge', { command: 'rm -rf dist', pattern: 'rm -rf' });
+            expect(result.stderr).toEqual(expect.stringContaining('# guardrail:confirm'));
+            expect(result.stderr).toEqual(expect.stringContaining('rm -rf dist  # guardrail:confirm'));
+        });
+    });
+
     describe('unknown decision', () => {
         it('buildHookResponse_unknownDecision_treatedAsPass', () => {
             // Unknown decisions default to pass (safe degradation)

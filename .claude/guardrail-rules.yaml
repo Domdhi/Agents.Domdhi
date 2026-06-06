@@ -8,8 +8,15 @@
 #
 # HOW RULES WORK
 # ==============
-# Each entry under block_patterns or confirm_patterns is a
-# pattern string checked against the full bash command.
+# Each entry under block_patterns, nudge_patterns, or confirm_patterns
+# is a pattern string checked against the full bash command. Precedence:
+#   block_patterns / dangerousPatterns  — hard stop (exit 2), never escalatable
+#   nudge_patterns                       — soft deny (exit 2) with a "try a safer
+#                                          alternative first" message; re-run the
+#                                          same command with `# guardrail:confirm`
+#                                          appended to escalate to a user confirm
+#   confirm_patterns                     — user prompted yes/no immediately
+# First match in that order wins.
 #
 # Pattern formats:
 #   plain string  — case-insensitive substring match
@@ -81,6 +88,60 @@ block_patterns:
 
 
 # ============================================================
+# NUDGE PATTERNS (try a safer alternative first — confirm on demand)
+# ============================================================
+# Destructive / hard-to-reverse commands that DO usually have a safer
+# alternative. On a plain match the hook DENIES (exit 2) and tells the
+# agent to try a reversible path first (mv the target aside, `git rm`,
+# trash/recycle, dry-run, or scope tighter). If the agent has genuinely
+# confirmed there is no reversible alternative, it re-runs the SAME
+# command with the escalation marker appended:
+#
+#     rm -rf build  # guardrail:confirm
+#
+# ...and the hook escalates to a user yes/no confirm. Precedence sits
+# between block and confirm: block_patterns / dangerousPatterns still
+# win and IGNORE the marker (never escalatable); confirm_patterns are
+# checked after these. Move a pattern here (rather than confirm_patterns)
+# when "try something else first" is the right default; keep it in
+# confirm_patterns when an immediate prompt is fine.
+# ============================================================
+
+nudge_patterns:
+
+  # --- Filesystem: Recursive deletion ---
+  # rm -rf / -fr: nudge EXCEPT when the FIRST argument is a clearly-disposable
+  # path. Autonomous sub-agents (code-reviewer verification, /run-todo e2e)
+  # routinely create + delete scratch dirs; nudging on every cleanup would stall
+  # the flow, so disposable first-args are exempted entirely (pass, no nudge).
+  #
+  # CRITICAL — the exemption binds to the FIRST rm argument (the lookahead sits
+  # immediately after the flags, with NO leading `.*`). An earlier version used
+  # `(?!.*(…))` which scanned the whole line, so a trailing exempt token disarmed
+  # the guard for a dangerous target — e.g. `rm -rf ~/important && echo /tmp`
+  # passed silently. Binding to the first arg closes that bypass: the temp token
+  # must be the rm target itself. Chained dangerous deletes still fire because
+  # the matcher also matches a later `rm -rf <dangerous>` segment; substring
+  # look-alikes like `~/node_modules_backup` fire (token must START the arg).
+  #
+  # Exempted (no nudge) — only when it is the rm's first argument:
+  #   /tmp, /tmp/...            (Linux/WSL temp)
+  #   ./tmp/ or tmp/ relative   scratch dirs
+  #   $TMPDIR / $TMP / $T*      variables
+  #   mktemp                    (rare: mktemp literal right after the flags)
+  #   node_modules              (always reinstallable)
+  #   /var/folders/             (macOS GUI temp)
+  #   .sandbox                  (the repo's gitignored disposable area)
+  # Real project-path deletes (rm -rf ./src, repo root, ~, /, sudo rm -rf /etc)
+  # nudge first, then confirm via `# guardrail:confirm`. The path-tier check
+  # (zeroAccess/readOnly/noDelete) remains the hard guard for protected paths.
+  # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge 2026-06-06)
+  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
+  - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
+  - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
+
+
+# ============================================================
 # CONFIRM PATTERNS (user prompted yes/no before proceeding)
 # ============================================================
 # Risky but legitimate. You'll be asked before these run.
@@ -110,35 +171,9 @@ confirm_patterns:
   - git stash clear                    # permanently removes ALL stash entries
 
   # --- Filesystem: Recursive deletion ---
-  # rm -rf / -fr: confirm EXCEPT when the FIRST argument is a clearly-disposable
-  # path. Autonomous sub-agents (code-reviewer verification, /run-todo e2e)
-  # routinely create + delete scratch dirs; prompting on every cleanup stalled
-  # the whole flow waiting for a confirmation no sub-agent can answer.
-  #
-  # CRITICAL — the exemption binds to the FIRST rm argument (the lookahead sits
-  # immediately after the flags, with NO leading `.*`). An earlier version used
-  # `(?!.*(…))` which scanned the whole line, so a trailing exempt token disarmed
-  # the guard for a dangerous target — e.g. `rm -rf ~/important && echo /tmp`
-  # passed silently. Binding to the first arg closes that bypass: the temp token
-  # must be the rm target itself. Chained dangerous deletes still confirm because
-  # the matcher also fires on a later `rm -rf <dangerous>` segment; substring
-  # look-alikes like `~/node_modules_backup` confirm (token must START the arg).
-  #
-  # Exempted (no prompt) — only when it is the rm's first argument:
-  #   /tmp, /tmp/...            (Linux/WSL temp)
-  #   ./tmp/ or tmp/ relative   scratch dirs
-  #   $TMPDIR / $TMP / $T*      variables
-  #   mktemp                    (rare: mktemp literal right after the flags)
-  #   node_modules              (always reinstallable)
-  #   /var/folders/             (macOS GUI temp)
-  #   .sandbox                  (the repo's gitignored disposable area)
-  # Real project-path deletes (rm -rf ./src, repo root, ~, /, sudo rm -rf /etc)
-  # STILL confirm. The path-tier check (zeroAccess/readOnly/noDelete) remains the
-  # enforcing guard for explicitly-protected paths. (Dom 2026-06-03; widened then
-  # first-arg-bound to close a whole-line-lookahead bypass 2026-06-05)
-  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
-  - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
-  - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
+  # Moved to nudge_patterns (2026-06-06): rm -rf / del /s /q / Remove-Item
+  # -Recurse -Force now nudge ("try a safer alternative first") and escalate to
+  # a confirm only when re-run with `# guardrail:confirm`. See nudge_patterns.
 
   # --- Package management ---
   - npm uninstall -g                   # globally removes packages

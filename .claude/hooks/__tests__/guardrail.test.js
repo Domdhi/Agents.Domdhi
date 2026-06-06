@@ -411,6 +411,42 @@ confirm_patterns:
             expect(result).toBeNull();
         });
 
+        const NUDGE_RULES = `
+block_patterns:
+  - "rm -rf /"
+nudge_patterns:
+  - "rm -rf"
+confirm_patterns:
+  - "git push --force"
+`;
+
+        it('processEvent_nudgeMatch_returnsSoftDenyWithAlternativeMessage', () => {
+            // Arrange
+            writeRules(NUDGE_RULES);
+
+            // Act — plain destructive command, no escalation marker
+            const result = processEvent({ tool_input: { command: 'rm -rf build' } });
+
+            // Assert — delivered on the block channel (exit 2) but with the nudge message
+            expect(result).not.toBeNull();
+            expect(result.block).toBe(true);
+            expect(result.feedback).toEqual(expect.stringContaining('SAFER ALTERNATIVE'));
+            expect(result.feedback).toEqual(expect.stringContaining('# guardrail:confirm'));
+        });
+
+        it('processEvent_nudgeWithEscalationMarker_returnsConfirm', () => {
+            // Arrange
+            writeRules(NUDGE_RULES);
+
+            // Act — same command, re-run with the escalation marker
+            const result = processEvent({ tool_input: { command: 'rm -rf build  # guardrail:confirm' } });
+
+            // Assert — now the user is prompted
+            expect(result).not.toBeNull();
+            expect(result.confirm).toBe(true);
+            expect(result.reason).toContain('rm -rf build');
+        });
+
         it('processEvent_rulesMissing_returnsNullAndWarnsStderr', () => {
             // Arrange — point to an empty tmp dir with no rules file
             process.env.CLAUDE_PROJECT_DIR = tmp.root;
@@ -561,7 +597,12 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
 
     const decision = (command) => {
         const r = processEvent({ tool_input: { command } });
-        return r === null ? 'pass' : r.block ? 'block' : r.confirm ? 'confirm' : '?';
+        if (r === null) return 'pass';
+        if (r.confirm) return 'confirm';
+        // A nudge is delivered via the block channel (exit 2) but with the
+        // "try a safer alternative first" message — distinguish by feedback.
+        if (r.block) return r.feedback && r.feedback.includes('SAFER ALTERNATIVE') ? 'nudge' : 'block';
+        return '?';
     };
 
     it('rmRf_tmpVar_passesWithoutConfirm', () => {
@@ -574,9 +615,17 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
         expect(decision('rm -rf /tmp/tmp.abc123')).toBe('pass');
     });
 
-    it('rmRf_realProjectPath_confirms', () => {
-        expect(decision('rm -rf dist')).toBe('confirm');
-        expect(decision('rm -fr build')).toBe('confirm');
+    it('rmRf_realProjectPath_nudges', () => {
+        // Real project-path deletes now NUDGE first (try a safer alternative)
+        // rather than going straight to a confirm prompt.
+        expect(decision('rm -rf dist')).toBe('nudge');
+        expect(decision('rm -fr build')).toBe('nudge');
+    });
+
+    it('rmRf_realProjectPath_withEscalationMarker_confirms', () => {
+        // Re-running with the escalation marker flips the nudge to a user confirm.
+        expect(decision('rm -rf dist  # guardrail:confirm')).toBe('confirm');
+        expect(decision('rm -fr build # guardrail:confirm')).toBe('confirm');
     });
 
     it('findExec_readOnlyCommand_passes', () => {
@@ -622,18 +671,20 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
         }
     });
 
-    it('still confirms recursive deletes of real project paths', () => {
+    it('nudges recursive deletes of real project paths (then confirm on escalation)', () => {
         for (const cmd of [
             'rm -rf ./src',
             'rm -rf /home/dom/code/Domdhi.Agents',
             'rm -rf ~/Documents',
             'sudo rm -fr /etc',
         ]) {
-            expect(act(cmd)).toBe('confirm');
+            expect(act(cmd)).toBe('nudge');
+            // Same command, escalation marker appended → user confirm.
+            expect(act(cmd + '  # guardrail:confirm')).toBe('confirm');
         }
     });
 
-    it('confirms dangerous deletes even when an exempt token appears LATER on the line (no whole-line bypass)', () => {
+    it('nudges dangerous deletes even when an exempt token appears LATER on the line (no whole-line bypass)', () => {
         // Regression for the whole-line-lookahead bypass: a trailing /tmp, a
         // chained safe rm, a node_modules comment, etc. must NOT disarm the guard
         // for a dangerous first target. The exemption binds to the FIRST arg.
@@ -646,7 +697,7 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
             'rm -rf ~/node_modules_backup_critical', // substring look-alike
             'rm -rf ~/my-tmp/photos',
         ]) {
-            expect(act(cmd)).toBe('confirm');
+            expect(act(cmd)).toBe('nudge');
         }
     });
 

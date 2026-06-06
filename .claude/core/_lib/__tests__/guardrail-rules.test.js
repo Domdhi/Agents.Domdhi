@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const path = require('node:path');
 
-const { loadRules, matchesPattern, evaluate } = require('../guardrail-rules');
+const { loadRules, matchesPattern, evaluate, hasEscalationMarker } = require('../guardrail-rules');
 const { createTmpDir } = require('../../__tests__/_helpers/tmp-dir');
 
 // ─── loadRules ────────────────────────────────────────────────────────────────
@@ -191,5 +191,52 @@ describe('evaluate', () => {
         const result = evaluate('cat .env', rulesWithPath);
         // Should pass — path_rules enforcement is NOT implemented here
         expect(result.decision).toBe('pass');
+    });
+});
+
+describe('evaluate — nudge tier', () => {
+    const rules = {
+        block_patterns: ['rm -rf /'],
+        nudge_patterns: ['/rm\\s+-[a-z]*[rf][a-z]*\\s+/'],
+        confirm_patterns: ['git push --force'],
+    };
+
+    it('evaluate_nudgeMatch_noMarker_returnsNudge', () => {
+        const result = evaluate('rm -rf dist', rules);
+        expect(result.decision).toBe('nudge');
+        expect(result.pattern).toBe('/rm\\s+-[a-z]*[rf][a-z]*\\s+/');
+    });
+
+    it('evaluate_nudgeMatch_withMarker_returnsConfirmEscalated', () => {
+        const result = evaluate('rm -rf dist  # guardrail:confirm', rules);
+        expect(result.decision).toBe('confirm');
+        expect(result.escalated).toBe(true);
+        expect(result.reason).toContain('no reversible alternative');
+    });
+
+    it('evaluate_blockTakesPrecedenceOverNudge_markerIgnored', () => {
+        // A hard block is never escalatable, even with the marker present.
+        const result = evaluate('rm -rf /  # guardrail:confirm', rules);
+        expect(result.decision).toBe('block');
+    });
+
+    it('evaluate_nudgeCheckedBeforeConfirm', () => {
+        // When a command matches both a nudge and a confirm pattern, nudge wins
+        // (it is earlier in precedence) so the agent gets the alternative-first path.
+        const overlap = {
+            block_patterns: [],
+            nudge_patterns: ['rm -rf'],
+            confirm_patterns: ['rm'],
+        };
+        expect(evaluate('rm -rf build', overlap).decision).toBe('nudge');
+    });
+
+    it('hasEscalationMarker_detectsCommentForm_caseInsensitive', () => {
+        expect(hasEscalationMarker('rm -rf x # guardrail:confirm')).toBe(true);
+        expect(hasEscalationMarker('rm -rf x #guardrail:confirm')).toBe(true);
+        expect(hasEscalationMarker('rm -rf x  # GUARDRAIL:CONFIRM')).toBe(true);
+        expect(hasEscalationMarker('rm -rf x')).toBe(false);
+        // Bare phrase without a leading # is NOT the marker (must read as a comment).
+        expect(hasEscalationMarker('echo guardrail confirm')).toBe(false);
     });
 });

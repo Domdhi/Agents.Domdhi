@@ -65,7 +65,7 @@ function loadRules() {
 
     // Validate rule arrays — a YAML authoring error can corrupt them to objects.
     // Fail safe and warn rather than silently passing all commands.
-    for (const key of ['block_patterns', 'confirm_patterns']) {
+    for (const key of ['block_patterns', 'nudge_patterns', 'confirm_patterns']) {
         if (rules[key] !== undefined && !Array.isArray(rules[key])) {
             process.stderr.write(
                 '[guardrail] WARNING: ' + key + ' in guardrail-rules.yaml is malformed (expected array, got ' + typeof rules[key] + ').\n' +
@@ -116,11 +116,12 @@ function matchPatterns(command, patterns) {
  *
  * @param {string} command - Sanitized command to check
  * @param {object} rules   - Parsed rules with block_patterns and confirm_patterns
- * @returns {{ action: 'block'|'confirm'|'allow', pattern?: string }}
+ * @returns {{ action: 'block'|'nudge'|'confirm'|'allow', pattern?: string }}
  */
 function checkRules(command, rules) {
     const result = evaluate(command, rules);
     if (result.decision === 'block') return { action: 'block', pattern: result.pattern };
+    if (result.decision === 'nudge') return { action: 'nudge', pattern: result.pattern };
     if (result.decision === 'confirm') return { action: 'confirm', pattern: result.pattern };
     return { action: 'allow' };
 }
@@ -214,6 +215,13 @@ function processEvent(parsedJson) {
 
     if (decision.action === 'block') {
         const resp = buildHookResponse('block', { command, pattern: decision.pattern });
+        return { block: true, feedback: resp.stderr };
+    }
+    if (decision.action === 'nudge') {
+        // Soft deny (exit 2) with an alternatives + escalation message. The agent
+        // tries a reversible path first; if there is none, it re-runs with the
+        // `# guardrail:confirm` marker, which evaluate() routes to a user confirm.
+        const resp = buildHookResponse('nudge', { command, pattern: decision.pattern });
         return { block: true, feedback: resp.stderr };
     }
     if (decision.action === 'confirm') {

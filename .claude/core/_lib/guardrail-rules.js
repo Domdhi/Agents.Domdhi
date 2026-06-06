@@ -37,7 +37,23 @@ const { parseYaml } = require('./yaml-parser');
 
 // ── Schema validators — D1 (hand-rolled, no runtime deps) ────────────────────
 
-const STRING_TIER_KEYS = ['block_patterns', 'confirm_patterns', 'zeroAccessPaths', 'readOnlyPaths', 'noDeletePaths'];
+const STRING_TIER_KEYS = ['block_patterns', 'nudge_patterns', 'confirm_patterns', 'zeroAccessPaths', 'readOnlyPaths', 'noDeletePaths'];
+
+/**
+ * Escalation marker an agent appends to a command to opt a `nudge` match into
+ * a user confirm. The nudge tier first DENIES (exit 2) with an alternatives
+ * message; the agent re-runs the same command with this trailing comment marker
+ * once it has confirmed there is no reversible alternative, and the guardrail
+ * then returns `confirm` (the user is prompted). Stateless by design — the
+ * marker travels in the re-issued command, so it is auditable and cannot be
+ * applied silently. Requires a `#` so it reads as an intentional comment.
+ */
+const ESCALATION_MARKER = /#\s*guardrail:confirm\b/i;
+
+/** True when a command carries the nudge→confirm escalation marker. */
+function hasEscalationMarker(command) {
+    return typeof command === 'string' && ESCALATION_MARKER.test(command);
+}
 const REGEX_TIER_KEYS = ['dangerousPatterns'];
 const ALL_TIER_KEYS = [...STRING_TIER_KEYS, ...REGEX_TIER_KEYS];
 
@@ -76,6 +92,7 @@ function validateTier(value, { requireRegex = false } = {}) {
 function emptyRules() {
     return {
         block_patterns: [],
+        nudge_patterns: [],
         confirm_patterns: [],
         dangerousPatterns: [],
         zeroAccessPaths: [],
@@ -146,8 +163,8 @@ function loadRules(yamlPath) {
         }
     }
 
-    // block/confirm must be arrays — else fail safe globally (P2.3 contract).
-    for (const key of ['block_patterns', 'confirm_patterns']) {
+    // block/nudge/confirm must be arrays — else fail safe globally (P2.3 contract).
+    for (const key of ['block_patterns', 'nudge_patterns', 'confirm_patterns']) {
         const v = parsed[key];
         if (v !== undefined && !Array.isArray(v)) return emptyRules();
     }
@@ -166,6 +183,7 @@ function loadRules(yamlPath) {
 
     return {
         block_patterns:    validated.block_patterns,
+        nudge_patterns:    validated.nudge_patterns,
         confirm_patterns:  validated.confirm_patterns,
         dangerousPatterns: validated.dangerousPatterns,
         zeroAccessPaths:   validated.zeroAccessPaths,
@@ -206,14 +224,22 @@ function matchesPattern(command, pattern) {
 /**
  * Evaluate a bash command against the loaded rule set.
  *
- * Precedence: dangerousPatterns → block_patterns → confirm_patterns → pass.
- * dangerousPatterns are treated as hard blocks (same semantics as
- * block_patterns) but are part of the four-tier A3 schema and can be extended
- * independently of the historical block_patterns list.
+ * Precedence: dangerousPatterns → block_patterns → nudge_patterns →
+ * confirm_patterns → pass. dangerousPatterns are treated as hard blocks (same
+ * semantics as block_patterns) but are part of the four-tier A3 schema and can
+ * be extended independently of the historical block_patterns list.
+ *
+ * The `nudge` tier sits between hard-block and confirm: on a plain match it
+ * returns `decision: 'nudge'` (the hook denies with an alternatives message so
+ * the agent tries a reversible path first). If the command carries the
+ * escalation marker (`# guardrail:confirm`), the same match instead returns
+ * `decision: 'confirm'` (escalated) so the user is prompted. Hard blocks take
+ * precedence and ignore the marker — they are never escalatable.
  */
 function evaluate(command, rules) {
     const dangerousPatterns = Array.isArray(rules.dangerousPatterns) ? rules.dangerousPatterns : [];
     const blockPatterns     = Array.isArray(rules.block_patterns)    ? rules.block_patterns    : [];
+    const nudgePatterns     = Array.isArray(rules.nudge_patterns)    ? rules.nudge_patterns    : [];
     const confirmPatterns   = Array.isArray(rules.confirm_patterns)  ? rules.confirm_patterns  : [];
 
     for (const pattern of dangerousPatterns) {
@@ -225,6 +251,16 @@ function evaluate(command, rules) {
     for (const pattern of blockPatterns) {
         if (matchesPattern(command, pattern)) {
             return { decision: 'block', pattern };
+        }
+    }
+
+    for (const pattern of nudgePatterns) {
+        if (matchesPattern(command, pattern)) {
+            if (hasEscalationMarker(command)) {
+                const reason = `Guardrail (escalated — no reversible alternative): "${pattern}" — ${command}`;
+                return { decision: 'confirm', pattern, reason, escalated: true };
+            }
+            return { decision: 'nudge', pattern };
         }
     }
 
@@ -339,4 +375,6 @@ module.exports = {
     evaluate,
     checkPathAccess,
     globMatchesPath, // exposed for tests + potential reuse
+    hasEscalationMarker,
+    ESCALATION_MARKER,
 };
