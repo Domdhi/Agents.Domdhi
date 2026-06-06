@@ -76,11 +76,19 @@ function loadRules() {
         }
     }
 
-    // Warn if the legacy path_rules block is non-empty. P2.5 superseded it with the
-    // four-tier schema (zeroAccessPaths/readOnlyPaths/noDeletePaths) which IS enforced;
-    // path_rules itself stays unenforced for backward compat with pre-P2.5 YAML.
+    // Warn about the legacy path_rules block ONLY when the adopter still has
+    // legacy entries AND has not migrated to the enforced four-tier schema
+    // (zeroAccessPaths/readOnlyPaths/noDeletePaths). Once any four-tier list is
+    // populated, the schema is in use and the legacy key is just redundant — so
+    // the migration NOTICE would fire on every single Bash command for no
+    // actionable reason. Gating on "unmigrated" keeps the hint where it helps
+    // (truly pre-P2.5 configs) and silences the per-command noise everywhere
+    // else. (2026-06-06 — noise gate)
     if (rules.path_rules && typeof rules.path_rules === 'object') {
-        if (Object.values(rules.path_rules).some(v => Array.isArray(v) && v.length > 0)) {
+        const legacyPopulated = Object.values(rules.path_rules).some(v => Array.isArray(v) && v.length > 0);
+        const fourTierPopulated = ['zeroAccessPaths', 'readOnlyPaths', 'noDeletePaths']
+            .some(k => Array.isArray(rules[k]) && rules[k].length > 0);
+        if (legacyPopulated && !fourTierPopulated) {
             process.stderr.write(
                 '[guardrail] NOTICE: path_rules is a legacy key preserved for backward compatibility and is not enforced.\n' +
                 '[guardrail] Migrate entries to zeroAccessPaths / readOnlyPaths / noDeletePaths for enforcement (Bash: guardrail.cjs; Edit/Write: path-guardrail.cjs). See the YAML file header for details.\n'

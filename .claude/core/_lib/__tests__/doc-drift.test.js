@@ -84,4 +84,16 @@ describe('detectDocDrift', () => {
         expect(r.misplacedTodos).toEqual([]);
         expect(r.hasDrift).toBe(false);
     });
+
+    // ── EV7: /evolve parks closed cycles under docs/todo/_archive/ (underscore) ──
+    it('ignoresTodosUnder_evolveCycleArchive', () => {
+        write('docs/TODO_Project.md');                                       // live master
+        write('docs/todo/TODO_epic01_foo.md');                              // live per-epic
+        write('docs/todo/_archive/cycle-1-260606-1214/_backlog.md');        // archived backlog
+        write('docs/todo/_archive/cycle-1-260606-1214/TODO_DomdhiCrypto.md'); // archived master
+        write('docs/todo/_archive/cycle-1-260606-1214/TODO_epic01_foo.md');  // archived per-epic
+        const r = detectDocDrift(root);
+        expect(r.misplacedTodos).toEqual([]);   // _archive (underscore) is skipped, not flagged
+        expect(r.hasDrift).toBe(false);
+    });
 });

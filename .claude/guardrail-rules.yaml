@@ -135,10 +135,48 @@ nudge_patterns:
   # Real project-path deletes (rm -rf ./src, repo root, ~, /, sudo rm -rf /etc)
   # nudge first, then confirm via `# guardrail:confirm`. The path-tier check
   # (zeroAccess/readOnly/noDelete) remains the hard guard for protected paths.
-  # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge 2026-06-06)
-  - /rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
+  #
+  # `git rm` is EXEMPT (leading negative lookbehind `(?<!git )`): it stages a
+  # history-preserving removal that `git checkout`/`git restore` fully reverses,
+  # so it IS the reversible alternative this nudge tells you to use — nudging it
+  # would loop the agent against its own advice. (Dom 2026-06-06)
+  # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge + git-rm-exempt 2026-06-06)
+  - /(?<!git )rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
   - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
   - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
+
+  # --- Git: Working tree destruction (moved from confirm 2026-06-06) ---
+  # All reversible via a stash/backup first, so nudge ("git stash" or a backup
+  # branch first) before asking. Escalate with `# guardrail:confirm` when the
+  # discard is genuinely intended and nothing worth keeping is in the tree.
+  - git reset --hard                   # discards all uncommitted changes → stash first
+  - /git reset(?! --hard)/             # git reset without --hard (mixed/soft modes)
+  - git checkout -- .                  # bulk-resets tracked files → stash first
+  - git clean -f                       # deletes untracked files → `git clean -n` (dry-run) first
+  - git clean -fd                      # also removes untracked directories → dry-run first
+  - git clean -fX                      # removes gitignored files → dry-run first
+
+  # --- Git: History rewriting (moved from confirm 2026-06-06) ---
+  # Reflog-recoverable, but back up the branch first (git branch backup/<name>)
+  # before rewriting; escalate when the rewrite is the intended operation.
+  - git rebase                         # rewrites commit history → backup branch first
+  - git commit --amend                 # rewrites last commit → reflog-recoverable, but back up first
+
+  # --- Git: Stash destruction (moved from confirm 2026-06-06) ---
+  # The stash IS the backup — confirm there's a copy (git stash show -p > patch)
+  # before dropping; escalate when the entry is genuinely disposable.
+  - git stash drop                     # permanently removes a stash entry
+  - git stash clear                    # permanently removes ALL stash entries
+
+  # --- Package management: local removal (moved from confirm 2026-06-06) ---
+  - npm uninstall -g                   # globally removes packages → reinstallable, nudge
+
+  # --- File: Bulk destructive find -exec (moved from confirm 2026-06-06) ---
+  # find -exec: nudge only when the exec runs a DESTRUCTIVE command
+  # (rm/mv/dd/truncate/tee/chmod/chown/sh/bash). Read-only execs like
+  # -exec grep / cat / ls never match. Try a tighter scope or a dry `-print`
+  # first; escalate with the marker when the sweep is intended.
+  - /find\s+.+-exec\s+(rm|mv|dd|truncate|tee|chmod|chown|sh|bash)\b/
 
 
 # ============================================================
@@ -149,41 +187,19 @@ nudge_patterns:
 
 confirm_patterns:
 
-  # --- Git: Working tree destruction ---
-  - git reset --hard                   # discards all uncommitted changes
-  - /git reset(?! --hard)/             # git reset without --hard (mixed/soft modes)
-  - git checkout -- .                  # bulk-resets tracked files
-  - git clean -f                       # deletes untracked files
-  - git clean -fd                      # also removes untracked directories
-  - git clean -fX                      # removes gitignored files
+  # Only outward-facing / irreversible-external operations remain here — a human
+  # gate is the right posture and the nudge tier's "try a safer alternative
+  # first" has no path that still achieves the goal. All LOCAL, reversible
+  # destructive commands (working-tree/history/stash destruction, npm uninstall
+  # -g, destructive find -exec) moved to nudge_patterns 2026-06-06.
 
-  # --- Git: Remote branch/tag operations ---
+  # --- Git: Remote branch/tag operations (outward-facing — touch the remote) ---
   - git push origin --delete           # deletes a remote branch or tag
   - /git push .+:refs\/tags\//         # deletes a remote tag
   - /git push .+--force-with-lease/    # safer force push, but still rewrites remote
 
-  # --- Git: History rewriting ---
-  - git rebase                         # rewrites commit history
-  - git commit --amend                 # rewrites last commit
-
-  # --- Git: Stash destruction ---
-  - git stash drop                     # permanently removes a stash entry
-  - git stash clear                    # permanently removes ALL stash entries
-
-  # --- Filesystem: Recursive deletion ---
-  # Moved to nudge_patterns (2026-06-06): rm -rf / del /s /q / Remove-Item
-  # -Recurse -Force now nudge ("try a safer alternative first") and escalate to
-  # a confirm only when re-run with `# guardrail:confirm`. See nudge_patterns.
-
-  # --- Package management ---
-  - npm uninstall -g                   # globally removes packages
+  # --- Package management: publish (irreversible — public registry) ---
   - npm publish                        # publishing to npm registry (irreversible)
-
-  # --- File: Bulk write/overwrite operations ---
-  # find -exec: confirm only when the exec runs a DESTRUCTIVE command
-  # (rm/mv/dd/truncate/tee/chmod/chown/sh/bash). Read-only execs like
-  # -exec grep / cat / ls no longer prompt. (Dom, 2026-06-03)
-  - /find\s+.+-exec\s+(rm|mv|dd|truncate|tee|chmod|chown|sh|bash)\b/
 
 
 # ============================================================

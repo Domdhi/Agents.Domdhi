@@ -49,7 +49,11 @@ const TEMPLATE_MARKER = '<!-- @@template -->';
 // left by an older plan) is invisible to the create-chain and to /status, which
 // only glob the canonical paths — so it silently orphans (F17). These dirs are
 // skipped entirely when walking for misplaced TODOs.
-const TODO_SKIP_DIRS = new Set(['.output', '.archive', 'node_modules', '.git', 'design']);
+//   • `_archive` (underscore) is where /evolve parks a closed cycle's TODO_epic*.md
+//     via git mv (docs/todo/_archive/cycle-N-{stamp}/). Those are intentionally
+//     retired, history-preserving copies — not misplaced live TODOs (EV7). `.archive`
+//     (dot) is kept too for any legacy hand-rolled archive dir.
+const TODO_SKIP_DIRS = new Set(['.output', '.archive', '_archive', 'node_modules', '.git', 'design']);
 const TODO_CANONICAL_DIRS = new Set(['', 'todo']); // relative to docs/
 
 /** True if a file exists and is NOT just an unfilled scaffold stub. */

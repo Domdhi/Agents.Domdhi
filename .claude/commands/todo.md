@@ -29,14 +29,28 @@ INPUT: $ARGUMENTS
 
 ```
 IF INPUT is a file path → read it as source material
+IF INPUT is an epic number → read Epic N from docs/todo/_backlog.md, use its stories as the brief
 IF INPUT is a module name → find docs/app/{name}/_brief.md, read it
 IF INPUT is a task description → use as the brief
-IF INPUT is empty → infer from:
+IF INPUT is empty → infer from (first that yields a concrete target wins):
   1. Current conversation context
-  2. docs/__handoff.md next actions
-  3. Recent git log (what was just completed → what's next)
-  4. Ask user only as last resort
+  2. Master index docs/TODO_{Project}.md → the next epic (see "Next-epic resolution" below)
+  3. docs/__handoff.md next actions
+  4. Recent git log (what was just completed → what's next)
+  5. Ask user only as last resort
 ```
+
+**Next-epic resolution (empty INPUT — the lifecycle "what now?" loop).** When INPUT is empty and the conversation gives no specific target, consult the master index before falling back to the handoff/git heuristics. This is the source of truth no command previously read for "what's next," and it's what makes the post-`/evolve` loop self-continue (the lead epic is made ready by `/evolve` Step 5.6; *subsequent* epics get picked up here):
+1. Find the master index — `docs/TODO_{Project}.md` (the single `TODO_*.md` at the `docs/` root, not the per-epic files under `docs/todo/`). If absent or an unfilled `<!-- @@template -->` stub, skip to inference source #3.
+2. Parse its epic rows and pick the **next** epic: prefer an **in-progress** epic (🔄 / partially-checked) if one exists — resume it — otherwise the **first not-done** epic (⬜ / `[ ]` todo, in index order). Skip ✅/`[x]` done epics. If every epic is done, say so (the cycle is complete → suggest `/evolve`) and stop.
+3. Resolve that epic to its **epic number** and hand off to the **epic-number branch** above (read Epic N's stories from `_backlog.md`). Announce the resolution in the report so it's never silent: `No INPUT given — resolved next epic from master index: Epic {N} — {title}.`
+This is deterministic and respects the same `_backlog.md` source the epic-number branch uses; the handoff/git fallbacks (#3/#4) remain for repos without a master index.
+
+**Epic-number branch (check before treating INPUT as a task description).** INPUT is an epic number when it is a bare integer (`12`), or matches `epic N` / `epic-N` / `epicNN` / `EX-` style epic identifiers (case-insensitive). When it is:
+1. Read `docs/todo/_backlog.md` and locate that epic's section (its heading + story list). If `_backlog.md` is missing or is still an unfilled `<!-- @@template -->` stub, fall back to treating INPUT as a literal task description and note it.
+2. If the epic isn't found in `_backlog.md`, say so and list the epic numbers that *do* exist — do not silently treat the number as a task description.
+3. Use that epic's title + objective + stories as the brief. The epic's stories become the seed stories for the TODO (research still resolves exact file paths per story in Phase 2 — the backlog gives titles/AC intent, not file lists).
+4. This mirrors `/create:project-epics-todo`'s epic-aware resolution; `/todo {epic}` is the single-epic, execution-ready unit that `/evolve` Step 5.6 calls for the lead epic.
 
 ### 2. Gather Project Context
 

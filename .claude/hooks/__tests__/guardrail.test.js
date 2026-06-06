@@ -633,9 +633,26 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
         expect(decision('find . -type f -exec cat {} ;')).toBe('pass');
     });
 
-    it('findExec_destructiveCommand_confirms', () => {
-        expect(decision('find . -exec rm {} ;')).toBe('confirm');
-        expect(decision('find /var -name x -exec mv {} /dest ;')).toBe('confirm');
+    it('findExec_destructiveCommand_nudges', () => {
+        // Destructive find -exec moved confirm→nudge (2026-06-06): try a tighter
+        // scope or dry -print first, escalate with the marker when intended.
+        expect(decision('find . -exec rm {} ;')).toBe('nudge');
+        expect(decision('find /var -name x -exec mv {} /dest ;')).toBe('nudge');
+        expect(decision('find . -exec rm {} ;  # guardrail:confirm')).toBe('confirm');
+    });
+
+    it('localDestructiveGit_nudges_remoteAndPublish_confirm', () => {
+        // Local, reversible destructive git → nudge (stash/backup/dry-run first).
+        expect(decision('git reset --hard HEAD~1')).toBe('nudge');
+        expect(decision('git clean -fd')).toBe('nudge');
+        expect(decision('git rebase main')).toBe('nudge');
+        expect(decision('git stash clear')).toBe('nudge');
+        expect(decision('npm uninstall -g typescript')).toBe('nudge');
+        // Escalation marker flips the nudge to a user confirm.
+        expect(decision('git reset --hard HEAD~1  # guardrail:confirm')).toBe('confirm');
+        // Outward-facing / irreversible-external → still an immediate confirm.
+        expect(decision('git push origin --delete feature')).toBe('confirm');
+        expect(decision('npm publish')).toBe('confirm');
     });
 
     it('gitPushForce_stillBlocked', () => {
@@ -699,6 +716,17 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
         ]) {
             expect(act(cmd)).toBe('nudge');
         }
+    });
+
+    it('exempts git rm (the history-preserving reversible alternative the nudge recommends)', () => {
+        // `git rm` stages a removal that git checkout/restore fully reverses, so
+        // it must NOT trip the rm -rf nudge — nudging it would loop the agent
+        // against its own advice. (2026-06-06)
+        expect(act('git rm -r .claude/skills/orphan')).toBe('allow');
+        expect(act('git rm -rf src/legacy')).toBe('allow');
+        expect(act('git rm --cached -r build')).toBe('allow');
+        // A bare `rm -rf` of the same real path still nudges.
+        expect(act('rm -rf .claude/skills/orphan')).toBe('nudge');
     });
 
     it('still blocks catastrophic commands', () => {
