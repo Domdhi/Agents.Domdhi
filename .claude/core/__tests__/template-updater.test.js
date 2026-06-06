@@ -172,7 +172,7 @@ describe('classifyClaudeFile', () => {
   });
 
   it('classifyClaudeFile_skillsReferencesMd_isTemplate', () => {
-    expect(classifyClaudeFile('skills/writing-skills/anthropic-best-practices.md')).toBe('template');
+    expect(classifyClaudeFile('skills/skill-authoring/anthropic-best-practices.md')).toBe('template');
   });
 
   it('classifyClaudeFile_skillsReferencesSubdir_isTemplate', () => {
@@ -430,7 +430,7 @@ Body content here.
 
 ## Skills
 
-- architecture-writer
+- architecture
 `;
     const srcPath = tmp.write('src/agents/architect.md', srcContent);
     const destPath = tmp.write('dest/agents/architect.md', srcContent);
@@ -761,7 +761,7 @@ describe('runUpdate — skill exclusion', () => {
   it('skips an excluded skill but copies others', () => {
     // Source ships two skills
     tmp.write('src/.claude/skills/tailwind-css-patterns/SKILL.md', '# tailwind');
-    tmp.write('src/.claude/skills/architecture-writer/SKILL.md', '# architecture');
+    tmp.write('src/.claude/skills/architecture/SKILL.md', '# architecture');
     // Target opts out of tailwind
     tmp.mkdir('target/.claude');
     tmp.write('target/.claude/update-config.json', JSON.stringify({ skillExclude: ['tailwind-css-patterns'] }));
@@ -772,7 +772,7 @@ describe('runUpdate — skill exclusion', () => {
     spy.mockRestore();
 
     const twPath = path.join(tmp.root, 'target', '.claude', 'skills', 'tailwind-css-patterns', 'SKILL.md');
-    const awPath = path.join(tmp.root, 'target', '.claude', 'skills', 'architecture-writer', 'SKILL.md');
+    const awPath = path.join(tmp.root, 'target', '.claude', 'skills', 'architecture', 'SKILL.md');
     expect(fs.existsSync(twPath)).toBe(false);   // excluded — not copied
     expect(fs.existsSync(awPath)).toBe(true);    // not excluded — copied
   });

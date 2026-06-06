@@ -68,6 +68,18 @@ describe('memory-manager', () => {
 
   describe('CRUD', () => {
 
+    it('C5_constructor_emptyDir_selfHealsAllCategoryDirs', () => {
+      // C5: a brownfield onboard never writes a memory, so the store used to stay
+      // unseeded and read-only tools ran against missing dirs. Construction alone
+      // must now self-heal the 5 category dirs (no SQLite required).
+      const manager = makeManager();
+      const memDir = path.join(tmp.root, 'docs', '.output', 'memories');
+      for (const category of manager.categories) {
+        expect(fs.existsSync(path.join(memDir, category))).toBe(true);
+      }
+      expect(manager.categories.length).toBe(5);
+    });
+
     it('createMemory_writesJsonFile_atCategoryPath', async () => {
       // Arrange
       const manager = makeManager();

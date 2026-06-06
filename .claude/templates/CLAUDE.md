@@ -23,7 +23,7 @@ docs/
 ├── todo/                     # Implementation checklists
 │   └── _backlog.md           # Epic definitions (source of truth)
 │
-└── .output/                  # Generated and operational output (gitignored)
+└── .output/                  # Operational output (partly gitignored — see note)
     ├── reviews/              # Code review, security audit, readiness results
     ├── investigations/       # Root cause analysis
     ├── research/             # General (non-feature) research
@@ -40,7 +40,7 @@ docs/
 - **`app/` mirrors the codebase** — one folder per feature module, structure matches `app/` in source
 - **Docs grow with the module** — start with `_brief.md`, add more docs when the module needs them
 - **Root-level docs are product-wide** — `_project-requirements.md` covers all features, `_project-architecture.md` covers all ADRs
-- **`.output/` is operational** — generated artifacts, reviews, and telemetry live here
+- **`.output/` is operational** — generated artifacts, reviews, and telemetry live here. Only the regenerable/session-specific subdirs are gitignored (`memories/`, `telemetry/`, `screenshots/`, `sessions/`, and the generated `status.html`/`decisions.html`); the durable records (`plans/`, `reviews/`, `research/`, `investigations/`, `work/`) are **tracked**
 
 ## Adding a New Module
 

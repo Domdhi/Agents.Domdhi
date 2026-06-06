@@ -7,6 +7,14 @@ argument-hint: [agent|command|skill] [name] [description]
 
 Create a new agent, command, or skill in the `.claude/` system. Ensures proper structure, frontmatter, wiring, and consistency with the three-tier architecture.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:component
+```
+
 ## Variables
 
 INPUT: $ARGUMENTS

@@ -13,15 +13,17 @@ allowed-tools: Read
 
 ## Overview
 
-**Skill authoring IS Test-Driven Development applied to process documentation.**
+**Skill authoring is evidence-driven: prove the gap, then prove the skill closes it.**
 
-You write test cases (pressure scenarios with subagents), watch them fail (baseline behavior), write the skill (documentation), watch tests pass (agents comply), and refactor (close loopholes).
+A skill — new or edited — is justified by **evidence of a real gap first, and a differential eval after.** The gap is the empirical baseline: an agent that fails the task *without* the skill, a recorded misalignment (an `agent-updates` entry), a repeated gate failure, or a cluster of memories showing agents keep re-deriving the same thing unaided. You then draft the skill and measure the **difference** it makes — `with_skill` vs `without_skill` (or `old_skill`) — and keep it only if it measurably helps.
 
-**Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing.
+**Core principle:** Never add skill content for a gap you can't point to, and never claim a skill helps without a differential that shows it. Evidence bookends the work — it does not have to come *before* you write a single word.
 
-**REQUIRED BACKGROUND:** You MUST understand the TDD RED-GREEN-REFACTOR cycle before using this skill. This skill adapts TDD to process documentation. (`superpowers:test-driven-development` is from an external library and is illustrative — not a live skill in this repo.)
+> **Doctrine note (2026-06-06):** This replaces the old "**NO SKILL WITHOUT A FAILING TEST FIRST**" Iron Law. Pre-emptively pressure-testing a subagent *before* writing blocked machine-assisted skill generation (you can't run a baseline before a skill exists when you're synthesizing it from accumulated workflows) and is out of step with Anthropic's official `skill-creator`, where **tests come after the draft**. We keep the discipline (evidence + measured improvement) and drop the ordering that made it un-automatable. Full rationale: the ADR in `docs/.output/reviews/2026-06-06-adr-self-improving-skills.md`.
 
-**Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.
+**REQUIRED OPERATIONAL SKILL:** For the actual create→eval→improve→benchmark loop, the eval harness, the differential workspace layout, and description optimization, use **`skill-creator`**. This skill (`skill-authoring`) owns the *doctrine and conventions*; `skill-creator` owns the *mechanics*. The autonomous driver that mines this repo's signals into skill work is `/review:evolve-skills`.
+
+**Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md.
 
 ## What is a Skill?
 
@@ -40,13 +42,13 @@ A **skill** is a reference guide for proven techniques, patterns, or tools. Skil
 | **Test fails (RED)** | Agent violates rule without skill (baseline) |
 | **Test passes (GREEN)** | Agent complies with skill present |
 | **Refactor** | Close loopholes while maintaining compliance |
-| **Write test first** | Run baseline scenario BEFORE writing skill |
-| **Watch it fail** | Document exact rationalizations agent uses |
+| **Establish baseline** | Capture the failure WITHOUT the skill — a run, a recorded `agent-updates` misalignment, or a memory cluster (capturing it *after* the draft is fine) |
+| **Watch it fail** | Document exact rationalizations / the gap the agent shows |
 | **Minimal code** | Write skill addressing those specific violations |
-| **Watch it pass** | Verify agent now complies |
+| **Watch it pass** | Verify the differential: `with_skill` beats baseline |
 | **Refactor cycle** | Find new rationalizations → plug → re-verify |
 
-The entire skill creation process follows RED-GREEN-REFACTOR.
+The cycle keeps TDD's spirit, with one change: the baseline + eval **bookend** the draft rather than strictly preceding it (see The Law below). Mechanics: `skill-creator`.
 
 ## When to Create a Skill
 
@@ -383,26 +385,22 @@ pptx/
 ```
 When: Reference material too large for inline
 
-## The Iron Law (Same as TDD)
+## The Law (evidence bookends the work)
 
 ```
-NO SKILL WITHOUT A FAILING TEST FIRST
+NO SKILL CONTENT WITHOUT EVIDENCE OF A GAP — AND A DIFFERENTIAL THAT SHOWS IT CLOSES
 ```
 
-This applies to NEW skills AND EDITS to existing skills.
+This applies to NEW skills AND EDITS to existing skills. The order is **evidence → draft → differential eval**, not "test first."
 
-Write skill before testing? Delete it. Start over.
-Edit skill without testing? Same violation.
+- **Evidence of a gap (the baseline):** a `without_skill` / `old_skill` run that fails, an `agent-updates` misalignment, a repeated gate failure, or a cluster of memories showing agents keep re-deriving this unaided. No gap you can point to → no skill content. Speculative "this could be clearer" polish is out of scope.
+- **Differential (the proof):** `with_skill` measurably beats the baseline on pass-rate — `node .claude/core/skill-eval.js aggregate <iteration> --skill-name <name>`. A delta ≤ 0 means the change isn't earning its place; iterate or drop it.
 
-**No exceptions:**
-- Not for "simple additions"
-- Not for "just adding a section"
-- Not for "documentation updates"
-- Don't keep untested changes as "reference"
-- Don't "adapt" while running tests
-- Delete means delete
+**The evidence requirement has no exceptions, but it can be lightweight:**
+- "Simple addition" / "just a section" / "doc update" still needs a gap behind it — but the gap can be one recorded misalignment and the differential a single with/without spot-check.
+- Subjective skills (writing style, design taste) are judged qualitatively, not with assertions — human judgment IS the differential there.
 
-**REQUIRED BACKGROUND:** The TDD RED-GREEN-REFACTOR cycle explains why this matters. Same principles apply to documentation. (`superpowers:test-driven-development` is illustrative — from an external library, not a live skill in this repo.)
+**Why this replaced "failing test first":** you cannot run a baseline before a skill exists when you're *synthesizing* it from accumulated workflows (the `/review:evolve-skills` CREATE path), and Anthropic's official `skill-creator` puts tests *after* the draft. We kept the discipline and dropped the un-automatable ordering. Operational loop: `skill-creator`. Autonomous driver: `/review:evolve-skills`.
 
 Load `references/testing-methodology.md` for full testing detail by skill type, rationalization tables, bulletproofing patterns, and the RED-GREEN-REFACTOR process for skills. Load when writing or pressure-testing a new skill.
 
@@ -441,10 +439,9 @@ How future Claude finds your skill:
 
 ## The Bottom Line
 
-**Creating skills IS TDD for process documentation.**
+**Creating skills is evidence-driven engineering for process documentation.**
 
-Same Iron Law: No skill without failing test first.
-Same cycle: RED (baseline) → GREEN (write skill) → REFACTOR (close loopholes).
-Same benefits: Better quality, fewer surprises, bulletproof results.
+Prove the gap (baseline) → draft the skill → prove it closes the gap (differential) → refactor to generalize.
+The discipline is unchanged from TDD's spirit; only the *ordering* relaxed so skills can be drafted — and machine-generated from accumulated experience — before the eval, then validated by it.
 
-If you follow TDD for code, follow it for skills. It's the same discipline applied to documentation.
+If you measure your code, measure your skills. Use `skill-creator` to run the loop, `/review:evolve-skills` to automate it.

@@ -7,6 +7,14 @@ argument-hint: [story ID, task description, or blank to infer from conversation]
 
 Execute one task through a structured pipeline. Main Agent owns the TaskList, plans, verifies, and makes every judgment call. For small/medium tasks, Main Agent implements directly — no lossy translation, no delegation overhead. For large tasks (or `--delegate`), Main Agent delegates to Sonnet. Sonnet documents.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js do
+```
+
 ## Variables
 
 INPUT: $ARGUMENTS
@@ -125,7 +133,7 @@ Main Agent writes the plan directly. The plan includes:
 
 ### 4c. Write the plan file to disk IMMEDIATELY
 
-Path: `docs/.output/plans/{YYYY-MM-DD}-do-{story-id-or-slug}.md` (for ad-hoc: `{YYYY-MM-DD}-do-{short-slug}.md`).
+Path: `docs/.output/plans/{YYMMDD-HHMM}-do-{story-id-or-slug}.md` (for ad-hoc: `{YYMMDD-HHMM}-do-{short-slug}.md`). Compute the `{YYMMDD-HHMM}` run stamp (`date +%y%m%d-%H%M`) once when you create the plan and reuse the exact same filename for the later `git add` — a same-day re-run then never clobbers the prior plan.
 
 Use the Write tool directly. Template:
 
@@ -476,6 +484,7 @@ For each AC bullet in the story:
 | Behavior-verifiable | Run the command that proves it, read the output, THEN claim it passes |
 | Data/schema | Read migration or schema file |
 | Integration | Check imports, wiring, registration |
+| CI-runtime only (matrix job, env-bound, no local runner) | Verify by **inspection** + note `[CI-pending]`; record a fallback if CI rejects it (F33). Local execution isn't possible — don't block on it |
 | Manual-only (UI, visual) | Note as `[manual]` — cannot verify in CLI |
 
 **Process:**
@@ -586,7 +595,7 @@ AC verified: {N}/{total} passed, {M} manual
 Then run:
 
 ```bash
-git add {implementation files} {test files} {TODO updates if any} docs/__handoff.md docs/.output/plans/{YYYY-MM-DD}-do-{slug}.md
+git add {implementation files} {test files} {TODO updates if any} docs/__handoff.md docs/.output/plans/{YYMMDD-HHMM}-do-{slug}.md
 node .claude/core/commit.js
 ```
 
@@ -655,7 +664,7 @@ When `/do` is invoked from conversation context without a TODO:
 1. **Step 1** infers the task from what was just discussed
 2. **Step 2** still creates the TaskList (pipeline tracking is always on)
 3. **Step 3** gathers context normally
-4. **Step 4** writes the plan file to `docs/.output/plans/{YYYY-MM-DD}-do-{short-slug}.md` — plan-first is even more important in ad-hoc mode, since there's no TODO story to fall back to
+4. **Step 4** writes the plan file to `docs/.output/plans/{YYMMDD-HHMM}-do-{short-slug}.md` — plan-first is even more important in ad-hoc mode, since there's no TODO story to fall back to
 5. **Steps 5-8** run normally — TDD, implement, gate, verify
 6. **Step 9a-9b** skipped (no TODO to update)
 7. **Step 9c** still logs agent issues if any

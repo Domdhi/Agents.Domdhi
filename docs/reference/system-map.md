@@ -17,11 +17,11 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/interview` | — (main) | — | user input | decision summary (chat only) | — |
 | `/create:project-brief` | product-strategist | project-planning | `_brainstorm.md`, `_research.md` | `_project-brief.md` | — |
 | `/create:project-requirements` | product-strategist | project-planning | brief OR brainstorm OR research | `_project-requirements.md` | needs phase 1 artifact |
-| `/create:project-design` | ux-designer | ux-designer | `_project-requirements.md` | `_project-design.md` + 4 design files | needs PRD |
-| `/create:project-architecture` | architect | architecture-writer | `_project-requirements.md` | `_project-architecture.md` | needs PRD |
-| `/create:project-epics` | project-planner | epic-writer | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
-| `/create:project-todo` | project-planner | epic-writer | `_backlog.md` | `TODO_{Project}.md` | needs backlog |
-| `/create:project-epics-todo` | project-planner | epic-writer | `_backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
+| `/create:project-design` | ux-designer | ux-design | `_project-requirements.md` | `_project-design.md` + 4 design files | needs PRD |
+| `/create:project-architecture` | architect | architecture | `_project-requirements.md` | `_project-architecture.md` | needs PRD |
+| `/create:project-epics` | project-planner | project-planning | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
+| `/create:project-todo` | project-planner | project-planning | `_backlog.md` | `TODO_{Project}.md` | needs backlog |
+| `/create:project-epics-todo` | project-planner | project-planning | `_backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
 | `/create:new-project` | — (orchestrator) + chains all setup sub-commands | — (chains all setup skills) | user interview answers | full `docs/` scaffold + planning chain → `_project-context.md` | fresh project (no filled planning docs); `--yolo` bypass |
 
 ### Build Commands (daily loop)
@@ -43,8 +43,10 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/investigate` | — (main) | — | 4-phase root cause diagnosis with 3-strike rule |
 | ~~`/recap`~~ | — | — | *Removed — memory auto-compounds via Stop hook* |
 | `/organize` | — (hooks) | — | Move plan files to dated folders |
-| `/create:module` | product-strategist + architect + ux-designer + general-purpose | epic-writer | Add a new module to an existing project |
+| `/create:module` | product-strategist + architect + ux-designer + general-purpose | project-planning | Add a new module to an existing project |
 | `/create:component` | — (main) | system-builder | Create a new agent, command, or skill following conventions |
+| `/listen` | — (main) | — | Post-MVP Tier 1: aggregate push-from-reality signals → dated intake file (no triage) |
+| `/triage` | — (main) | project-planning | Post-MVP Tier 2: classify intake signals → ranked backlog (severity≠priority, auto-decide mechanical calls, kill/defer ledger) |
 
 ### Review Commands (periodic)
 
@@ -52,14 +54,14 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 |---------|-------|-------|----------------|
 | `/review:code-review` | code-reviewer | code-review | No (read-only) |
 | `/review:security` | security-auditor | code-review | Yes (writes to `docs/.output/reviews/`) |
-| `/review:check-readiness` | architect + product-strategist + project-planner + ux-designer | prd/arch/ux/epic writers | No (read-only) |
+| `/review:check-readiness` | architect + product-strategist + project-planner + ux-designer | project-planning, architecture, ux-design | No (read-only) |
 | `/review:check-sync` | architect + project-planner + product-strategist | — | No (read-only) |
 | `/review:check-templates` | — (main) | — | Yes (writes to `docs/.output/reviews/`, `--multi` for cross-project) |
-| `/review:update-docs` | doc-writer | project-context | Yes (fixes drift) |
+| `/review:update-docs` | doc-writer | project-planning | Yes (fixes drift) |
 | `/review:qa` | qa-engineer | qa-engineer | Yes (generates tests) |
-| `/review:optimize-backlog` | project-planner | epic-writer | Optional |
-| `/review:retro` | doc-writer | project-context | Yes (creates retro doc) |
-| `/review:changelog` | doc-writer | project-context | Yes (creates/updates CHANGELOG) |
+| `/review:optimize-backlog` | project-planner | project-planning | Optional |
+| `/review:retro` | doc-writer | project-planning | Yes (creates retro doc) |
+| `/review:changelog` | doc-writer | project-planning | Yes (creates/updates CHANGELOG) |
 | `/review:specialize` | architect | tailwind (as exemplar) | Yes (updates agents, creates skills) |
 | `/review:optimize-agents` | — (main) | — | Optional (--fix mode) |
 | `/review:personalize` | doc-writer | — | Yes (updates agent files) |
@@ -72,17 +74,17 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Agent | Skill(s) Loaded | Used By Commands |
 |-------|----------------|-----------------|
-| `architect` | architecture-writer | project-architecture, module, specialize, check-readiness, check-sync |
+| `architect` | architecture | project-architecture, module, specialize, check-readiness, check-sync |
 | `product-strategist` | project-planning | brainstorm, research, project-brief, project-requirements, module, check-readiness, check-sync |
-| `ux-designer` | ux-designer, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects | project-design, module, check-readiness |
-| `project-planner` | epic-writer | project-epics, project-todo, project-epics-todo, optimize-backlog, todo, check-readiness, check-sync |
+| `ux-designer` | ux-design, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects | project-design, module, check-readiness |
+| `project-planner` | project-planning | project-epics, project-todo, project-epics-todo, optimize-backlog, todo, check-readiness, check-sync |
 | `code-reviewer` | code-review | code-review, run-todo, todo |
 | `qa-engineer` | qa-engineer | qa |
-| `doc-writer` | project-context, documentation | changelog, update-docs, retro, personalize |
+| `doc-writer` | project-planning, documentation | changelog, update-docs, retro, personalize |
 | `security-auditor` | code-review | security |
 | `general-purpose` | full-output-enforcement, systematic-debugging, verification-before-completion, finishing-a-development-branch, using-git-worktrees | module, run-tests, do (domain tasks) |
 | `playwright` | playwright-cli | run-tests |
-| `shadow` | article-writer | (not referenced by any command) |
+| `shadow` | ghostwriting | (not referenced by any command) |
 
 ### Agents with no command usage
 - **shadow** — available for direct invocation but no command explicitly calls it
@@ -93,17 +95,15 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Skill | Loaded By Agent(s) | Referenced By Command(s) | Purpose |
 |-------|--------------------|--------------------------| --------|
-| architecture-writer | architect | project-architecture, check-readiness | Architecture doc template + quality criteria |
-| project-planning | product-strategist | brainstorm, research, project-brief, project-requirements | Navigator: brainstorm/research, brief, PRD templates + quality criteria |
-| epic-writer | project-planner | project-epics, project-todo, project-epics-todo, optimize-backlog, module | Epic/story template + quality criteria |
-| project-context | doc-writer | changelog, update-docs, retro | Project context doc format |
+| architecture | architect | project-architecture, check-readiness | Architecture doc template + quality criteria |
+| project-planning | product-strategist, project-planner, doc-writer | brainstorm, research, project-brief, project-requirements, project-epics, project-todo, project-epics-todo, optimize-backlog, module, changelog, update-docs, retro | Navigator: brief / PRD / backlog / project-context templates + guidance (consolidated; folded in epic-writer + project-context) |
 | documentation | doc-writer | — | Documentation wayfinding + verification rules |
-| ux-designer | ux-designer | project-design, check-readiness | UX spec template + quality criteria |
+| ux-design | ux-designer | project-design, check-readiness | UX spec template + quality criteria |
 | brand-guidelines | ux-designer | project-design (updates it) | Brand colors/typography guide |
 | code-review | code-reviewer, security-auditor | code-review | Navigator: reviewer identity, two-stage process, severity, risk routing, checklists |
 | qa-engineer | qa-engineer | qa | Test strategy + generation patterns |
 | playwright-cli | playwright | run-tests | Browser automation patterns |
-| article-writer | shadow | — | Blog/article writing patterns |
+| ghostwriting | shadow | — | Blog/article writing patterns |
 | content-formats | — | — | LinkedIn, newsletter, Twitter, YouTube templates |
 | system-builder | — | create:component | Agent/command/skill creation conventions |
 | tailwind-css-patterns | ux-designer | specialize (as exemplar) | Tailwind utility patterns |
@@ -112,7 +112,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | verification-before-completion | general-purpose | — | Blocks success claims without fresh verification |
 | finishing-a-development-branch | general-purpose | — | Branch integration workflow (merge, PR, keep, discard) |
 | using-git-worktrees | general-purpose | — | Isolated worktree creation for feature work |
-| writing-skills | — | — | TDD for skill creation (baseline test before writing) |
+| skill-authoring | — | — | TDD for skill creation (baseline test before writing) |
 | design-taste-frontend | ux-designer | — | Frontend design standards |
 | redesign-existing-projects | ux-designer | — | Upgrade existing UI patterns |
 | session-handoff | — | end, do, run-todo, run-tests, todo | Handoff template + fill rules consumed by session-persistence commands |
@@ -216,7 +216,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | redesign-existing-projects | Loaded by ux-designer agent |
 | documentation | Loaded by doc-writer agent |
 | content-formats | Not wired to any agent — standalone skill |
-| writing-skills | Not wired to any agent — standalone skill |
+| skill-authoring | Not wired to any agent — standalone skill |
 
 ---
 

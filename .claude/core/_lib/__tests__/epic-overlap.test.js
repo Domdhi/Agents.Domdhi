@@ -12,7 +12,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const { extractEpicFiles, findOverlaps } = require('../epic-overlap');
+const { extractEpicFiles, extractEpicPhases, findOverlaps } = require('../epic-overlap');
 
 let dir;
 beforeEach(() => {
@@ -88,5 +88,58 @@ describe('findOverlaps', () => {
             ['Epic 2: B', new Set(['b.ts'])],
         ]);
         expect(findOverlaps(map)).toEqual([]);
+    });
+});
+
+// ── F6: phase-aware overlap ────────────────────────────────────────────────
+describe('extractEpicPhases', () => {
+    it('mapsEachEpicToItsPhaseHeading', () => {
+        const p = path.join(dir, 'b.md');
+        fs.writeFileSync(p, [
+            '## Phase 0: Foundation',
+            '### Epic 0: Tooling',
+            '## Phase 1: Core',
+            '### Epic 1: Engine',
+            '### Epic 2: Persistence',
+        ].join('\n'));
+        const phases = extractEpicPhases(p);
+        expect(phases.get('Epic 0: Tooling')).toBe('Phase 0: Foundation');
+        expect(phases.get('Epic 1: Engine')).toBe('Phase 1: Core');
+        expect(phases.get('Epic 2: Persistence')).toBe('Phase 1: Core');
+    });
+
+    it('epicBeforeAnyPhase_mapsToNull', () => {
+        const p = path.join(dir, 'c.md');
+        fs.writeFileSync(p, '### Epic 9: Loose\n');
+        expect(extractEpicPhases(p).get('Epic 9: Loose')).toBe(null);
+    });
+});
+
+describe('findOverlaps — phase awareness (F6)', () => {
+    const map = new Map([
+        ['Epic 1: A', new Set(['shared.ts'])],
+        ['Epic 2: B', new Set(['shared.ts'])],
+    ]);
+
+    it('crossPhaseOverlap_taggedSamePhaseFalse', () => {
+        const phases = new Map([['Epic 1: A', 'Phase 0: X'], ['Epic 2: B', 'Phase 1: Y']]);
+        const [o] = findOverlaps(map, phases);
+        expect(o.sharedFiles).toEqual(['shared.ts']);
+        expect(o.samePhase).toBe(false); // different phases → cannot collide in a wave
+    });
+
+    it('samePhaseOverlap_taggedSamePhaseTrue', () => {
+        const phases = new Map([['Epic 1: A', 'Phase 0: X'], ['Epic 2: B', 'Phase 0: X']]);
+        expect(findOverlaps(map, phases)[0].samePhase).toBe(true);
+    });
+
+    it('unknownPhase_conservativelyGates_samePhaseTrue', () => {
+        const phases = new Map([['Epic 1: A', 'Phase 0: X']]); // Epic 2 phase unknown
+        expect(findOverlaps(map, phases)[0].samePhase).toBe(true);
+    });
+
+    it('withoutPhaseMap_omitsSamePhaseField_backwardCompatible', () => {
+        const [o] = findOverlaps(map);
+        expect(o).not.toHaveProperty('samePhase');
     });
 });

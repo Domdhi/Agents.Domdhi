@@ -8,6 +8,14 @@ argument-hint: <topic to discuss>
 
 Ask the user interactive questions to gather information before taking action. Use `AskUserQuestion` tool for structured multi-choice questions, not open-ended text prompts.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js interview
+```
+
 ## When to Use
 
 - Before building a new feature, command, or component

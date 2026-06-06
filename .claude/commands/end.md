@@ -10,6 +10,14 @@ Write `docs/__handoff.md` — the handoff file that `/prime` reads next session.
 
 This command is the **end-of-session** invocation of the handoff writer. `/do`, `/run-todo`, `/run-tests`, and `/todo` also produce handoffs as part of their own pipelines, so running `/end` after one of those is optional — but it's harmless and gives you a dedicated save point.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js end
+```
+
 ## Shared writer
 
 The handoff template, fill rules, and command-specific tailoring all live in the **`session-handoff` skill** (`.claude/skills/session-handoff/SKILL.md`). Read it before writing. That skill is the single source of truth for what goes in `docs/__handoff.md`; this command is the orchestrator.

@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "publish:public": "node tools/publish.js",
     "memory:eval": "node .claude/core/memory-eval.js",
-    "memory:stability": "node .claude/core/memory-stability.js"
+    "memory:stability": "node .claude/core/memory-stability.js",
+    "feedback:rollup": "node tools/feedback-aggregate.js"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.0.0",

@@ -69,7 +69,7 @@ function organizePlans(results) {
         if (!fs.existsSync(plansDir)) continue;
         const dirFiles = fs.readdirSync(plansDir)
             .filter(f => f.endsWith('.md') && fs.statSync(path.join(plansDir, f)).isFile())
-            .filter(f => !/^\d{4}-\d{2}-\d{2}/.test(f)) // Not already organized
+            .filter(f => !/^(?:\d{4}-\d{2}-\d{2}|\d{6}-\d{4})/.test(f)) // Not already organized: skip YYYY-MM-DD date folders AND YYMMDD-HHMM run-stamp prefixes (e.g. do/run-todo plans)
             .map(f => {
                 const stat = fs.statSync(path.join(plansDir, f));
                 return {

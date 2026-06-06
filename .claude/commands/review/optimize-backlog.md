@@ -6,6 +6,14 @@ description: Analyze backlog for dependency optimization, critical path, and par
 
 Analyze `docs/todo/_backlog.md` for dependency optimization, critical path identification, and parallel workstream mapping. This is the analytical counterpart to `/create:project-epics` — where epic creation thinks in coverage and phasing, this command thinks in graphs, parallelism, and realistic developer workflow.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:optimize-backlog
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle graph construction and validation. The `project-planner` agent handles optimization analysis and rewrite. Do NOT write the optimization inline — delegate via Task tool.
@@ -128,7 +136,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete backlog optimization report (dependency graph + critical path + parallel workstreams + recommendations) to:
-`docs/.output/reviews/{YYYY-MM-DD}-backlog-optimization.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
 
 File format:
 ```markdown
@@ -142,7 +150,7 @@ File format:
 
 ### 7. Commit (main agent)
 
-Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYYY-MM-DD}-backlog-optimization.md` — and commit with a descriptive message.
+Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md` — and commit with a descriptive message.
 
 ### 8. Report (main agent)
 
@@ -151,7 +159,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 
 **Input**: docs/todo/_backlog.md
 **Stories analyzed**: {count}
-**Output**: `docs/.output/reviews/{YYYY-MM-DD}-backlog-optimization.md`
+**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
 **Critical path**: {count} stories, ~{hours} hours ({story chain})
 **Parallel tracks**: {count} independent workstreams identified
 **Optimizations found**: {count} over-specified deps, {count} phase moves

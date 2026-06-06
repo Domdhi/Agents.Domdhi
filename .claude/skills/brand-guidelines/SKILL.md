@@ -15,7 +15,7 @@ allowed-tools: Read Write Edit Grep Glob
 
 Official brand identity for this project. Use this skill when generating any visual output — web components, dashboards, reports, emails, presentations, or documents — that should carry the project's look and feel.
 
-**To customize:** Replace the placeholder values below with your project's actual brand colors, typography, and logo rules. This skill is referenced by `/create:project-design` and the `ux-designer` skill when generating design specs.
+**To customize:** Replace the placeholder values below with your project's actual brand colors, typography, and logo rules. This skill is referenced by `/create:project-design` and the `ux-design` skill when generating design specs.
 
 ---
 

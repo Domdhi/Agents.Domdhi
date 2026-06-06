@@ -7,6 +7,14 @@ argument-hint: [epic name or number]
 
 Analyze a completed epic to extract lessons learned and patterns. Produces `docs/.output/reviews/retro-{epic-slug}.md`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:retro
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle epic identification, data gathering, pattern extraction to memory, and doc sync. The `doc-writer` agent handles the retrospective analysis and output generation. Do NOT write the retro document inline — delegate via Task tool. You DO handle memory operations and committing.

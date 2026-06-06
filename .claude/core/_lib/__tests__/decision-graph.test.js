@@ -51,6 +51,25 @@ describe('loadDecisionData', () => {
     expect(result.crossReferences).toEqual({});
   });
 
+  it('loadDecisionData_missingCrossRefsFile_doesNotWarn (F22)', () => {
+    // A missing cross-references.json is the normal pre-compilation state, not
+    // an error — it must NOT emit a "Cannot read file" warning to stderr.
+    // Create a concept so conceptsDir exists, but write no cross-references.json.
+    createConcept(tmp, 'patterns', 'a-pattern', {
+      title: 'A Pattern', confidence: 0.8, sources: ['2026-01-15'], content: 'x',
+    });
+    const writes = [];
+    const orig = process.stderr.write;
+    process.stderr.write = (chunk, ...rest) => { writes.push(String(chunk)); return orig.call(process.stderr, chunk, ...rest); };
+    try {
+      const result = loadDecisionData({ projectRoot: tmp.root, cutoffDate: new Date('2000-01-01'), categories: CATEGORIES });
+      expect(result.crossReferences).toEqual({});
+    } finally {
+      process.stderr.write = orig;
+    }
+    expect(writes.join('')).not.toMatch(/cross-references\.json/);
+  });
+
   it('loadDecisionData_withConceptFile_returnsConceptInCollection', () => {
     // Arrange — write one concept article matching concept-fixture format
     createConcept(tmp, 'patterns', 'test-pattern', {

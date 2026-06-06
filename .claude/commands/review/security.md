@@ -7,6 +7,14 @@ argument-hint: [file path, PR number, git diff range, or directory]
 
 Security audit of code for vulnerabilities, OWASP compliance, secret exposure, and attack surface analysis. Uses the `security-auditor` agent. The auditor writes its findings to `docs/.output/reviews/` and never modifies the system under audit.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:security
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle scope detection and context gathering. The `security-auditor` agent handles the actual security analysis. Do NOT perform the review inline — delegate via Task tool. You DO handle the final report output.
@@ -77,7 +85,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete audit output (OWASP assessment + all findings) to:
-`docs/.output/reviews/{YYYY-MM-DD}-security-audit.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-security-audit.md`
 
 File format:
 ```markdown
@@ -102,7 +110,7 @@ docs: /review:security — {N} findings ({critical}C/{high}H/{medium}M/{low}L)
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-security-audit.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-security-audit.md
 node .claude/core/commit.js
 ```
 
@@ -115,7 +123,7 @@ Read the agent's output and present the final report, including the output file 
 
 **Scope**: {files/PR/diff reviewed}
 **Findings**: {critical} critical, {high} high, {medium} medium, {low} low
-**Output**: `docs/.output/reviews/{YYYY-MM-DD}-security-audit.md`
+**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-security-audit.md`
 
 ### Threat Model
 {Attack surface summary — endpoints, inputs, auth boundaries, third-party integrations identified by the auditor}

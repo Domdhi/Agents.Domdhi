@@ -6,6 +6,14 @@ description: Validate that all planning docs are complete and consistent before 
 
 Validate that all Phase 1-3 documentation is complete, consistent, and ready for implementation. Returns PASS, CONCERNS, or FAIL.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:check-readiness
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle document existence checks, cross-document consistency, and the final verdict. Domain agents handle completeness validation for their area. Do NOT validate document sections inline — delegate to the domain expert.
@@ -147,7 +155,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete readiness check output (all agent findings + consistency + verdict) to:
-`docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md`
 
 File format:
 ```markdown
@@ -171,7 +179,7 @@ docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md
 node .claude/core/commit.js
 ```
 
@@ -180,7 +188,7 @@ node .claude/core/commit.js
 ```markdown
 ## Implementation Readiness Check
 
-**Output**: `docs/.output/reviews/{YYYY-MM-DD}-readiness-check.md`
+**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md`
 
 ### Verdict: {PASS / CONCERNS / FAIL}
 

@@ -179,6 +179,22 @@ describe('organize', () => {
             expect(result).toBeNull();
         });
 
+        it('processEvent_runStampPrefixedPlan_notMoved', () => {
+            process.env.CLAUDE_PROJECT_DIR = tmp.root;
+            // do/run-todo write flat plans prefixed with a YYMMDD-HHMM run stamp.
+            // The hook must treat that prefix as "already organized" and leave the
+            // file in place — else it would move it out from under the command's git add.
+            const rel = 'docs/.output/plans/260606-1642-do-my-story.md';
+            tmp.write(rel, '# Plan: my story\n\n## Summary\nStamped plan stays flat.');
+
+            const result = processEvent({});
+
+            // File must still be at its original flat path, unmoved.
+            expect(fs.existsSync(path.join(tmp.root, rel))).toBe(true);
+            // Nothing was organized.
+            expect(result).toBeNull();
+        });
+
         it('processEvent_isRecallable_resultsResetPerCall', () => {
             process.env.CLAUDE_PROJECT_DIR = tmp.root;
             tmp.write('docs/.output/plans/plan-a.md', '# Plan: a\n\n## Summary\nFirst call.');

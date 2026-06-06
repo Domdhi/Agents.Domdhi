@@ -7,6 +7,14 @@ argument-hint: [project name or prd path] [--yolo]
 
 Create a technical architecture document. Produces `docs/_project-architecture.md`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:project-architecture
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle upstream checks, mode detection, and user interviews. The `architect` agent handles document generation. Do NOT write the architecture document inline — delegate via Task tool.

@@ -9,6 +9,14 @@ Create a TODO checklist that `/run-todo` can execute without additional research
 
 Main Agent does all planning and assembly. Research agents (Sonnet) scan the codebase. The output is a contract — `/run-todo` trusts it completely.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js todo
+```
+
 ## Variables
 
 INPUT: $ARGUMENTS

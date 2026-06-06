@@ -7,6 +7,14 @@ argument-hint: [project name or project-brief path] [--yolo]
 
 Create a comprehensive Product Requirements Document. Produces `docs/_project-requirements.md`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:project-requirements
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle upstream checks, mode detection, and user interviews. The `product-strategist` agent handles document generation. Do NOT write the PRD inline — delegate via Task tool.
@@ -29,10 +37,11 @@ Check that at least ONE of these files exists AND does not contain `<!-- @@templ
 - `docs/_project-brief.md`
 - `docs/_brainstorm.md`
 - Any file matching `docs/app/*/research.md` or `docs/.output/research/**`
+- `docs/_project-architecture.md` — **brownfield exit (C8):** a real reverse-engineered architecture from `/onboard` is a valid upstream artifact. `/onboard` deliberately produces architecture (not a brief), so without this a brownfield repo dead-ends here with no onboard-native path to requirements. When this is the only real artifact, draw requirements from it in Reverse-Engineering Mode.
 
 **If NONE of them are real (all missing or all template-only):**
-- If YOLO_MODE → warn: "No Phase 1 artifacts found (brief, brainstorm, or research). Proceeding in yolo mode with Interview Mode." → go to Interview Mode
-- Otherwise → **STOP**: "No Phase 1 artifacts found. Run `/create:project-brief`, `/brainstorm`, or `/research` first. Use `--yolo` to bypass this gate."
+- If YOLO_MODE → warn: "No Phase 1 artifacts found (brief, brainstorm, research, or architecture). Proceeding in yolo mode with Interview Mode." → go to Interview Mode
+- Otherwise → **STOP**: "No upstream artifacts found. Run `/create:project-brief`, `/brainstorm`, `/research`, or `/onboard` (brownfield) first. Use `--yolo` to bypass this gate."
 
 **If at least one is real** → read whichever exist for context and proceed to mode detection.
 

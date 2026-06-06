@@ -71,7 +71,13 @@ function renderMemoryHealthBox(mm) {
 function generateHtml(files, telemetry, gitMetrics, outputDir, memMetrics = null) {
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-    const totals = files.reduce((acc, f) => {
+    // Dedup master vs per-epic before aggregating — a master index already
+    // counts every story, so summing it with the per-epic checklists
+    // double-counts (F21). Mirrors computeGrandTotals() in status.js (inlined
+    // here to avoid a require cycle — status.js requires this module).
+    const masters = files.filter(f => f.type === 'master');
+    const totalSource = masters.length > 0 ? masters : files;
+    const totals = totalSource.reduce((acc, f) => {
         acc.total += f.stories.total;
         acc.done += f.stories.done;
         acc.inProgress += f.stories.inProgress;

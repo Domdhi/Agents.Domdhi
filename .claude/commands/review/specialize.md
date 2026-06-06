@@ -9,6 +9,14 @@ Specialize the generic `.claude/` template system for **this project's** tech st
 
 **Idempotent** — safe to re-run. Agent context sections are replaced (not duplicated). Memories are only seeded into empty categories.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:specialize
+```
+
 ## Variables
 
 MODE: $ARGUMENTS (default: `--fix`)
@@ -22,17 +30,17 @@ MODE: $ARGUMENTS (default: `--fix`)
 
 Verify the project is ready for specialization:
 
-- Read `docs/_project-architecture.md` — must exist and NOT be a template (`<!-- @@template -->`)
-- Read `docs/todo/_backlog.md` — must exist and NOT be a template
+- Read `docs/_project-architecture.md` — **REQUIRED**: must exist and NOT be a template (`<!-- @@template -->`). The architecture doc is the load-bearing input — specialization extracts the tech stack, components, and risk map from it.
+- Read `docs/todo/_backlog.md` — **OPTIONAL**: if it exists and is real, the risk map can use epic/story boundaries; if it is missing or a template, proceed in **architecture-only mode**.
 
-If either is missing or is a template:
+**If `_project-architecture.md` is missing or a template:**
 
 ```
-ABORT: /specialize requires Phase 3+ (Solutioning complete).
-Current phase: {phase} ({name})
-Missing: {list missing artifacts}
-Run: {recommended next action from lifecycle output}
+ABORT: /specialize requires a real docs/_project-architecture.md.
+Run /onboard (brownfield) or /create:project-architecture (greenfield) first.
 ```
+
+**Architecture-only mode (C7):** when the backlog is missing/template — the normal state right after `/onboard`, which deliberately defers the backlog to the create-chain — do **NOT** abort. Specialize the agents from the architecture doc (stack extraction, agent `## Project Context`, gate config, risk map all derive from architecture) and note in the report: *"backlog absent — backlog-derived refinements deferred; re-run `/review:specialize` after `/create:project-epics` to incorporate epic boundaries."* This is what lets `/onboard`'s chained specialize actually produce specialized agents instead of silently aborting.
 
 ### 1. Extract Project Tech Stack
 
@@ -220,15 +228,17 @@ memory: project
 
 ### 2c. Configure Build & Test Gate
 
-`gate.js` auto-detects the project's build system. If the project needs overrides (e.g., custom build command, test in a subdirectory, or additional pre-test setup), create `gate.config.json` in the project root:
+`gate.js` auto-detects the project's build system. If the project needs overrides (e.g., a custom build command, or aligning the gate's bar to the project's real CI), create `.claude/gate.config.json`. **The schema is nested** — `gate.js` reads `config.build.command` / `config.test.command` (NOT flat strings). A flat `{"build": "npm run build"}` makes the gate run `Building... (undefined)` and fail (C14):
 
 ```json
 {
-  "build": "npm run build",
-  "test": "npm test",
-  "cwd": "src"
+  "build": { "command": "npm run build", "timeout": 300000 },
+  "test":  { "command": "npm test", "timeout": 600000 },
+  "stack": "node"
 }
 ```
+
+(For a Python project whose CI is ruff+pytest without mypy, e.g.: `"build": { "command": ".venv/bin/ruff check src tests" }`, `"test": { "command": ".venv/bin/pytest" }`, `"stack": "python"`.)
 
 **Skip** if `gate.js` auto-detection already works for this stack (run `node .claude/core/gate.js build` to verify). Only create `gate.config.json` when the default detection is wrong or incomplete.
 

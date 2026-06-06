@@ -238,7 +238,9 @@ Leave the files on disk (`--cached`); they're working state, not deletions. Repo
 
 Inspect whether a `CLAUDE.md` already exists at the project root.
 
-**Case A — No CLAUDE.md exists:**
+**Case 0 — CLAUDE.md exists but is the install stub (C6):** the brownfield installer writes a minimal placeholder whose entire content points back here (it contains *"This project uses the Domdhi Agents template"* / *"Run `/onboard`"*). This is NOT a real adopter file to preserve — additively merging around it would leave a stale "Run /onboard" instruction after onboard has already run. If the existing CLAUDE.md matches the install stub (short, and contains that "Run `/onboard`" / "to complete setup" marker), treat it as **Case A** — generate a fresh project CLAUDE.md and overwrite the stub (no diff-confirm needed; there is no user content to protect).
+
+**Case A — No CLAUDE.md exists (or it is the install stub per Case 0):**
 Generate a new `CLAUDE.md` grounded in the onboard scan:
 - Short project description (1-2 sentences, inferred from README or git log)
 - Tech stack (from Step 2)
@@ -281,6 +283,8 @@ Now that `docs/_project-architecture.md` exists, chain `/review:specialize` to c
 # Invoked as a sub-command, not a bash command — triggers the specialize workflow
 /review:specialize --fix
 ```
+
+`/onboard` deliberately defers the backlog to the create-chain, so at this point `docs/todo/_backlog.md` is still a template stub. That is expected: `/review:specialize` runs in **architecture-only mode** (C7) and specializes the agents from the architecture doc — it does NOT abort on the missing backlog. Once the backlog exists (after `/create:project-epics`), re-running `/review:specialize` incorporates epic boundaries into the risk map.
 
 Show the specialization report summary to the user (full report is in the output file).
 

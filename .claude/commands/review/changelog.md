@@ -7,6 +7,14 @@ argument-hint: [version or date range — e.g., "v1.0" or "2026-01-01..2026-02-0
 
 Generate a structured changelog from completed stories, git commits, and retrospective findings. Release-oriented view of what's new for users since last release.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:changelog
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle scope detection and raw data gathering (git, epics, retros, daily logs). The `doc-writer` agent handles change classification and changelog generation. Do NOT write the changelog inline — delegate via Task tool. You DO handle existing changelog merging and committing.

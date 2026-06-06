@@ -9,6 +9,14 @@ Master orchestrator that walks a fresh clone from zero to implementation-ready. 
 
 Intended as the FIRST command an adopter runs after cloning the template. Safe to re-run on a partially-initialized project — the scaffold step is idempotent (skips existing files) and every sub-command has its own hard gate that prevents overwriting filled docs.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:new-project
+```
+
 ## Variables
 
 INPUT: $ARGUMENTS

@@ -9,16 +9,16 @@ The agents are not redundant with each other. `general-purpose` (Forge) implemen
 | Agent | Model | Role | Auto-loaded skills |
 |-------|-------|------|--------------------|
 | `product-strategist` | inherit | Brainstorming, research, briefs, PRDs | project-planning |
-| `architect` | inherit | System design, ADRs, tech stack | architecture-writer |
-| `ux-designer` | inherit | UX specs, wireframes, themes | ux-designer, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects |
-| `project-planner` | inherit | Epics, stories, backlog | epic-writer |
+| `architect` | inherit | System design, ADRs, tech stack | architecture |
+| `ux-designer` | inherit | UX specs, wireframes, themes | ux-design, brand-guidelines, tailwind-css-patterns, design-taste-frontend, redesign-existing-projects |
+| `project-planner` | inherit | Epics, stories, backlog | project-planning |
 | `general-purpose` | sonnet | Code implementation | full-output-enforcement, systematic-debugging, verification-before-completion, finishing-a-development-branch, using-git-worktrees |
 | `code-reviewer` | sonnet | Code quality review (read-only) | code-review |
 | `security-auditor` | sonnet | Security review (write scope limited to review artifacts) | code-review |
 | `qa-engineer` | sonnet | Test strategy and test generation | qa-engineer |
-| `doc-writer` | haiku | Documentation and changelogs | project-context, documentation |
+| `doc-writer` | haiku | Documentation and changelogs | project-planning, documentation |
 | `playwright` | haiku | Browser testing and automation | playwright-cli |
-| `shadow` | sonnet | Voice-matched ghostwriting and articles | article-writer |
+| `shadow` | sonnet | Voice-matched ghostwriting and articles | ghostwriting |
 
 Each agent file lives at `.claude/agents/{name}.md` and holds its frontmatter (model, tools, skills list, nickname, aliases), persona, and decision philosophy. `/review:personalize` gives agents their names and personalities. The canonical ID in the table above is always the filename, not the nickname — commands reference agents by ID.
 

@@ -7,6 +7,14 @@ argument-hint: [scope: all | architecture | stories | prd]
 
 Detect documentation drift by comparing planning docs against actual project state. Run after stories, after epics, or on-demand to catch misalignment early.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:check-sync
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle scope selection, dead reference scanning, and the final report. Domain agents handle the analysis for their area. Do NOT perform drift analysis inline — delegate to the domain expert.
@@ -99,13 +107,13 @@ Scan all docs for broken internal references yourself:
 
 ### 3b. Legacy / Duplicate Doc Check (main agent) — F2
 
-Run the drift detector for legacy-named and duplicated planning docs the create-chain is blind to (e.g. `_architecture.md` beside `_project-architecture.md`, a root `_backlog.md` beside `todo/_backlog.md`):
+Run the drift detector for legacy-named and duplicated planning docs the create-chain is blind to (e.g. `_architecture.md` beside `_project-architecture.md`, a root `_backlog.md` beside `todo/_backlog.md`), **plus misplaced TODO files** outside the canonical `docs/` root and `docs/todo/` homes (e.g. a stale `docs/work/TODO_epic00.md` left by an older plan — F17):
 
 ```bash
 node .claude/core/_lib/doc-drift.js
 ```
 
-Exit 1 means drift was found — fold every reported item into the report as a drift finding (recommend reconciling via `/onboard`'s Step 6b or manual cleanup). Exit 0 means clean.
+Exit 1 means drift was found — fold every reported item (legacy docs, duplicates, **and misplaced TODOs**) into the report as a drift finding (recommend reconciling via `/onboard`'s Step 6b or manual cleanup). Exit 0 means clean.
 
 ### 4. Persist Output (main agent)
 
@@ -116,7 +124,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete sync check output (all agent findings + dead references) to:
-`docs/.output/reviews/{YYYY-MM-DD}-sync-check.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md`
 
 File format:
 ```markdown
@@ -140,7 +148,7 @@ docs: /review:check-sync — {scope}, {N} drift items, {N} dead links
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-sync-check.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md
 node .claude/core/commit.js
 ```
 
@@ -153,7 +161,7 @@ Assemble agent results + dead reference check into the final report, including t
 
 **Date**: {YYYY-MM-DD}
 **Scope**: {all | architecture | stories | prd}
-**Output**: `docs/.output/reviews/{YYYY-MM-DD}-sync-check.md`
+**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md`
 
 ### Architecture Sync {agent rating}
 | Item | Doc Says | Reality | Status |

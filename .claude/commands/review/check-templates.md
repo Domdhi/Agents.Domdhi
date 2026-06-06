@@ -6,6 +6,14 @@ description: Audit .claude/ system health — orphaned agents, unused skills, mi
 
 Self-diagnostic for the `.claude/` system. Scans agents, skills, hooks, commands, and settings for orphans, gaps, and broken cross-references. Read-only — reports findings without making changes.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:check-templates
+```
+
 ## Workflow
 
 ### 0. Check for --multi flag
@@ -121,7 +129,7 @@ Rate each category 0-10:
 
 ### 9. Report
 
-**Persist before reporting:** Write the full report below to `docs/.output/reviews/{YYYY-MM-DD}-template-health-check.md`. Then display the same content in chat.
+**Persist before reporting:** Write the full report below to `docs/.output/reviews/{YYMMDD-HHMM}-template-health-check.md`. Then display the same content in chat.
 
 ```markdown
 ## Template Health Check
@@ -176,7 +184,7 @@ docs: /review:check-templates — {score}/50, {N} issues found
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-template-health-check.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-template-health-check.md
 node .claude/core/commit.js
 ```
 

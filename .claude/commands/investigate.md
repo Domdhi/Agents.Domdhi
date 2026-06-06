@@ -9,6 +9,14 @@ Structured debugging command. Diagnoses failures with root cause analysis before
 
 **Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.**
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js investigate
+```
+
 ## Variables
 
 INPUT: $ARGUMENTS
@@ -119,7 +127,7 @@ Once root cause is confirmed:
 
 ### 7. Report
 
-Write investigation log to `docs/.output/investigations/{YYYY-MM-DD}-{slug}.md`:
+Write investigation log to `docs/.output/investigations/{YYMMDD-HHMM}-{slug}.md`:
 
 ```markdown
 ## Investigation: {error summary}
@@ -154,5 +162,5 @@ Print a summary to the conversation:
 **Root cause:** {one sentence}
 **Fix:** {applied / not applied — user to decide}
 **Prevention:** {recommendation}
-**Log:** docs/.output/investigations/{date}-{slug}.md
+**Log:** docs/.output/investigations/{YYMMDD-HHMM}-{slug}.md
 ```

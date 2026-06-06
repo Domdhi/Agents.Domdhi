@@ -7,6 +7,14 @@ argument-hint: [testing TODO file] [--baseline | --compare {baseline.json}] [--t
 
 Execute structured manual/E2E testing checklists against a running app. Main Agent owns the TaskList, triages results, and makes every judgment call. Playwright agents handle browser interactions. Main Agent handles non-browser checks directly — no delegation overhead for code/schema verification.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js run-tests
+```
+
 ## Model Rule
 
 **All browser-facing agents (playwright or chrome MCP) MUST use `model: "sonnet"`.** Do NOT use Haiku for browser verification — it fabricates results, confidently reporting that an element exists or an interaction succeeded without actually reading the accessibility tree. Sonnet reliably verifies element existence, text content, disabled states, aria attributes, and interaction flows. Visual/design QA (spacing, alignment, color, responsive) is a separate human pass.

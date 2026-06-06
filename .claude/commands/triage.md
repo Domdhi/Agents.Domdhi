@@ -9,6 +9,14 @@ The second **post-MVP lifecycle** command (Tier 2). `/listen` gathers push-from-
 
 Shape: like `/interview` — reads a file, asks one-at-a-time about the genuine judgment calls, summarizes. But it **auto-decides the mechanical calls** so it never interrogates the user on signals with one obvious answer. The pairing is `/listen` (gather, no opinions) → `/triage` (decide, minimal questions) → backlog → `/do` / `/run-todo`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js triage
+```
+
 ## Design basis
 
 Two axes of best practice, baked into the workflow below:

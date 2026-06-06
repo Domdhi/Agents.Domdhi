@@ -7,6 +7,14 @@ argument-hint: [path to TODO file, or leave blank to auto-discover]
 
 Execute every story in a TODO checklist using waves. Main Agent owns the TaskList, orchestrates every decision, and never loses its place. For multi-story waves, Main Agent delegates to Sonnet agents for parallelism. For single-story waves or all-XS waves, Main Agent implements directly — no delegation overhead. Sonnet handles documentation.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js run-todo
+```
+
 ## Variables
 
 TODO_PATH: $ARGUMENTS
@@ -112,7 +120,7 @@ TaskCreate: "Organize + report" (blockedBy: verify)
 
 **CRITICAL — write the plan file to disk BEFORE Wave 1 starts.** If the session dies mid-wave, a disk-persisted plan lets `/run-todo` resume from the last incomplete wave. A plan that only exists in Plan Mode is gone on disconnect.
 
-Path: `docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md`.
+Path: `docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md`. Compute the `{YYMMDD-HHMM}` run stamp (`date +%y%m%d-%H%M`) once at plan creation and reuse the exact same filename for the per-wave updates and later `git add` — a same-day re-run then never clobbers the prior plan.
 
 Use the Write tool directly. Template:
 
@@ -227,6 +235,13 @@ For each story in the wave with testable AC:
 - All AC bullets are `[manual]` (UI/visual only)
 - XS stories with trivial AC (config changes, doc updates)
 
+**Cross-story test ownership (F32):** when a *later* story in the same epic owns the test for an *earlier* story (the earlier story ships the code, a sequenced-later story ships its test), Step 2b has nothing to pre-write for the earlier story. Don't fabricate a placeholder test just to satisfy TDD ordering — **verify the earlier story by live execution** in its wave, and let the real test land with its owning story. The dependency edge (later-story `blockedBy` earlier-story commit) already enforces the ordering.
+
+**Test-authoring epics — when the deliverable IS the test (F26):** Some epics ship tests as the product (an E2E suite, an integration-coverage epic, a regression harness). There is no separate production code for the test to drive, so the "Main Agent writes tests first, dev agents implement to pass" model is undefined — inverting it would have an agent write a test and then "implement" the thing it's testing, which already exists. For these waves:
+- **Skip Step 2b** (do not pre-write tests) and use **one-round dispatch**: each agent authors the spec/test directly.
+- Replace the TDD gate with a **"verify the assertions are real"** gate at Step 6 — Main Agent reads each authored test and confirms it exercises the *real* boundary (imports/loads the actual code under test) rather than a trivially-passing re-creation or a flat copy of the implementation. A test that asserts against a hand-rolled model of the code, while *claiming* to test the real thing, is a false-green — flag it and require either a faithful, honestly-labelled model **with a tracked follow-up** to make it load-bearing, or a rewrite against the real code.
+- Code review (Step 7) is **mandatory** for test-authoring waves regardless of story size — dev-authored tests are exactly where soft assertions slip through.
+
 ---
 
 #### Step 3: Implement
@@ -315,6 +330,14 @@ The following learnings from prior work may be relevant. Treat them as context t
 CONSTRAINTS:
 {ADRs, conventions}
 
+TEST-COVERAGE HONESTY (R6) — do NOT write a comment or report claiming an AC is
+"covered by" / "exercised by" another layer (e2e, integration, manual) unless you
+actually opened that layer's test files and confirmed a test there exercises this
+behavior. If an AC is not covered by a test YOU wrote and you did not verify
+coverage elsewhere, mark it explicitly: `// NOT COVERED: {what}` in the test file
+AND list it under DONE_WITH_CONCERNS. A false coverage claim is worse than an
+honest gap — it ships an untested surface looking tested.
+
 DO NOT TOUCH: {files owned by other stories in this wave}
 
 STATUS — Report your completion status as ONE of:
@@ -325,6 +348,17 @@ STATUS — Report your completion status as ONE of:
 
 OUTPUT: List every file created/modified, what changed, and your STATUS.
 ```
+
+**Echo the dispatch plan before fan-out (transparency).** Right before sending the agents, print a one-line-per-story summary of what's about to be dispatched so the user can see — and interrupt — the parallel plan *before* it runs, not after:
+
+```
+Wave {N} dispatch (parallel):
+  {ID-A} {title} → general-purpose/sonnet → owns: {files}
+  {ID-B} {title} → general-purpose/sonnet → owns: {files}
+  {ID-C} {title} → general-purpose/sonnet → owns: {files}
+```
+
+This makes the agent-type + model + file-ownership explicit up front (the parallel path's behavior is otherwise invisible until commits land). It also means the user doesn't have to ask "which model?" mid-run.
 
 **All dev agents for one wave go in a single message for maximum parallelism.**
 
@@ -371,6 +405,8 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 
 Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). After fixing misalignments, before the gate:
 
+> **`_inbox/` is the only channel this step curates (F28).** A dev sub-agent may *also* write to `.claude/agent-memory/{agent}/` — that's the agent's **private, agent-local scratchpad** (regenerable, gitignored per C10), not a promotion channel. It is intentionally **not** consumed by inbox curation and does not become a curated project memory. If a learning there is worth keeping project-wide, the agent must drop it in `_inbox/` (the reviewed path); don't go fishing in `.claude/agent-memory/` here. The two are separate by design: agent-local notebook vs. Main-Agent-reviewed promotion.
+
 1. List the inbox:
    ```bash
    node .claude/core/memory-manager-cli.js inbox-list
@@ -403,10 +439,18 @@ node .claude/core/gate.js build
 node .claude/core/gate.js test
 ```
 
-- **Pass** → proceed to Step 6
+**Gate on every suite the wave touched (F25).** `gate.js test` runs the project's **single** detected test command (`npm test`, `pytest`, …). If this wave authored or modified a test suite that command does **not** run — most commonly a separate E2E/Playwright suite behind its own script (`npm run e2e`) — then the gate above validated only the unit subset, and a wave that broke the other suite would pass green. Main Agent must run **each additional suite the wave touched** explicitly and treat it as part of this gate:
+
+```bash
+npm run e2e   # or whatever script the wave's new/changed suite runs under
+```
+
+(If you want the gate itself to cover all suites for this project, chain them in `gate.config.json`'s `test.command` — e.g. `"npm test && npm run e2e"`. Don't do this when the extra suite is slow/flaky or environment-bound, e.g. a headed-only Chromium E2E run under WSL — gate it per-wave here instead so `/do` and other callers aren't forced through it.)
+
+- **Pass** (every suite the wave touched is green, and `gate.js test` did not report `zeroCollected`) → proceed to Step 6
 - **Fail** → diagnose, fix directly (Main Agent), re-run gate
 - **3 consecutive failures** → stop, report what's broken, ask user
-- **NEVER proceed past a failed gate**
+- **NEVER proceed past a failed gate.** Note the gate now **fails closed on a zero-collected test run** (a real runner that exits 0 having collected 0 tests is a FAIL, not a pass) — if you hit that, the suite isn't actually running; fix the runner, don't wave it through. (Requires the upstream `testPassed`/`isZeroCollected` fix; an adopter on an older template may still false-green here — verify with `npm test` directly until it's synced.)
 
 `TaskUpdate: "Wave {N}: Build + Test gate" → completed`
 
@@ -432,6 +476,7 @@ For EACH AC bullet:
 | Behavior-verifiable | Run the command that proves it, read output, THEN claim it passes |
 | Data / schema | Read migration or schema file |
 | Integration | Check imports, wiring, registration |
+| CI-runtime only (matrix job, env-bound, no local runner) | Verify by **inspection** + mark `[CI-pending]`; record the fallback if the matrix rejects it (F33). Local execution isn't possible — don't block the wave on it. |
 | Manual-only (UI) | Mark as `[manual]` |
 
 Also check for:
@@ -492,6 +537,10 @@ Agent(
   - Architecture compliance, separation of concerns
   - Error handling for edge cases in AC
   - Test coverage matches AC bullets
+  - NO FALSE COVERAGE CLAIMS (R6): a comment/report asserting an AC is "covered
+    by e2e/integration/manual" must correspond to a test that actually exists and
+    exercises it. Open the named layer and confirm. An uncovered AC dressed up as
+    covered is a MAJOR finding — treat it as worse than an honest gap.
   - No hardcoded values, no god files
   - Security (no injection, no secrets, no unsafe patterns)
 
@@ -524,11 +573,18 @@ Agent(
   model: "sonnet",
   prompt: """
   Update {TODO_PATH}:
-  1. Mark these stories [x] in the Story Index: {IDs}
+  1. Mark these stories done: {IDs}. Set the STORY-LEVEL marker to [x] — the row
+     in the Story Index table if the TODO has one, OR the `## Story N.M … [x]`
+     header marker for per-epic TODOs that use story headers (no Story Index
+     table). That story-level marker is what /status reads — NOT the sub-task
+     checkboxes — so flip it. Also check the story's done sub-task `- [ ]` boxes
+     for human readability. (R7: status.js treats the header marker as
+     authoritative; a header left [ ] reads as not-done even with all tasks checked.)
   2. Add to Execution Log:
      {date}: Wave {N} — {story IDs and one-line summaries}
   3. Add Key Decisions if any approach deviated from plan
-  DO NOT modify stories outside this wave.
+  DO NOT modify stories outside this wave. DO NOT check boxes under non-story
+  sections (## Validation, ## Notes) unless those items are actually satisfied.
   """,
   description: "Update TODO wave {N}"
 )
@@ -563,7 +619,7 @@ If any misalignment or quality issue was observed in Step 4, append to today's d
 
 **8d. Update the execution plan file**
 
-Open `docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md` (written in Phase 1 Step 3). Update:
+Open `docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md` (written in Phase 1 Step 3). Update:
 - **Resume Point:** `Waves 1..{N} committed — resume from Wave {N+1}` (or `ALL WAVES COMPLETE` if this was the last wave)
 - Append a new block under **Wave Execution Log**:
 
@@ -596,7 +652,7 @@ AC verified: {total_pass}/{total} passed, {manual_count} manual
 Then run:
 
 ```bash
-git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md docs/__handoff.md
+git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md docs/__handoff.md
 node .claude/core/commit.js
 ```
 
@@ -662,7 +718,7 @@ node .claude/hooks/organize.cjs
 
 `TaskUpdate: "Organize + report" → completed`
 
-**Update the execution plan file** at `docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md` (written in Phase 1 Step 3, updated after each wave in Phase 2 Step 8d). Flip `**Status:** planning` → `**Status:** complete`. Append the final summary below the **Wave Execution Log**:
+**Update the execution plan file** at `docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md` (written in Phase 1 Step 3, updated after each wave in Phase 2 Step 8d). Flip `**Status:** planning` → `**Status:** complete`. Append the final summary below the **Wave Execution Log**:
 
 ```markdown
 ---
@@ -717,7 +773,7 @@ docs: /run-todo {slug} — final report + handoff
 Then run:
 
 ```bash
-git add docs/.output/plans/{YYYY-MM-DD}-run-todo-{slug}.md docs/__handoff.md
+git add docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md docs/__handoff.md
 node .claude/core/commit.js
 ```
 
@@ -742,8 +798,8 @@ Stories that are read-only verification (no code changes):
 3. **Main Agent implements small waves directly. Delegate for parallelism.** Single-story waves and all-XS waves: Main Agent writes code directly — no delegation overhead. Multi-story waves with S+ stories: delegate to Sonnet for parallel execution. `--no-delegate` forces Main Agent-direct for everything.
 4. **Context assembly matters for delegation.** When delegating (Path B), reading files and pasting code into agent prompts prevents hallucination. Never send just file paths. When Main Agent implements directly (Path A), the context from Step 2 is sufficient.
 5. **Send variable names to dev agents.** Identical signatures, types, test IDs across all agents in a wave. This is the #1 misalignment source. Only applies to Path B.
-6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail.
-7. **ZERO file overlap within a wave.** Overlapping files = stomped changes. This applies to BOTH paths.
+6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail — **including every suite the wave touched, not just `gate.js test`'s single command** (run a separate E2E/Playwright suite explicitly; see Step 5, F25). The gate fails closed on a zero-collected run. **Exception:** test-authoring epics where the deliverable *is* the test invert this — skip pre-writing, dispatch one-round, and gate on "are the assertions real?" (Step 2b, F26).
+7. **ZERO file overlap within a wave.** Overlapping files = stomped changes. This applies to BOTH paths. Enforcement is currently **instruction-level** — the `DO NOT TOUCH` list in each dev prompt, plus Main Agent's Step-4b check (failure mode #5: revert any file written outside ownership and log it). There is no tool-level write-guard scoping each agent to its owned paths (known limitation, F27 — same family as the instruction-enforced gates, F8). On the parallel path the whole risk is concurrent writes, so treat an out-of-lane edit as a hard misalignment, not a nit.
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
 9. **Every wave commit regenerates `docs/__handoff.md`.** Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.
 10. **Always update TODO after completing a story. Always commit after updating TODO.** Before starting a story, check for pending commits.

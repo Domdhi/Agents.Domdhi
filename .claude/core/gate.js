@@ -32,7 +32,7 @@
  *   6. Makefile → make build / make test
  */
 
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { getTelemetryDir } = require('./_lib/telemetry-paths');
@@ -158,13 +158,23 @@ function loadConfig() {
         const venvBin = path.join(PROJECT_ROOT, '.venv', 'bin');
         const hasVenv = fs.existsSync(path.join(venvBin, 'ruff'));
         const prefix = hasVenv ? `${venvBin}/` : '';
-        const buildCmd = [
+        // C1 (F4-analog): only run `mypy --strict` when the project actually uses
+        // mypy. Hard-requiring it on a ruff+pytest project (the common case) makes
+        // the gate unreachable on a healthy repo — the Python twin of running
+        // `tsc --noEmit` on a plain-JS project. Detect via the venv binary or a
+        // mypy mention in pyproject.toml ([tool.mypy], a dep group, etc.).
+        const hasMypyBin = fs.existsSync(path.join(venvBin, 'mypy'));
+        let declaresMypy = false;
+        try {
+            declaresMypy = /\bmypy\b/.test(fs.readFileSync(path.join(PROJECT_ROOT, 'pyproject.toml'), 'utf-8'));
+        } catch { /* unreadable — treat as undeclared */ }
+        const buildLegs = [
             `${prefix}ruff check src tests`,
             `${prefix}ruff format --check src tests`,
-            `${prefix}mypy --strict src`,
-        ].join(' && ');
+        ];
+        if (hasMypyBin || declaresMypy) buildLegs.push(`${prefix}mypy --strict src`);
         return {
-            build: { command: buildCmd, timeout: 300000 },
+            build: { command: buildLegs.join(' && '), timeout: 300000 },
             test: { command: `${prefix}pytest`, timeout: 1200000 },
             stack: 'python'
         };
@@ -192,22 +202,32 @@ function ensureDirs() {
 }
 
 function runCommand(cmd, cwd, timeoutMs) {
-    try {
-        const output = execSync(cmd, {
-            cwd,
-            encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: timeoutMs,
-            windowsHide: true,
-        });
-        return { exitCode: 0, output, stderr: '' };
-    } catch (error) {
-        return {
-            exitCode: error.status || 1,
-            output: error.stdout || '',
-            stderr: error.stderr || ''
-        };
-    }
+    // Use spawnSync (not execSync) so stderr is captured on SUCCESS too.
+    // execSync returns only stdout on exit 0 — and many test runners print
+    // their pass/fail summary to STDERR (jest's "Tests: N passed, N total",
+    // for one). Discarding stderr on a green run made the parser see 0 tests,
+    // which — with the false-green teeth (testPassed/isZeroCollected) — turns a
+    // passing suite into a FAILED gate. This is the root cause of F1/F24/F31:
+    // the parser was never actually reading jest's summary. spawnSync populates
+    // both streams regardless of exit status.
+    const result = spawnSync(cmd, {
+        cwd,
+        encoding: 'utf-8',
+        shell: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: timeoutMs,
+        windowsHide: true,
+        maxBuffer: 64 * 1024 * 1024, // 64MB — verbose suites can exceed the 1MB default
+    });
+    // Timeout / spawn failure: result.error set, status null.
+    const exitCode = result.status === null || result.status === undefined
+        ? 1
+        : result.status;
+    return {
+        exitCode,
+        output: result.stdout || '',
+        stderr: result.stderr || '',
+    };
 }
 
 // ── Generic Output Parser ───────────────────────────────────────────
@@ -273,6 +293,21 @@ function parseBuildOutput(output, exitCode) {
                 break;
             }
         }
+    }
+
+    // C2: a non-zero exit with ZERO parsed errors is a SILENT failure — the
+    // parser didn't recognize this tool's output. Common on Python: `ruff format
+    // --check` prints "Would reformat: …" / "N files would be reformatted" (no
+    // file:line:error shape), and a missing tool yields "mypy: command not
+    // found". Surface a synthetic error capturing the reason so the gate never
+    // reports "0 errors" on a genuine failure (and the caller sees WHY).
+    if (exitCode !== 0 && errors.length === 0) {
+        const clean = lines.map(stripAnsi);
+        const reformat = clean.find(l => /would reformat/i.test(l) || /\d+\s+files?\s+would be reformatted/i.test(l));
+        const notFound = clean.find(l => /(?:command not found|: not found|No such file)/i.test(l));
+        const lastMeaningful = [...clean].reverse().find(l => l.trim());
+        const reason = (reformat || notFound || lastMeaningful || `build command exited ${exitCode}`).trim();
+        errors.push({ file: '', line: 0, column: 0, code: '', message: reason });
     }
 
     return { succeeded: exitCode === 0, errors, warnings };
@@ -358,6 +393,27 @@ function parseTestOutput(output, exitCode) {
             continue;
         }
 
+        // C11: pytest QUIET summary (the default under `addopts = "-q"`):
+        // "32 passed in 0.47s" or "1 failed, 31 passed in 0.50s" — NO "====="
+        // envelope, so the branch above misses it and a real suite parses as 0
+        // tests (the F1 false-green on Python). Require the line to START with a
+        // count+outcome and END with "in <N>s" so arbitrary prose can't match.
+        const pytestQuietMatch = line.match(
+            /^\s*((?:\d+\s+(?:passed|failed|skipped|errors?|deselected|xfailed|xpassed|warnings?)\b[,\s]*)+)\s+in\s+[\d.]+s\b/
+        );
+        if (pytestQuietMatch && /\b(passed|failed|skipped|error|errors)\b/.test(pytestQuietMatch[1])) {
+            const body = pytestQuietMatch[1];
+            const pM = body.match(/(\d+)\s+passed/);
+            const fM = body.match(/(\d+)\s+failed/);
+            const sM = body.match(/(\d+)\s+skipped/);
+            const eM = body.match(/(\d+)\s+errors?/);
+            tests.passed = pM ? parseInt(pM[1]) : 0;
+            tests.failed = (fM ? parseInt(fM[1]) : 0) + (eM ? parseInt(eM[1]) : 0);
+            tests.skipped = sM ? parseInt(sM[1]) : 0;
+            tests.total = tests.passed + tests.failed + tests.skipped;
+            continue;
+        }
+
         // pytest individual failure: "FAILED tests/test_foo.py::test_bar - AssertionError: ..."
         const pytestFailMatch = line.match(/^FAILED\s+(\S+)(?:\s+-\s+(.+))?$/);
         if (pytestFailMatch) {
@@ -394,6 +450,24 @@ function isZeroCollected(testCmd, exitCode, total) {
     const ranRealRunner = !/^\s*echo\b/.test(testCmd || '');
     const noMatchAllowed = /--passWithNoTests/.test(testCmd || '');
     return ranRealRunner && exitCode === 0 && total === 0 && !noMatchAllowed;
+}
+
+/**
+ * C11/F1 TEETH. The final gate verdict for the test leg. A parsed "pass" is
+ * overridden to FAIL when the runner collected ZERO tests — `isZeroCollected`
+ * only *detected* that case (and the gate merely warned), which let a 32-test
+ * pytest suite report PASSED(0) on the quiet summary. Treating 0-collected as a
+ * hard fail closes the false-green: a wave whose tests silently stopped running
+ * is now RED. The echo no-test fallback and `--passWithNoTests --changed` waves
+ * are exempt (isZeroCollected already returns false for them).
+ *
+ * @param {{succeeded:boolean,total:number,exitCode:number}} test parsed result
+ * @param {string} testCmd the test command that ran
+ * @returns {boolean}
+ */
+function testPassed(test, testCmd) {
+    if (isZeroCollected(testCmd, test.exitCode, test.total)) return false;
+    return test.succeeded;
 }
 
 // ── Main ────────────────────────────────────────────────────────────
@@ -489,6 +563,9 @@ async function main() {
 
             // F1: false-green guard — see isZeroCollected().
             test.zeroCollected = isZeroCollected(testCmd, testResult.exitCode, test.total);
+            // C11/F1 teeth: 0-collected is a FAIL, not a warn. Override the parsed
+            // verdict so `overall` (build && test.succeeded) goes RED.
+            test.succeeded = testPassed({ succeeded: test.succeeded, total: test.total, exitCode: testResult.exitCode }, testCmd);
 
             fs.writeFileSync(
                 path.join(GATE_DIR, '_latest-test.json'),
@@ -496,14 +573,14 @@ async function main() {
             );
 
             if (test.zeroCollected) {
-                const warn = '[GATE] Tests: WARNING — runner exited 0 but 0 tests were parsed ' +
-                    '(possible false-green: no tests collected, or summary format unrecognized). ' +
-                    'Verify the runner actually ran tests.';
+                const warn = '[GATE] Tests: FAILED — runner exited 0 but 0 tests were parsed ' +
+                    '(false-green: no tests collected, or the summary format is unrecognized). ' +
+                    'This fails the gate by design (C11/F1). Verify the runner actually ran tests.';
                 console.log(warn);
                 fullLog += `\n${warn}\n`;
             }
 
-            const testStatus = test.succeeded ? (test.zeroCollected ? 'PASSED (0 tests — see warning)' : 'PASSED') : 'FAILED';
+            const testStatus = test.succeeded ? 'PASSED' : (test.zeroCollected ? 'FAILED (0 tests collected)' : 'FAILED');
             console.log(`[GATE] Tests: ${testStatus} (${test.passed} passed, ${test.failed} failed, ${test.skipped} skipped)`);
         }
     }
@@ -559,4 +636,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { loadConfig, parseBuildOutput, parseTestOutput, isZeroCollected, acquireLock, releaseLock };
+module.exports = { loadConfig, parseBuildOutput, parseTestOutput, isZeroCollected, testPassed, runCommand, acquireLock, releaseLock };

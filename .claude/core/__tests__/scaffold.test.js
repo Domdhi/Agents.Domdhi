@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -19,6 +20,7 @@ const {
     parseSetArgs,
     applySubstitutions,
     KNOWN_SCAFFOLD_VARS,
+    SKILL_TEMPLATE_MANIFEST,
 } = require('../scaffold');
 const { createTmpDir } = require('./_helpers/tmp-dir');
 
@@ -662,4 +664,239 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
         expect(written).toContain('{YYYY-MM-DD}');
     });
 
+});
+
+// ---------------------------------------------------------------------------
+// SKILL_TEMPLATE_MANIFEST — scaffold seeds docs/ from skill-owned assets
+// (TM-1.1). Additive: exercises the manifest copy loop in runScaffold.
+// ---------------------------------------------------------------------------
+
+describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () => {
+
+    const MARKER = '<!-- @@template -->';
+
+    /**
+     * Create the minimal `.claude/templates/` dir runScaffold needs to not
+     * throw TEMPLATES_MISSING. Holds a single no-owner template so the
+     * scaffoldDir pass has something to do but never collides with a manifest
+     * target.
+     */
+    function makeTemplatesDir(tmpRoot) {
+        const templatesDir = path.join(tmpRoot, '.claude', 'templates');
+        fs.mkdirSync(templatesDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(templatesDir, 'CLAUDE.md'),
+            `${MARKER}\n# Docs guide\n`
+        );
+    }
+
+    /**
+     * Write a synthetic skill asset at the project-root-relative `from` path of
+     * a manifest entry, with marker-prefixed content. Returns the content.
+     */
+    function writeAsset(tmpRoot, fromRel, body) {
+        const abs = path.join(tmpRoot, fromRel);
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        const content = `${MARKER}\n${body}\n`;
+        fs.writeFileSync(abs, content);
+        return content;
+    }
+
+    it('manifest assets are copied to their docs/ targets with source content', () => {
+        makeTemplatesDir(tmp.root);
+        const design = writeAsset(
+            tmp.root,
+            '.claude/skills/ux-design/assets/_project-design.md',
+            '# Design {Project Name}'
+        );
+        const arch = writeAsset(
+            tmp.root,
+            '.claude/skills/architecture/assets/_project-architecture.md',
+            '# Architecture'
+        );
+        const backlog = writeAsset(
+            tmp.root,
+            '.claude/skills/project-planning/assets/_backlog.md',
+            '# Backlog'
+        );
+
+        runScaffold(tmp.root, { silent: true });
+
+        // Design suite lands in docs/design/ (NOT docs root)
+        const designOut = path.join(tmp.root, 'docs', 'design', '_project-design.md');
+        const archOut = path.join(tmp.root, 'docs', '_project-architecture.md');
+        const backlogOut = path.join(tmp.root, 'docs', 'todo', '_backlog.md');
+
+        expect(fs.existsSync(designOut)).toBe(true);
+        expect(fs.existsSync(archOut)).toBe(true);
+        expect(fs.existsSync(backlogOut)).toBe(true);
+        expect(fs.readFileSync(designOut, 'utf8')).toBe(design);
+        expect(fs.readFileSync(archOut, 'utf8')).toBe(arch);
+        expect(fs.readFileSync(backlogOut, 'utf8')).toBe(backlog);
+    });
+
+    it('scaffolded manifest artifact retains the @@template first line', () => {
+        makeTemplatesDir(tmp.root);
+        writeAsset(
+            tmp.root,
+            '.claude/skills/project-planning/assets/_project-context.md',
+            '# Context'
+        );
+
+        runScaffold(tmp.root, { silent: true });
+
+        const out = path.join(tmp.root, 'docs', '_project-context.md');
+        const firstLine = fs.readFileSync(out, 'utf8').split('\n')[0];
+        expect(firstLine).toBe(MARKER);
+    });
+
+    it('a manifest entry whose source does not exist is silently skipped (graceful degradation)', () => {
+        // No skill assets written at all — only the templates dir exists.
+        makeTemplatesDir(tmp.root);
+
+        // Should not throw, and no manifest targets should be produced.
+        expect(() => runScaffold(tmp.root, { silent: true })).not.toThrow();
+
+        for (const entry of SKILL_TEMPLATE_MANIFEST) {
+            const out = path.join(tmp.root, 'docs', entry.to);
+            expect(fs.existsSync(out)).toBe(false);
+        }
+    });
+
+    it('skip-if-exists: a pre-existing manifest target is not overwritten without force', () => {
+        makeTemplatesDir(tmp.root);
+        writeAsset(
+            tmp.root,
+            '.claude/skills/architecture/assets/_project-architecture.md',
+            '# New from asset'
+        );
+        const out = path.join(tmp.root, 'docs', '_project-architecture.md');
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        const userContent = '# User edited — keep me\n';
+        fs.writeFileSync(out, userContent);
+
+        const results = runScaffold(tmp.root, { silent: true });
+
+        expect(fs.readFileSync(out, 'utf8')).toBe(userContent);
+        expect(results.skipped).toContain(path.join('docs', '_project-architecture.md'));
+    });
+
+    it('--force overwrites a pre-existing manifest target with the asset content', () => {
+        makeTemplatesDir(tmp.root);
+        const asset = writeAsset(
+            tmp.root,
+            '.claude/skills/architecture/assets/_project-architecture.md',
+            '# New from asset'
+        );
+        const out = path.join(tmp.root, 'docs', '_project-architecture.md');
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        fs.writeFileSync(out, '# stale\n');
+
+        const results = runScaffold(tmp.root, { force: true, silent: true });
+
+        expect(fs.readFileSync(out, 'utf8')).toBe(asset);
+        expect(results.created).toContain(path.join('docs', '_project-architecture.md'));
+    });
+
+    it('manifest substitution applies --set values to copied assets', () => {
+        makeTemplatesDir(tmp.root);
+        writeAsset(
+            tmp.root,
+            '.claude/skills/ux-design/assets/_project-design.md',
+            '# Design {Project Name}'
+        );
+
+        runScaffold(tmp.root, { substitutions: { project_name: 'Acme' }, silent: true });
+
+        const out = path.join(tmp.root, 'docs', 'design', '_project-design.md');
+        const written = fs.readFileSync(out, 'utf8');
+        expect(written).toContain('# Design Acme');
+        expect(written).not.toContain('{Project Name}');
+    });
+
+});
+
+// ---------------------------------------------------------------------------
+// gitignore managed-block merge via runScaffold (TEMPLATE_RENAMES path)
+//
+// REGRESSION: the shipped asset was once tracked as `.claude/templates/root/
+// .gitignore` (dotted) while TEMPLATE_RENAMES reads the no-dot name `gitignore`.
+// The merge loop did `if (!fs.existsSync(srcPath)) continue;` and silently
+// skipped — so adopters' .gitignore never received the Domdhi managed block.
+// The pre-existing tests only exercised scaffoldDir's direct-copy path with a
+// dotted source, so they never caught it. These tests drive the real merge.
+// ---------------------------------------------------------------------------
+
+const MANAGED_START = '# === Domdhi.Agents managed block — do not edit between markers ===';
+
+describe('runScaffold — gitignore managed-block merge', () => {
+    /** Seed a templates tree with a root/gitignore (no-dot, as shipped). */
+    function seedGitignoreTemplate(tmpRoot, content) {
+        const rootDir = path.join(tmpRoot, '.claude', 'templates', 'root');
+        fs.mkdirSync(rootDir, { recursive: true });
+        fs.writeFileSync(path.join(rootDir, 'gitignore'), content);
+    }
+
+    it('brownfield_existingGitignore_managedBlockAppendedAndOriginalPreserved', () => {
+        // Arrange — adopter already has a .gitignore; template adds Domdhi rules
+        seedGitignoreTemplate(tmp.root, 'docs/.output/memories/\ndocs/.output/telemetry*/\n');
+        const original = '# adopter rules\nnode_modules/\n.env\n';
+        fs.writeFileSync(path.join(tmp.root, '.gitignore'), original);
+
+        // Act
+        runScaffold(tmp.root, { silent: true });
+
+        // Assert — original preserved AND template merged into a managed block
+        const merged = fs.readFileSync(path.join(tmp.root, '.gitignore'), 'utf8');
+        expect(merged).toContain('# adopter rules');
+        expect(merged).toContain('node_modules/');
+        expect(merged).toContain(MANAGED_START);
+        expect(merged).toContain('docs/.output/memories/');
+        expect(merged).toContain('docs/.output/telemetry*/');
+    });
+
+    it('greenfield_noGitignore_createdWithManagedBlock', () => {
+        // Arrange — no pre-existing .gitignore
+        seedGitignoreTemplate(tmp.root, 'docs/.output/memories/\n');
+
+        // Act
+        runScaffold(tmp.root, { silent: true });
+
+        // Assert — file created carrying the managed block + template content
+        const created = fs.readFileSync(path.join(tmp.root, '.gitignore'), 'utf8');
+        expect(created).toContain(MANAGED_START);
+        expect(created).toContain('docs/.output/memories/');
+    });
+
+    it('missingRenameSource_recordsWarning_doesNotThrow', () => {
+        // Arrange — a root/ dir exists but the declared `gitignore` source is
+        // absent (the exact misconfiguration the dotted-name bug produced).
+        const rootDir = path.join(tmp.root, '.claude', 'templates', 'root');
+        fs.mkdirSync(rootDir, { recursive: true });
+        fs.writeFileSync(path.join(rootDir, 'placeholder.txt'), 'x');
+
+        // Act
+        let results;
+        expect(() => { results = runScaffold(tmp.root, { silent: true }); }).not.toThrow();
+
+        // Assert — surfaced as a warning rather than silently swallowed
+        expect(results.warnings).toBeDefined();
+        expect(results.warnings.join('\n')).toMatch(/gitignore/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Shipped-asset name guard — locks in the no-dot filename so the dotted-name
+// regression cannot return. Operates on the REAL repo template, not a tmp tree.
+// ---------------------------------------------------------------------------
+
+describe('shipped gitignore template asset', () => {
+    it('isNamed_gitignore_notDotGitignore', () => {
+        const repoRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..');
+        const rootDir = path.join(repoRoot, '.claude', 'templates', 'root');
+        expect(fs.existsSync(path.join(rootDir, 'gitignore'))).toBe(true);
+        // A dotted file here would (a) be missed by TEMPLATE_RENAMES and (b) act
+        // as an active gitignore for the template dir, hiding sibling templates.
+        expect(fs.existsSync(path.join(rootDir, '.gitignore'))).toBe(false);
+    });
 });

@@ -163,6 +163,10 @@ function parseConcepts({ conceptsDir, categories }) {
  */
 function parseCrossRefs({ conceptsDir }) {
   const crossRefPath = path.join(conceptsDir, 'cross-references.json');
+  // A missing cross-references.json is the normal pre-compilation state (no
+  // concepts compiled yet), not an error — don't emit a "Cannot read file"
+  // warning for it (F22). Only genuine read failures on an existing file warn.
+  if (!fs.existsSync(crossRefPath)) return {};
   const content = safeReadFile(crossRefPath);
   if (!content) return {};
 

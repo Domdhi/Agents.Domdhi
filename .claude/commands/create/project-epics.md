@@ -7,6 +7,14 @@ argument-hint: [project name or architecture path] [--yolo]
 
 Break product requirements into implementable epics and stories. Produces `docs/todo/_backlog.md`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:project-epics
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle upstream checks and requirement analysis. The `project-planner` agent handles epic/story breakdown. Do NOT write the epics document inline — delegate via Task tool.
@@ -82,6 +90,7 @@ After the agent completes, verify the output:
 - No XL stories without a split recommendation?
 - Must-Have FRs are in early phases?
 - Stories have acceptance criteria and size estimates?
+- **Epic IDs are contiguous** (C9) — the epic numbers run without gaps (e.g. Epic 0..Epic N, not 0–7 then jumping to 11) and the count stated in any summary matches the number of `## Epic` headers. A non-contiguous ID propagates silently into the master index, per-epic filenames, and every story ID downstream — delegate back to renumber before continuing.
 - If issues found, delegate back to the agent to fix
 
 ### 6. Detect File Overlap (main agent)

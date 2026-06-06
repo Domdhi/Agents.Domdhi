@@ -5,7 +5,15 @@ argument-hint: [topic or problem statement]
 
 # Brainstorm
 
-Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/app/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/research/{date}-brainstorm-{slug}.md`. Also captures ideas into `docs/todo/_feature-ideas.md` (living backlog).
+Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/app/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md`. Also captures ideas into `docs/todo/_feature-ideas.md` (living backlog).
+
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js brainstorm
+```
 
 ## Agent Delegation
 
@@ -52,7 +60,7 @@ ELIF brainstorming a specific feature/module (new):
   mkdir -p docs/app/{name}/
   OUTPUT_PATH = docs/app/{name}/brainstorm.md
 ELSE (project-wide or general):
-  OUTPUT_PATH = docs/.output/research/{YYYY-MM-DD}-brainstorm-{slug}.md
+  OUTPUT_PATH = docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md
 ```
 
 If unclear whether it's feature-scoped or project-wide, ask with AskUserQuestion.

@@ -7,6 +7,14 @@ argument-hint: [file path, PR number, or git diff range]
 
 Review code for quality, security, and architecture compliance. Uses the `code-review` skill.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:code-review
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle scope detection and standards loading. The `code-reviewer` agent handles the actual review analysis. Do NOT perform the review inline — delegate via Task tool. You DO handle the final report output.
@@ -19,6 +27,7 @@ INPUT: $ARGUMENTS
 
 **Flags:**
 - `--deep` — Run a cross-model second opinion: dispatches two review agents in parallel (Sonnet primary + Opus secondary), then compares findings for higher-confidence results. Without this flag, only Sonnet reviews (default behavior).
+- `--council` — Run a **council review** (the N-reviewer generalization of `--deep`): dispatch one `code-reviewer` per LENS (correctness / security / architecture / performance), then have each reviewer **anonymously cross-validate** the others' findings, and an Opus **chairman** synthesize the consensus. Higher cost (N reviewers + a cross-validation round); use on high-stakes changes. Aggregation is deterministic via `.claude/core/council.js`. See **Council Mode** below. (`--council` supersedes `--deep` when both are passed.)
 
 ## Workflow
 
@@ -103,6 +112,17 @@ Both receive the same prompt. Results are compared in Step 4.
 8. Instruction to classify findings by severity: CRITICAL > MAJOR > MINOR > NIT
 9. Instruction to include the Risk Assessment section in the report (between Summary and Findings)
 
+### 3d. Council Mode (`--council`)
+
+When `--council` is set, **replace** the single/`--deep` dispatch in Step 3 with this three-stage flow (Karpathy's llm-council, adapted for a single-vendor panel — diversity comes from LENS, not vendor). Use a workspace dir: `docs/.output/reviews/council-{YYMMDD-HHMM}/`.
+
+**Stage 1 — independent reviews (parallel).** Get the lens set: `node .claude/core/council.js lenses`. Dispatch one `code-reviewer` agent **per lens, in parallel** (background OK). Omit the `model:` param so each inherits `review.default` (per the **Model Policy** in CLAUDE.md). Each agent gets the same diff + standards + risk table from Steps 1–2b, **plus a lens instruction**: "Review ONLY through the **{lens}** lens ({focus}). Report findings as a JSON array `[{file,line,title,severity,lens:'{lens}',detail}]`." Collect all findings into `findings.json` (concatenate the arrays; tag each with its `lens`).
+- Optional cross-vendor member: if the project has configured an external model (e.g. OpenRouter) AND opted in, add it as one more reviewer for true vendor diversity. Off by default — it breaks the zero-dependency drop-in property, so never enable it implicitly.
+
+**Stage 2 — anonymized cross-validation.** Dedupe + assign stable ids: `node .claude/core/council.js dedupe docs/.output/reviews/council-{YYMMDD-HHMM}/findings.json` → `deduped.json`. (Independent re-raises by multiple lenses auto-merge — that overlap is itself a confirmation signal.) Then dispatch each lens reviewer AGAIN, giving it the **anonymized** deduped findings (present them as "Reviewer A/B/…" via the `anonymization` map — do NOT tell a reviewer which findings are its own) with this instruction: "For each finding NOT your own, vote `confirm` / `refute` / `unsure` and a `severity_vote`. **Default to `refute` if you cannot independently substantiate it** — do not rubber-stamp; we reward independent confirmation, not agreement." Collect votes into `votes.json` as `[{finding_id,voter:'{lens}',verdict,severity_vote}]`.
+
+**Stage 3 — chairman synthesis.** Aggregate deterministically: `node .claude/core/council.js aggregate docs/.output/reviews/council-{YYMMDD-HHMM}/` → `council.json` + `council.md`. This applies the survival rule (a finding **confirmed** = ≥2 independent confirms and confirms>refutes; **refuted** = majority-refuted and not high-severity; a CRITICAL/MAJOR that drew refutes is **contested**, never silently dropped). Then YOU (Opus, the chairman) write the synthesis: take the `council.json` consensus and produce the final findings list — lead with **confirmed**, call out **contested** for human judgment, and list **refuted** in an appendix (logged, not actioned). This `council.md` + your synthesis is the review body for Step 4.
+
 ### 4. Persist Output (main agent)
 
 Write the full review analysis to disk before reporting:
@@ -112,7 +132,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete review output (risk classification table + all agent findings) to:
-`docs/.output/reviews/{YYYY-MM-DD}-code-review.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`
 
 File format:
 ```markdown
@@ -137,7 +157,7 @@ docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{min
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-code-review.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-code-review.md
 node .claude/core/commit.js
 ```
 
@@ -150,7 +170,7 @@ Read the agent's output and present the final report, including the output file 
 
 **Verdict**: {Approved / Approved with Comments / Changes Requested}
 **Files**: {count} reviewed
-**Output**: `docs/.output/reviews/{YYYY-MM-DD}-code-review.md`
+**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`
 **Overall Review Depth**: {Deep / Standard / Fast-Lane}
 **Findings**: {critical} critical, {major} major, {minor} minor, {nit} nits
 
@@ -173,4 +193,15 @@ Read the agent's output and present the final report, including the output file 
 
 {Findings where both models agree → high confidence, fix these.}
 {Findings where only one model flags → surface for human judgment with rationale from each.}
+
+### Council Synthesis (--council only)
+
+**Reviewers (lenses):** {N} (correctness, security, architecture, performance{, +external if opted in})
+**Consensus:** {C} confirmed · {X} contested · {U} unconfirmed · {R} refuted
+
+| Status | Severity | Finding | Where | Raised by | Confirms/Refutes |
+|--------|----------|---------|-------|-----------|------------------|
+| {✅ confirmed / ⚠ contested / ◻ unconfirmed} | {severity} | {title} | {file:line} | {lenses} | {c}/{r} |
+
+{Confirmed → high-confidence, fix these. Contested → human judgment (esp. any CRITICAL/MAJOR that drew refutes — never auto-dropped). Refuted findings are listed in the appendix of the output file, logged but not actioned.}
 ```

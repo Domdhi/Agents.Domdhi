@@ -9,6 +9,14 @@ Fix documentation drift detected by `/check-sync`. Reads the actual codebase and
 
 **Safe by default** — shows proposed changes before applying. Does NOT modify code — only updates docs to reflect what was built.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:update-docs
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle drift detection, classification, user consent, and committing. The `doc-writer` agent handles applying the actual documentation fixes. Do NOT edit doc files inline — delegate via Task tool. You DO handle the preview, user approval, and context updates.

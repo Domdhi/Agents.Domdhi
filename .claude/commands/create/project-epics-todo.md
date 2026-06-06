@@ -7,6 +7,14 @@ argument-hint: [epic number or "all"] [--yolo]
 
 Generate `docs/todo/TODO_epicNN_{slug}.md` — the tech-lead view of a single epic. Contains story-level task checkboxes, dependency metadata, track assignments, and bottleneck annotations. This is what `/do` and `/run-todo` consume during implementation.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:project-epics-todo
+```
+
 ## Relationship to Other Commands
 
 ```
@@ -62,6 +70,14 @@ Read the first line of `docs/todo/_backlog.md`. Check that it exists AND does no
 For each target epic:
 - Check if `docs/todo/TODO_epic{NN}_{slug}.md` already exists
 - If exists → ask: **update** (refresh from current `_backlog.md`) or **replace**?
+
+**Also check for misplaced/superseded epic TODOs (F17).** The existence check above only looks at the canonical `docs/todo/` path, so an older plan's epic TODOs at a non-canonical path (e.g. `docs/work/TODO_epic00_*.md`, or a different slug) are invisible — generating fresh files leaves them orphaned. Before generating, run the drift detector and reconcile anything it reports:
+
+```bash
+node .claude/core/_lib/doc-drift.js
+```
+
+If it reports **misplaced TODO files**, tell the user and offer to remove/relocate them (or fold into `/onboard`'s Step 6b reconcile) so the project doesn't end up with two competing sets of epic checklists.
 
 ### 4. Extract Epic Context (main agent)
 
@@ -125,6 +141,23 @@ Story {N}.{A} → Story {N}.{B} → Story {N}.{C}
 | Track | Key Stories | Est. Hours |
 |-------|-------------|-----------|
 | A: ... | {N}.1–{N}.{M} | {X}h |
+
+### Wave Plan
+Concrete wave grouping `/run-todo` consumes directly (R4) — derived from the
+critical path + parallel workstreams above, but materialized as a table so the
+executor doesn't have to recompute it from prose. **Rule: zero file overlap
+within a wave** (two stories that edit the same file go in separate waves, even
+with no logical dependency), and respect dependency order across waves.
+
+| Wave | Stories | Strategy | Files Owned (no overlap within a wave) |
+|------|---------|----------|----------------------------------------|
+| 1 | {N}.1 | direct (1 story) | {files} |
+| 2 | {N}.{x} | direct / parallel | {files} |
+| 3 | {N}.{y} + {N}.{z} | parallel (disjoint surfaces) | {y: files} \| {z: files} |
+
+> If two stories share a file (e.g. both edit `content.js`), they MUST be in
+> different waves — that's file contention, not a logical dependency. Note such
+> serialization groups explicitly so the executor doesn't parallelize them.
 
 ---
 

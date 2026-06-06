@@ -6,6 +6,14 @@ description: "Generate or update _project-timeline.md with weekly commit history
 
 Generate or update `docs/_project-timeline.md` — a weekly-grouped, daily-breakdown history of all project commits.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:timeline
+```
+
 ## Variables
 
 ARGUMENTS: $ARGUMENTS

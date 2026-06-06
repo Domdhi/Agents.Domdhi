@@ -8,6 +8,14 @@ Periodic restructuring sweep of the memory store. Dispatches a Sonnet agent to a
 
 **When to run:** quarterly, OR after a burst of new memory creation, OR when a category approaches its 50-entry hard cap (`MAX_MEMORIES_PER_CATEGORY` in `memory-manager.js`; writes are refused at 50, prune-warning triggers at 80% = 40). Not every session — the analysis cost (Sonnet dispatch) is real.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:memory-defrag
+```
+
 ## Orchestration Rule
 
 > Sonnet ANALYZES (Step 1). Main Agent EXECUTES (Step 4). Never delegate writes to a sub-agent — Main Agent owns curation and applies all merge / split / cross-ref operations directly.
@@ -118,7 +126,7 @@ DO NOT modify any memory files. You are read-only. Report back when done.
 
 ### Step 2: Persist the plan BEFORE user interaction
 
-Read the agent's reply. Persist it to `docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md` with this header:
+Read the agent's reply. Persist it to `docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md` with this header:
 
 ```markdown
 # Memory Defrag — {YYYY-MM-DD}
@@ -203,7 +211,7 @@ If the category is at 49 (one below the hard cap of 50), warn the user and sugge
 Stage the modified memory JSON files plus the plan file:
 
 ```bash
-git add docs/.output/memories/ docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
+git add docs/.output/memories/ docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
 Write the commit message to `docs/.output/.commit-msg` (Write tool) then `node .claude/core/commit.js`:
@@ -212,13 +220,13 @@ docs: /review:memory-defrag — N proposals applied
 
 {Brief summary: M merges, S splits, X cross-refs.}
 
-Plan: docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
+Plan: docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
 If zero proposals were accepted, commit only the plan file (it's still a useful audit artifact):
 
 ```bash
-git add docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
+git add docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
 Write the commit message to `docs/.output/.commit-msg` then `node .claude/core/commit.js`:
@@ -233,7 +241,7 @@ If the agent abstained (no overlap identified), skip the commit entirely — the
 ```markdown
 ## /review:memory-defrag Complete
 
-**Plan:** docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md
+**Plan:** docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
 
 | Proposal | Type | Action | Result |
 |----------|------|--------|--------|

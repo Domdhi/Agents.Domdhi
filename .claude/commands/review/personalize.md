@@ -9,6 +9,14 @@ Walk through agents interactively to assign names, personas, and soul-level iden
 
 **Idempotent** — safe to re-run. Soul sections are replaced (not duplicated). Project Context sections from `/specialize` are preserved. Frontmatter nicknames and aliases are updated in place.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:personalize
+```
+
 ## Agent File Zones
 
 Agent files have three distinct zones. This command owns the **Soul Zone** only:

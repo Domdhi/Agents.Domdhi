@@ -58,7 +58,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 
 - [Setup](#setup) — 13 commands for project initialization
 - [Build Loop](#build-loop) — 6 commands for the daily development cycle
-- [Supporting](#supporting) — 5 utility commands
+- [Supporting](#supporting) — 7 utility commands
 - [Review](#review) — 16 commands for quality, governance, and optimization
 - [Appendix A: Command dependency flow](#appendix-a-command-dependency-flow)
 - [Appendix B: Agent usage summary](#appendix-b-agent-usage-summary)
@@ -269,7 +269,7 @@ flowchart TD
 
 ## /create:project-architecture
 
-Tech stack, ADRs, system design. Writes `docs/_project-architecture.md`. Dispatches `architect` with the `architecture-writer` skill. **Hard gate:** needs `_project-requirements.md`.
+Tech stack, ADRs, system design. Writes `docs/_project-architecture.md`. Dispatches `architect` with the `architecture` skill. **Hard gate:** needs `_project-requirements.md`.
 
 ```mermaid
 flowchart TD
@@ -297,11 +297,11 @@ flowchart TD
     MODE -->|PRD only| CTX_INT["Context + Interview:\nAsk tech decisions"]
     MODE -->|Existing code| REV["Reverse-Engineering:\nDocument current arch"]
 
-    CTX --> DELEGATE["Agent: architect\n(auto-loads architecture-writer skill)"]
+    CTX --> DELEGATE["Agent: architect\n(auto-loads architecture skill)"]
     CTX_INT --> DELEGATE
     REV --> DELEGATE
 
-    DELEGATE --> VALIDATE{Validate against\narchitecture-writer\nchecklist?}
+    DELEGATE --> VALIDATE{Validate against\narchitecture\nchecklist?}
     VALIDATE -->|Pass| COMMIT["Commit:\ndocs/_project-architecture.md"]
     VALIDATE -->|Fail| FIX[Re-delegate to fix]
     FIX --> VALIDATE
@@ -342,7 +342,7 @@ flowchart TD
 
     MODE{Which mode?}
     MODE -->|Rich user flows| CTX[Context Mode]
-    MODE -->|Minimal PRD| INT[Interview Mode:\nux-designer skill questions]
+    MODE -->|Minimal PRD| INT[Interview Mode:\nux-design skill questions]
     MODE -->|Existing UI| REV[Reverse-Engineering]
 
     CTX --> T1
@@ -381,7 +381,7 @@ flowchart TD
 
 ## /create:project-epics
 
-Break requirements into phases → epics → stories with acceptance criteria. Writes `docs/todo/_backlog.md`. Dispatches `project-planner` with the `epic-writer` skill. **Hard gate:** needs both `_project-requirements.md` and `_project-architecture.md`.
+Break requirements into phases → epics → stories with acceptance criteria. Writes `docs/todo/_backlog.md`. Dispatches `project-planner` with the `project-planning` skill. **Hard gate:** needs both `_project-requirements.md` and `_project-architecture.md`.
 
 ```mermaid
 flowchart TD
@@ -404,7 +404,7 @@ flowchart TD
 
     ANALYZE["Analyze requirements:\nList all FRs by module\nMap FRs to arch components\nIdentify cross-cutting concerns"]
 
-    ANALYZE --> DELEGATE["Agent: project-planner\n(auto-loads epic-writer skill)"]
+    ANALYZE --> DELEGATE["Agent: project-planner\n(auto-loads project-planning skill)"]
 
     DELEGATE --> AGENT["Structure output:\nPhase 0: Foundation (always first)\nPhase 1: Data & Core\nPhase 2: Auth\nPhase 3+: Features (by dependency)\nFinal: Polish & Launch"]
 
@@ -460,7 +460,7 @@ flowchart TD
     OPT_DATA --> DELEGATE
     NO_OPT --> DELEGATE
 
-    DELEGATE["Agent: project-planner\n(auto-loads epic-writer skill)"]
+    DELEGATE["Agent: project-planner\n(auto-loads project-planning skill)"]
 
     DELEGATE --> SECTIONS["Produce index:\nPhase Map table\nEpic Index table\nCross-Epic Dependencies\nOptimization Summary\nPhase Gates\nNext Steps"]
 
@@ -513,7 +513,7 @@ flowchart TD
 
     EXTRACT["Extract from _backlog.md:\nEpic metadata\nAll stories with AC\nCross-epic deps\nOptimization data"]
 
-    EXTRACT --> DELEGATE["Agent: project-planner\n(auto-loads epic-writer skill)\nSingle or parallel per epic"]
+    EXTRACT --> DELEGATE["Agent: project-planner\n(auto-loads project-planning skill)\nSingle or parallel per epic"]
 
     DELEGATE --> SECTIONS["Produce per epic:\nExecutive Summary\nOptimization Summary\nExecution Log\nKey Decisions\nStories (dependency order)\n  - AC, Tasks, Deps\nValidation checklist\nWork Doc References"]
 
@@ -914,7 +914,7 @@ flowchart TD
 
 # Supporting
 
-Five utility commands for progress-checking, module scaffolding, cleanup, debugging, and memory capture.
+Seven utility commands for progress-checking, module scaffolding, cleanup, debugging, memory capture, and the post-MVP signal→backlog lifecycle (`/listen` → `/triage`).
 
 ## /status
 
@@ -1016,6 +1016,24 @@ Structured debug investigation with root-cause analysis *before* fixes. Enforces
 Capture a conversational insight to the day's daily log so it feeds the memory acquisition pipeline. Appends to `docs/.output/memories/daily/{YYYY-MM-DD}.md` — one line per invocation, prefixed with an ISO timestamp. No commit. Structured memories are extracted manually (memory-extractor.js) or created directly via memory-manager.js create.
 
 **Use when:** something surprising or non-obvious came up in conversation that's worth capturing but doesn't warrant a structured memory yet. Turn it into a structured memory later via `/review:memory-health` or `/review:promote-memories`.
+
+---
+
+## /listen
+
+The first **post-MVP lifecycle** command. When the initial backlog drains, the harness has no model for *push-from-reality* work — bug reports, telemetry drift, unaddressed agent issues, expiring flags. `/listen` sweeps every available signal source (git reality, telemetry, agent-updates, backlog drift, optional external tracker), tags each finding with its provenance (`[origin: …]`), and writes a single dated intake file to `docs/.output/intake/{YYYY-MM-DD}.md` (day-rotated). It does **not** triage, prioritize, or ask questions — it only gathers. Commits the intake file. Pairs with `/triage`.
+
+**Use when:** the initial backlog is drained and you need to discover what reality is asking for. Run it, then run `/triage`.
+
+---
+
+## /triage
+
+The second **post-MVP lifecycle** command — the decision half of `/listen`. Reads the newest intake file and converts signals into ranked backlog stories. Built on two best-practice axes: (1) **Severity ≠ Priority** — it scores each signal's technical Severity objectively (engineering-led, no user input), then decides Priority separately as the *disposition*; (2) **auto-decide the obvious** — using the same Mechanical / Taste / User-Challenge model as `/do` Step 6c, it silently resolves mechanical calls and interviews **only** the genuine judgment calls (`AskUserQuestion`, ≤4/round, ≤3 rounds, like `/interview`).
+
+Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoSCoW tag), **defer**, **kill** (reason recorded), **research** (→ spike). Kills and defers land in an append-only ledger (`docs/.output/triage/_decisions.md`, borrowed from Paperclip's durable issue state) so the next `/listen` sweep doesn't make you re-adjudicate them. Writes promoted stories to `docs/todo/_backlog.md`, a day-rotated run record to `docs/.output/triage/{date}.md`, and annotates the source intake inline. `--dry-run` classifies without writing.
+
+**Use when:** a `/listen` intake file has accumulated and you want to turn it into prioritized backlog work. Then `/review:optimize-backlog` to slot the new stories, or `/do` the top one.
 
 ---
 
@@ -1148,7 +1166,7 @@ flowchart TD
     ACK -->|Yes, all listed in\n## Acknowledged Overlaps| COMPLETE
     ACK -->|Yes, unacknowledged| FAIL_OVERLAP(["FAIL:\nUnacknowledged overlaps\nlist pairs + suggest fixes"])
 
-    COMPLETE["Check completeness\nper skill checklists:\nPRD → project-planning\nArch → architecture-writer\nDesign → ux-designer\nEpics → epic-writer"]
+    COMPLETE["Check completeness\nper skill checklists:\nPRD → project-planning\nArch → architecture\nDesign → ux-design\nEpics → project-planning"]
 
     COMPLETE --> CONSISTENCY["Cross-document consistency:\nTech stack matches epics?\nEvery Must-Have FR → story?\nNFRs in architecture?\nPRD entities in data design?\nSecurity reqs → auth section?"]
 

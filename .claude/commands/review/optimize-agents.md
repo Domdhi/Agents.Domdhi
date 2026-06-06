@@ -11,6 +11,14 @@ Run this periodically — after completing an epic, when agents feel out of sync
 
 **Idempotent** — safe to re-run. Agent context sections are replaced, not duplicated. Memories are not overwritten.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:optimize-agents
+```
+
 ## Agent Delegation
 
 > **Orchestration rule**: You (the main agent) handle phase gate, context assembly, agent updates, memory health, and the final report. The `architect` agent handles codebase scanning (Step 1). The `code-reviewer` agent handles skill effectiveness audit (Step 5). Do NOT perform deep codebase analysis or skill auditing inline — delegate via Task tool. You DO handle comparison logic, agent file updates, and committing.
@@ -199,7 +207,7 @@ mkdir -p docs/.output/reviews
 ```
 
 Write the complete optimization report (stack scan + agent alignment + skill audit + memory health) to:
-`docs/.output/reviews/{YYYY-MM-DD}-agent-optimization.md`
+`docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`
 
 File format:
 ```markdown
@@ -213,7 +221,7 @@ File format:
 
 ### 10. Commit (main agent)
 
-Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYYY-MM-DD}-agent-optimization.md` — and commit with a descriptive message.
+Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md` — and commit with a descriptive message.
 
 ### 11. Report (main agent)
 
@@ -223,7 +231,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ### Run Mode: {--fix / --dry-run / --report-only}
 ### Date: {YYYY-MM-DD}
 ### Project: {PROJECT_NAME}
-### Output: `docs/.output/reviews/{YYYY-MM-DD}-agent-optimization.md`
+### Output: `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`
 
 ---
 

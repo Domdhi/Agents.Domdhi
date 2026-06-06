@@ -6,6 +6,14 @@ description: Surface high-confidence memory concepts for promotion into template
 
 Scan compiled concept articles for promotion candidates and guide the user through accepting, rejecting, or skipping each one. Accepted promotions are applied to target files and committed.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:promote-memories
+```
+
 ## Orchestration Rule
 
 > You (the main agent) handle everything: scanning, presenting candidates, applying promotions, and committing. Do NOT delegate to subagents.

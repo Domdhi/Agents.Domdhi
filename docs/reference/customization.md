@@ -9,9 +9,9 @@ When updating the template (via subtree, copy, or future update mechanism), some
 | `.claude/commands/**/*.md` | Template | **Overwrite** — commands are orchestration, never project-specific |
 | `.claude/core/*.js` | Template | **Overwrite** — scripts are project-agnostic |
 | `.claude/hooks/*.cjs` | Template | **Overwrite** — hooks are project-agnostic (project-specific hooks preserved) |
-| `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below) |
+| `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, `assets/`, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below). **Skill-owned document templates live here** (`<skill>/assets/*`, the scaffold source of record via `SKILL_TEMPLATE_MANIFEST`) |
 | `.claude/skills-optional/` | Template | **Overwrite** (gitignored — local-only aesthetic skills) |
-| `.claude/templates/` | Template | **Overwrite** |
+| `.claude/templates/` | Template | **Overwrite** — residual no-owner templates only (CLAUDE.md docs-guide + `root/`); doc templates moved to skill `assets/` |
 | `.claude/version.json` | Template | **Overwrite** — template version metadata |
 | `.claude/agents/*.md` (11 base) | **Mixed** | **Merge** — see Agent File Zones below |
 | `.claude/agents/*.md` (project-added) | **Project** | **Preserve** — agents added by `/specialize` or manually |
@@ -58,12 +58,13 @@ Tech Stack, ADRs, Conventions      this section doesn't exist (nothing to preser
 ```
 
 **Update algorithm for agents:**
-1. Overwrite frontmatter (except `nickname` and `aliases`, always preserved)
+1. Overwrite frontmatter (except `nickname` and `aliases`, always preserved; plus `description` and the `skills:` list per steps 2 and 5)
 2. If the agent is personalized (`nickname`) or specialized (`## Project Context`) → also preserve its `description` — it's tuned by `/personalize`, `/specialize`, and `/optimize-agents`, and the generic template description would otherwise clobber routing-critical text
 3. If Soul Zone was personalized (not thin defaults) → preserve it
-4. Overwrite Skills section
-5. If Project Context section exists → preserve it
-6. If neither personalized nor specialized → full overwrite is safe (so thin agents still pick up template description improvements)
+4. Overwrite the `## Skills` prose section (template-owned)
+5. **Union project-specific skills into the frontmatter `skills:` list** — a `skills:` entry that is NOT a template skill (not shipped by the source) but DOES exist as a skill dir in the target is a `/review:specialize` addition and is preserved; template-renamed/consolidation orphans (no target dir) are dropped. Distinct from step 4: the `## Skills` *prose* is template-owned, but the frontmatter `skills:` *list* can carry project specializations. (Before this, the merge silently stripped specialized agents' domain skills on every update.)
+6. If Project Context section exists → preserve it
+7. If neither personalized nor specialized → full overwrite is safe (so thin agents still pick up template description improvements)
 
 ## Skill Exceptions
 
@@ -92,6 +93,7 @@ To detect whether a file has been customized:
 |-------|-------|
 | Agent has `nickname:` in frontmatter | Personalized — preserve Soul Zone |
 | Agent has `## Project Context` section | Specialized — preserve that section |
+| Agent `skills:` entry is a non-template skill with a target dir | Specialized skill — preserve (union back in) |
 | `brand-guidelines/SKILL.md` differs from template | Customized — preserve |
 | `settings.json` exists | Project-specific — always preserve |
 | Target's root `CLAUDE.md` | Always project-specific — never touched by updater |

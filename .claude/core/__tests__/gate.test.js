@@ -24,7 +24,7 @@ const { createTmpDir } = require('./_helpers/tmp-dir');
 const GATE_PATH = require.resolve('../gate');
 
 // Top-level require for pure functions — no env dependency, no need for cache busting
-const { parseBuildOutput, parseTestOutput } = require('../gate');
+const { parseBuildOutput, parseTestOutput, isZeroCollected } = require('../gate');
 
 // ─── parseBuildOutput ─────────────────────────────────────────────────────────
 
@@ -152,6 +152,47 @@ describe('gate', () => {
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0].file).toBe('src/helper.ts');
       expect(result.succeeded).toBe(true);
+    });
+
+    it('parseBuildOutput_C2_ruffFormat_capturesReformatReason', () => {
+      // C2: `ruff format --check` failure has no file:line:error shape — a real
+      // failure must still yield an actionable error, not "0 errors".
+      const output = '10 files would be reformatted, 1 file already formatted';
+      const exitCode = 1;
+
+      const result = parseBuildOutput(output, exitCode);
+
+      expect(result.succeeded).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toMatch(/would be reformatted/i);
+    });
+
+    it('parseBuildOutput_C2_commandNotFound_capturesReason', () => {
+      // C2: a missing tool (e.g. mypy) must surface the reason, not 0 errors.
+      const output = '/bin/sh: 1: mypy: not found';
+      const exitCode = 127;
+
+      const result = parseBuildOutput(output, exitCode);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toMatch(/not found/i);
+    });
+
+    it('parseBuildOutput_C2_nonZeroEmptyOutput_synthesizesExitReason', () => {
+      // C2: even with no output, a non-zero exit must not report 0 errors.
+      const result = parseBuildOutput('', 2);
+
+      expect(result.succeeded).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toMatch(/exited 2/);
+    });
+
+    it('parseBuildOutput_C2_recognizedError_noSyntheticDouble', () => {
+      // When the parser already found a real error, do NOT add a synthetic one.
+      const output = 'src/file.py:42: error: Cannot assign';
+      const result = parseBuildOutput(output, 1);
+
+      expect(result.errors).toHaveLength(1);
     });
   });
 
@@ -352,6 +393,102 @@ describe('gate', () => {
       expect(result.failed).toBe(0);
       expect(result.succeeded).toBe(true);
     });
+
+    it('parseTestOutput_C11_pytestQuiet_allPassing', () => {
+      // C11: pytest under `addopts = "-q"` prints a BARE summary with no =====
+      // envelope. This is the exact line that false-greened a 32-test suite.
+      const output = '32 passed in 0.47s';
+      const exitCode = 0;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(32);
+      expect(result.failed).toBe(0);
+      expect(result.total).toBe(32);
+      expect(result.succeeded).toBe(true);
+    });
+
+    it('parseTestOutput_C11_pytestQuiet_withFailures', () => {
+      // Quiet summary, failures first: "1 failed, 31 passed in 0.50s"
+      const output = '1 failed, 31 passed in 0.50s';
+      const exitCode = 1;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(31);
+      expect(result.failed).toBe(1);
+      expect(result.total).toBe(32);
+      expect(result.succeeded).toBe(false);
+    });
+
+    it('parseTestOutput_C11_pytestQuiet_withSkippedAndErrors', () => {
+      const output = '5 passed, 2 skipped, 1 error in 1.10s';
+      const exitCode = 1;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(5);
+      expect(result.skipped).toBe(2);
+      expect(result.failed).toBe(1); // errors fold into failed
+      expect(result.total).toBe(8);
+    });
+
+    it('parseTestOutput_pytestEnvelope_stillParses', () => {
+      // Guard the non-quiet (verbose) format still works after the quiet branch.
+      const output = '===== 5 passed, 1 failed, 2 skipped in 1.23s =====';
+      const exitCode = 1;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(5);
+      expect(result.failed).toBe(1);
+      expect(result.skipped).toBe(2);
+      expect(result.total).toBe(8);
+    });
+
+    it('parseTestOutput_pytestQuiet_doesNotMatchProse', () => {
+      // A prose line that happens to contain "in 3s" must NOT be read as a summary.
+      const output = 'Ran the suite in 3s and everything looked fine';
+      const exitCode = 0;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.total).toBe(0);
+    });
+  });
+
+  // ─── testPassed (C11/F1 teeth) ───────────────────────────────────────────────
+
+  describe('testPassed', () => {
+    const { testPassed } = require('../gate');
+
+    it('testPassed_zeroCollectedRealRunner_false', () => {
+      // The headline C11 fix: a real runner that parsed 0 tests is a FAIL even
+      // though it exited 0 and the parser said succeeded.
+      const test = { succeeded: true, total: 0, exitCode: 0 };
+      expect(testPassed(test, 'pytest')).toBe(false);
+    });
+
+    it('testPassed_realRunnerWithTests_true', () => {
+      const test = { succeeded: true, total: 32, exitCode: 0 };
+      expect(testPassed(test, 'pytest')).toBe(true);
+    });
+
+    it('testPassed_echoNoTestFallback_true', () => {
+      // The echo fallback legitimately collects 0 — not a false-green.
+      const test = { succeeded: true, total: 0, exitCode: 0 };
+      expect(testPassed(test, 'echo "No test script"')).toBe(true);
+    });
+
+    it('testPassed_passWithNoTestsWave_true', () => {
+      const test = { succeeded: true, total: 0, exitCode: 0 };
+      expect(testPassed(test, 'npm test -- --changed --passWithNoTests')).toBe(true);
+    });
+
+    it('testPassed_genuineFailure_false', () => {
+      const test = { succeeded: false, total: 10, exitCode: 1 };
+      expect(testPassed(test, 'pytest')).toBe(false);
+    });
   });
 
   // ─── loadConfig ────────────────────────────────────────────────────────────
@@ -397,17 +534,86 @@ describe('gate', () => {
       expect(config.test.command).toBe('npm test');
     });
 
-    it('loadConfig_packageJson_noScripts_fallsBackToTsc', () => {
-      // Arrange — package.json with no scripts block
+    it('loadConfig_noBuildScript_plainJS_fallsBackToNoOp', () => {
+      // F4: a plain-JS project (no build script, no tsconfig, no typescript dep)
+      // must NOT run `tsc --noEmit` — it would fail the gate on a healthy repo.
       tmp.write('package.json', JSON.stringify({ name: 'my-lib' }));
       const loadConfig = freshLoadConfig();
 
-      // Act
       const config = loadConfig();
 
-      // Assert
       expect(config.stack).toBe('node');
+      expect(config.build.command).toMatch(/^echo /);
+      expect(config.build.command).not.toContain('tsc');
+    });
+
+    it('loadConfig_noBuildScript_withTsconfig_usesTsc', () => {
+      // F4: TypeScript IS detected via tsconfig.json → tsc --noEmit is correct.
+      tmp.write('package.json', JSON.stringify({ name: 'my-lib' }));
+      tmp.write('tsconfig.json', '{}');
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
       expect(config.build.command).toBe('npx tsc --noEmit');
+    });
+
+    it('loadConfig_noBuildScript_withTypescriptDep_usesTsc', () => {
+      // F4: TypeScript detected via a typescript devDependency → tsc --noEmit.
+      tmp.write('package.json', JSON.stringify({ name: 'my-lib', devDependencies: { typescript: '^5.0.0' } }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.build.command).toBe('npx tsc --noEmit');
+    });
+
+    it('isZeroCollected_F1_realRunnerExit0ZeroTests_flagsTrue', () => {
+      // The false-green case: jest exited 0 but parser found 0 tests.
+      expect(isZeroCollected('npm test', 0, 0)).toBe(true);
+    });
+
+    it('isZeroCollected_realRunnerWithTests_false', () => {
+      expect(isZeroCollected('npm test', 0, 40)).toBe(false);
+    });
+
+    it('isZeroCollected_echoFallback_false', () => {
+      // The "No test script" echo fallback legitimately collects 0 — not a flag.
+      expect(isZeroCollected('echo "No test script"', 0, 0)).toBe(false);
+    });
+
+    it('isZeroCollected_passWithNoTests_false', () => {
+      // --changed waves opt into no-match passing; 0 collected is expected.
+      expect(isZeroCollected('npm test -- --changed --passWithNoTests', 0, 0)).toBe(false);
+    });
+
+    it('isZeroCollected_nonZeroExit_false', () => {
+      // A failing runner is already a FAIL — not a false-green.
+      expect(isZeroCollected('npm test', 1, 0)).toBe(false);
+    });
+
+    it('loadConfig_C1_python_noMypy_omitsMypyLeg', () => {
+      // C1 (F4-analog): a ruff+pytest project that doesn't use mypy must NOT have
+      // `mypy --strict` hard-wired into the build — it would make the gate
+      // unreachable on a healthy repo.
+      tmp.write('pyproject.toml', '[project]\nname = "x"\n[dependency-groups]\ndev = ["pytest", "ruff"]');
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.stack).toBe('python');
+      expect(config.build.command).toContain('ruff check');
+      expect(config.build.command).not.toContain('mypy');
+    });
+
+    it('loadConfig_C1_python_mypyDeclared_includesMypyLeg', () => {
+      // When the project DOES declare mypy, run it.
+      tmp.write('pyproject.toml', '[project]\nname = "x"\n[tool.mypy]\nstrict = true');
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.build.command).toContain('mypy --strict src');
     });
 
     it('loadConfig_cargoToml_returnsRustStack', () => {
@@ -633,6 +839,39 @@ describe('gate', () => {
 
       // Assert — active fresh lock blocks acquire
       expect(result).toBe(false);
+    });
+  });
+
+  describe('runCommand — stderr capture (F31)', () => {
+    const { runCommand } = require('../gate');
+
+    it('captures stderr on a SUCCESSFUL (exit 0) command', () => {
+      // Root cause of F1/F24/F31: jest prints its "Tests: N passed, N total"
+      // summary to STDERR, and the old execSync path discarded stderr on exit 0
+      // → the parser saw 0 tests → the false-green teeth FAILED a green suite.
+      // A passing command that writes its summary to stderr must still surface it.
+      const cmd = `node -e "console.error('Tests: 5 passed, 5 total'); process.exit(0)"`;
+      const r = runCommand(cmd, process.cwd(), 30000);
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain('Tests: 5 passed, 5 total');
+    });
+
+    it('the captured stderr feeds parseTestOutput to a real count (not zero-collected)', () => {
+      const cmd = `node -e "console.error('Tests: 5 passed, 5 total'); process.exit(0)"`;
+      const r = runCommand(cmd, process.cwd(), 30000);
+      const combined = (r.output || '') + '\n' + (r.stderr || '');
+      const parsed = parseTestOutput(combined, r.exitCode);
+      expect(parsed.total).toBe(5);
+      expect(parsed.passed).toBe(5);
+      expect(isZeroCollected(cmd, r.exitCode, parsed.total)).toBe(false);
+    });
+
+    it('still captures stdout + stderr on a FAILING command', () => {
+      const cmd = `node -e "console.log('out'); console.error('err'); process.exit(1)"`;
+      const r = runCommand(cmd, process.cwd(), 30000);
+      expect(r.exitCode).toBe(1);
+      expect(r.output).toContain('out');
+      expect(r.stderr).toContain('err');
     });
   });
 });

@@ -1,0 +1,47 @@
+# Engineering Conventions
+
+Durable engineering rules for **contributors to this toolkit** (the `.claude/core/` Node code and its tests). These are NOT adopter-facing guidance — they describe how the toolkit's own internals are built and tested. Promoted from the agent-memory store (`/review:sweep` 2026-06-06) so they survive memory decay and are discoverable in review.
+
+## Code patterns
+
+### Constants stay static — override at the call site, identically
+
+Never read `process.env` inside a constants module (e.g. `.claude/core/constants.js`). A `process.env` read at module-load time makes `require()` of that module non-deterministic across tests — the value is captured once at first load and frozen.
+
+When a constant needs an env override:
+- Define the **static default** in the constants module.
+- Apply the override with an **identical expression at each call site**.
+- When two or more files consume the same overridable constant, the call-site expression must be **byte-identical** so the sites can never diverge.
+
+*Why:* the per-category memory cap once drifted between two hardcoded `50`s; a downstream project raised one to `100` and the two silently disagreed (MP-1.1/MP-2.1, memory-performance-analysis, 2026-06-03).
+
+### Additive SQLite migrations go through one idempotent `ensureColumn` seam
+
+To add a column to a table created with `CREATE TABLE IF NOT EXISTS`, route **every** additive migration through one reusable helper — `ensureColumn(table, column, ddl)` — that checks `PRAGMA table_info(table)` and only runs `ALTER TABLE ADD COLUMN` when the column is absent.
+
+Do **not** use a blind per-migration `try/catch`-on-duplicate-column. Two divergent idempotency strategies in one `initDb` are the hardest adopter-DB bug to debug, and a swallowed `ALTER` error leaves a column missing while reads silently default.
+
+*Why:* the `importance` column was added this way (ME-2.1); `invalid_at`/`superseded_by` extend the **same** helper (ME-3.1). The backend-agnostic test simulates a pre-migration DB via `ALTER TABLE DROP COLUMN`.
+
+## Testing conventions
+
+### A stub must assert the real subsystem's contract, not just the call
+
+When a test stubs a subsystem call, assert the **invariant the real dependency would enforce** — not merely that the call was made.
+
+*Why:* `install.js` stubbed `scaffold` and 42 tests passed while a CRITICAL bug sailed through — `--force` forwarded into `scaffold` would clobber the adopter's root `.gitignore` — because no test asserted what `scaffold` does to the filesystem under `force`. Stub the call **and** assert the filesystem/state invariant.
+
+### Testing an env override of a module-load-time const: reload the require cache
+
+A top-level `const` that reads `process.env` once at require time is frozen at first load — setting `process.env` mid-test does nothing. To test the override:
+
+1. Delete the module from `require.cache`.
+2. Set the env var.
+3. Re-`require` to get a fresh module with the new value.
+4. **Always** restore env + cache in a `finally` block so the reload can't leak the overridden value into sibling tests.
+
+Notes:
+- With `createRequire()` bridges (ESM test files loading CJS), `vi.resetModules()` does **not** help — it resets the Vite registry, not the CJS require cache.
+- Close any DB handle the reloaded instance opened before tmp cleanup.
+
+*Why:* the full suite stayed green afterward, proving the reload didn't leak `cap=2` into other describe blocks (MP-2.1, 2026-06-03).

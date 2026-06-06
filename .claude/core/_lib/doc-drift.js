@@ -42,6 +42,16 @@ const CANONICAL_LOCATIONS = [
 
 const TEMPLATE_MARKER = '<!-- @@template -->';
 
+// TODO files have exactly two canonical homes (relative to docs/):
+//   • the master index  → docs/ root            (TODO_{Project}.md)
+//   • per-epic / backlog → docs/todo/           (TODO_epic*.md, TODO*.md)
+// A TODO file anywhere else under docs/** (e.g. a stale docs/work/TODO_epic00.md
+// left by an older plan) is invisible to the create-chain and to /status, which
+// only glob the canonical paths — so it silently orphans (F17). These dirs are
+// skipped entirely when walking for misplaced TODOs.
+const TODO_SKIP_DIRS = new Set(['.output', '.archive', 'node_modules', '.git', 'design']);
+const TODO_CANONICAL_DIRS = new Set(['', 'todo']); // relative to docs/
+
 /** True if a file exists and is NOT just an unfilled scaffold stub. */
 function isRealDoc(absPath) {
     try {
@@ -53,17 +63,48 @@ function isRealDoc(absPath) {
 }
 
 /**
+ * Walk docs/** for TODO_*.md files that live outside the two canonical homes
+ * (docs/ root for the master index, docs/todo/ for per-epic/backlog TODOs).
+ * Returns relative paths like `docs/work/TODO_epic00.md` (F17).
+ *
+ * @param {string} docsDir  Absolute path to <projectRoot>/docs
+ * @returns {Array<{ file: string, dir: string }>}
+ */
+function findMisplacedTodos(docsDir) {
+    const misplaced = [];
+    const walk = (absDir, relDir) => {
+        let entries;
+        try { entries = fs.readdirSync(absDir, { withFileTypes: true }); }
+        catch { return; }
+        for (const entry of entries) {
+            if (entry.isDirectory()) {
+                if (TODO_SKIP_DIRS.has(entry.name)) continue;
+                walk(path.join(absDir, entry.name), relDir ? `${relDir}/${entry.name}` : entry.name);
+            } else if (entry.isFile() && /^TODO.*\.md$/i.test(entry.name)) {
+                if (!TODO_CANONICAL_DIRS.has(relDir)) {
+                    misplaced.push({ file: `docs/${relDir ? relDir + '/' : ''}${entry.name}`, dir: `docs/${relDir}` });
+                }
+            }
+        }
+    };
+    walk(docsDir, '');
+    return misplaced;
+}
+
+/**
  * Detect legacy and duplicate planning docs under `<projectRoot>/docs`.
  *
  * @param {string} projectRoot
- * @returns {{ legacy: Array, duplicates: Array, hasDrift: boolean }}
- *   legacy:     { file, canonical, canonicalExists } — a legacy-named real doc
- *   duplicates: { name, root, canonical } — same basename at root AND canonical path
+ * @returns {{ legacy: Array, duplicates: Array, misplacedTodos: Array, hasDrift: boolean }}
+ *   legacy:         { file, canonical, canonicalExists } — a legacy-named real doc
+ *   duplicates:     { name, root, canonical } — same basename at root AND canonical path
+ *   misplacedTodos: { file, dir } — a TODO_*.md outside docs/ root and docs/todo/
  */
 function detectDocDrift(projectRoot) {
     const docsDir = path.join(projectRoot, 'docs');
     const legacy = [];
     const duplicates = [];
+    const misplacedTodos = findMisplacedTodos(docsDir);
 
     for (const [legacyName, canonicalName] of Object.entries(LEGACY_TO_CANONICAL)) {
         const legacyPath = path.join(docsDir, legacyName);
@@ -84,12 +125,15 @@ function detectDocDrift(projectRoot) {
         }
     }
 
-    return { legacy, duplicates, hasDrift: legacy.length > 0 || duplicates.length > 0 };
+    return {
+        legacy, duplicates, misplacedTodos,
+        hasDrift: legacy.length > 0 || duplicates.length > 0 || misplacedTodos.length > 0,
+    };
 }
 
 function main() {
     const projectRoot = process.argv[2] || process.env.CLAUDE_PROJECT_DIR || process.cwd();
-    const { legacy, duplicates, hasDrift } = detectDocDrift(projectRoot);
+    const { legacy, duplicates, misplacedTodos, hasDrift } = detectDocDrift(projectRoot);
 
     if (!hasDrift) {
         process.stdout.write('No legacy/duplicate planning docs detected.\n');
@@ -110,11 +154,16 @@ function main() {
         for (const d of duplicates) lines.push(`  • ${d.root}  vs  ${d.canonical}  (keep canonical, remove the root copy)`);
         lines.push('');
     }
+    if (misplacedTodos.length) {
+        lines.push('Misplaced TODO files (outside docs/ root and docs/todo/ — invisible to the create-chain and /status):');
+        for (const m of misplacedTodos) lines.push(`  • ${m.file}  (move to docs/todo/ or remove if superseded)`);
+        lines.push('');
+    }
     lines.push('Reconcile via /onboard (archives/removes legacy docs) or clean up manually.');
     process.stdout.write(lines.join('\n') + '\n');
     process.exit(1);
 }
 
-module.exports = { detectDocDrift, isRealDoc, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS };
+module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS };
 
 if (require.main === module) main();

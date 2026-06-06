@@ -317,7 +317,7 @@ Body content here.
 
 ## Skills
 
-- architecture-writer
+- architecture
 `;
         const srcPath = tmp.write('src/agents/architect.md', content);
         const destPath = tmp.write('dest/agents/architect.md', content);
@@ -454,7 +454,7 @@ Template soul.
 
 ## Skills
 
-architecture-writer
+architecture
 `;
 
     it('preserves the tuned description when dest is personalized (has nickname)', () => {
@@ -494,7 +494,7 @@ Template soul.
 
 ## Skills
 
-architecture-writer
+architecture
 
 ## Project Context
 
@@ -521,7 +521,7 @@ Template soul.
 
 ## Skills
 
-architecture-writer
+architecture
 `;
         const srcPath = tmp.write('src/agents/architect-thin.md', srcWithGenericDesc);
         const destPath = tmp.write('dest/agents/architect-thin.md', dst);
@@ -529,5 +529,141 @@ architecture-writer
         const merged = fs.readFileSync(destPath, 'utf8');
         expect(merged).toContain('Generic template description.');
         expect(merged).not.toContain('Stale old description.');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeAgentFile — skills-union (preserve /review:specialize skills on merge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeAgentFile skills-union', () => {
+    const SRC = `---
+name: architect
+model: inherit
+skills:
+  - architecture
+---
+
+# Architect
+
+## Skills
+
+architecture
+`;
+    // Project agent: template base skill + a bespoke specialization + a consolidation orphan.
+    const DEST = `---
+name: architect
+skills:
+  - architecture
+  - cloudflare
+  - old-orphan
+---
+
+# Architect
+
+## Skills
+
+architecture
+`;
+
+    function run(canonical, target) {
+        const srcPath = tmp.write('src/agents/architect.md', SRC);
+        const destPath = tmp.write('dest/agents/architect.md', DEST);
+        mergeAgentFile(srcPath, destPath, {
+            canonicalSkills: new Set(canonical),
+            targetSkills: new Set(target),
+        });
+        return fs.readFileSync(destPath, 'utf8');
+    }
+
+    it('preserves a bespoke (non-canonical) skill whose dir exists in the target', () => {
+        // cloudflare: not canonical, dir present in target → kept
+        const merged = run(['architecture'], ['architecture', 'cloudflare', 'old-orphan']);
+        expect(merged).toMatch(/- cloudflare/);
+        expect(merged).toMatch(/- architecture/);
+    });
+
+    it('drops a non-canonical skill whose dir no longer exists in the target (consolidation orphan)', () => {
+        // old-orphan: not canonical AND not a target dir → not re-added
+        const merged = run(['architecture'], ['architecture', 'cloudflare']);
+        expect(merged).not.toMatch(/- old-orphan/);
+        expect(merged).toMatch(/- cloudflare/);
+    });
+
+    it('does not union when skill sets are not provided (legacy behavior: skills from src)', () => {
+        const srcPath = tmp.write('src/agents/architect.md', SRC);
+        const destPath = tmp.write('dest/agents/architect.md', DEST);
+        mergeAgentFile(srcPath, destPath);
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).not.toMatch(/- cloudflare/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mergeAgentFile skills-union — edge cases (sweep P1 MAJOR + MINOR fixes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('mergeAgentFile skills-union edge cases', () => {
+    it('synthesizes a skills: block when src has none, preserving bespoke skills', () => {
+        const src = `---
+name: architect
+model: inherit
+---
+
+# Architect
+
+## Skills
+
+architecture
+`;
+        const dest = `---
+name: architect
+skills:
+  - cloudflare
+---
+
+# Architect
+`;
+        const srcPath = tmp.write('src/agents/architect.md', src);
+        const destPath = tmp.write('dest/agents/architect.md', dest);
+        mergeAgentFile(srcPath, destPath, {
+            canonicalSkills: new Set(['architecture']),
+            targetSkills: new Set(['cloudflare']),
+        });
+        const merged = fs.readFileSync(destPath, 'utf8');
+        // bespoke skill survives even though the template carried no skills: list
+        expect(merged).toMatch(/^skills:/m);
+        expect(merged).toMatch(/- cloudflare/);
+    });
+
+    it('matches existing list indentation when appending bespoke skills', () => {
+        // src list items are flush (zero-indent); appended item must match.
+        const src = `---
+name: architect
+skills:
+- architecture
+---
+
+# Architect
+`;
+        const dest = `---
+name: architect
+skills:
+- architecture
+- cloudflare
+---
+
+# Architect
+`;
+        const srcPath = tmp.write('src/agents/architect.md', src);
+        const destPath = tmp.write('dest/agents/architect.md', dest);
+        mergeAgentFile(srcPath, destPath, {
+            canonicalSkills: new Set(['architecture']),
+            targetSkills: new Set(['cloudflare']),
+        });
+        const merged = fs.readFileSync(destPath, 'utf8');
+        // no mixed indentation — cloudflare added flush like the rest
+        expect(merged).toMatch(/\n- cloudflare/);
+        expect(merged).not.toMatch(/\n {2}- cloudflare/);
     });
 });

@@ -211,7 +211,7 @@ describe('classifyClaudeFile', () => {
 
     // Non-brand-guidelines skills subdir — must NOT be project-exception
     it('classifies non-brand-guidelines skills as template', () => {
-        expect(classifyClaudeFile('skills/writing-skills/anthropic-best-practices.md')).toBe('template');
+        expect(classifyClaudeFile('skills/skill-authoring/anthropic-best-practices.md')).toBe('template');
     });
 
     it('classifies skills with nested references/ as template', () => {

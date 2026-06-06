@@ -7,6 +7,14 @@ argument-hint: [what to remember — a decision, insight, or discovery]
 
 Pin a conversational insight to the memory pipeline. Use when a Q&A exchange, investigation, or design decision should persist beyond the current session — things that git commits and TODO files can't capture.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js remember
+```
+
 ## Variables
 
 NOTE: $ARGUMENTS

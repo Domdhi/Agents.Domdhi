@@ -8,6 +8,14 @@ Run the memory health pipeline (optional Sonnet extraction, lint, decay report).
 
 > **Complementary view:** this command covers *hygiene* (lint + decay). For the *performance/usage* view — cap utilization, usage distribution, prune list, and injection hit-rate — run `node .claude/core/memory-manager.js analytics`.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:memory-health
+```
+
 ## Orchestration Rule
 
 > This command runs directly — do NOT delegate to subagents. No commits. No memory modifications.
@@ -73,7 +81,7 @@ Output ONLY this line and stop:
 
 #### Full report mode
 
-If any condition above is not met, **persist before reporting:** Write the full report below to `docs/.output/reviews/{YYYY-MM-DD}-memory-health.md`. Then display the same content in chat.
+If any condition above is not met, **persist before reporting:** Write the full report below to `docs/.output/reviews/{YYMMDD-HHMM}-memory-health.md`. Then display the same content in chat.
 
 ```markdown
 ## Memory Health Report

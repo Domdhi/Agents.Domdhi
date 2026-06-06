@@ -152,7 +152,7 @@ allowed-tools: {tool list}
 
 **The description field must start with `Use WHEN`.** This is not optional, and the reason is mechanical: Claude Code reads the description to decide whether to load the skill. Descriptions that summarize the workflow ("Dispatches subagent per task...") get followed as shortcuts instead of triggering a skill read. Descriptions that describe triggering conditions ("Use WHEN tests have race conditions...") force a full skill-body read. The system-builder skill has the detail at `.claude/skills/system-builder/SKILL.md` under "Description Field: Claude Search Optimization (CSO)."
 
-`user-invocable: false` is the default — it means the skill is used by agents or commands but doesn't appear in the `/skill-name` slash-command list. Set it to `true` only if you genuinely want users to invoke the skill directly (like `/simplify` or `/writing-skills`).
+`user-invocable: false` is the default — it means the skill is used by agents or commands but doesn't appear in the `/skill-name` slash-command list. Set it to `true` only if you genuinely want users to invoke the skill directly (like `/simplify` or `/skill-authoring`).
 
 ## A Worked Example — Adding a `postgres-patterns` Skill
 

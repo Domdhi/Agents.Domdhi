@@ -7,6 +7,14 @@ argument-hint: [project name] [--yolo]
 
 Generate `docs/TODO_{ProjectName}.md` — the project-manager view of implementation. Tracks phases, epic status, critical path, parallel workstreams, and phase gates. Does NOT contain story-level task checkboxes — those live in per-epic checklists.
 
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js create:project-todo
+```
+
 ## Relationship to Other Commands
 
 ```
@@ -62,6 +70,21 @@ Use PascalCase for the filename (e.g., "Visual Cockpit" → `TODO_VisualCockpit.
 - Glob for `docs/TODO_*.md` (at docs root, not in `docs/todo/`)
 - If a master index already exists → ask: **update** (refresh from current `_backlog.md`) or **replace**?
 - If replacing, confirm with user (this is destructive if implementation is in progress)
+
+#### 3a. Structural-mismatch guard (F16)
+
+"Update" runs the **lightweight patch protocol** (Step 11) — it patches per-epic status in place; it does NOT regenerate structure. That is only safe when the existing index and the current `_backlog.md` describe the **same plan**. If the backlog has been re-planned since the index was written (e.g. a 5-epic/14-story March index against a 9-epic/40-story current backlog), patching one onto the other silently corrupts the index.
+
+Before offering update-vs-replace, compare the **shape** of the existing index against `_backlog.md`:
+- **Epic count** — number of epics in the index's Epic Index table vs epics in `_backlog.md`
+- **Story count** — total stories in the index vs total stories in `_backlog.md`
+- **Phase set** — the Phase Map's phase IDs vs the backlog's `## Phase` headings
+- **Epic ID overlap** — do the index's epic IDs still exist in the backlog?
+
+If any of these differ materially (epic/story counts off by more than a rounding nudge, phase set changed, or epic IDs no longer match), the existing index is **structurally superseded**. In that case:
+- Do NOT present "update" as the default/Recommended option — it would patch a mismatched structure.
+- Tell the user exactly what changed ("existing index: 5 epics/14 stories across 4 phases; current backlog: 9 epics/40 stories across 8 phases — the index is from an older plan") and recommend **replace**.
+- Only offer "update" when the shapes match (same phase set, same epic IDs, story counts within ±1 per epic from in-flight status edits).
 
 ### 4. Extract Epic Data (main agent)
 

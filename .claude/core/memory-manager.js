@@ -142,6 +142,27 @@ class MemoryManager {
         this.categories = Object.values(CONSTANTS.MEMORY_CATEGORIES);
         this.db = null;
         this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
+        // C5/F16: self-heal the store on construction — independent of SQLite
+        // availability. Previously the category dirs were only created lazily
+        // inside initDb() (write/search paths), so a brownfield onboard that
+        // never wrote a memory left the store unseeded and read-only tools
+        // (`report`/`lint`) ran against missing dirs. ensureDirs makes ANY
+        // MemoryManager access self-heal the 5 category dirs. The store is
+        // local-only/gitignored/regenerable, so creating empty dirs is harmless.
+        this.ensureDirs();
+    }
+
+    /**
+     * Self-heal the on-disk store: create memoriesDir + all 5 category dirs.
+     * No SQLite dependency — runs even in JSON-only mode. Idempotent.
+     */
+    ensureDirs() {
+        try {
+            fsSync.mkdirSync(this.memoriesDir, { recursive: true });
+            for (const category of this.categories) {
+                fsSync.mkdirSync(path.join(this.memoriesDir, category), { recursive: true });
+            }
+        } catch { /* best-effort — a read-only FS shouldn't crash construction */ }
     }
 
     /**
@@ -152,13 +173,7 @@ class MemoryManager {
         if (!DatabaseSync) return false;
 
         try {
-            fsSync.mkdirSync(this.memoriesDir, { recursive: true });
-            // Self-heal: ensure ALL category dirs exist so tools that iterate the
-            // full category set never hard-error on a partially-seeded store
-            // (F16 — seeding once created 4 of 5, missing rejected-approaches).
-            for (const category of this.categories) {
-                fsSync.mkdirSync(path.join(this.memoriesDir, category), { recursive: true });
-            }
+            this.ensureDirs();
             this.db = new DatabaseSync(this.dbPath);
             this.db.exec(`
                 CREATE TABLE IF NOT EXISTS memories (

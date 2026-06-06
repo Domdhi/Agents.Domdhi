@@ -448,11 +448,13 @@ describe('command-usage-logger', () => {
         });
 
         // ─── A4 schema enrichment tests ───────────────────────────────────────
-        // P1.3: duration_ms field present (as null placeholder until P1.6),
-        //       outcome values 'success'/'failure'/'unknown'
+        // duration_ms: command_invocation stays null (a PostToolUse hook has no
+        // start signal); gate_run is populated from gate.js's summary.durationMs
+        // (P1.6 — implemented), falling back to null for older summaries.
 
         it('processEvent_a4_commandInvocation_hasDurationMsNull', () => {
-            // A4: command_invocation events carry duration_ms: null (P1.6 will populate)
+            // command_invocation events carry duration_ms: null — there is no
+            // start time available to a PostToolUse-only hook.
             const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
 
             // Act
@@ -464,8 +466,29 @@ describe('command-usage-logger', () => {
             expect(entry.duration_ms).toBeNull();
         });
 
-        it('processEvent_a4_gateRun_hasDurationMsNull', () => {
-            // A4: gate_run events also carry duration_ms: null placeholder
+        it('processEvent_gateRun_summaryWithDurationMs_populatesDuration', () => {
+            // P1.6: gate.js stamps wall-clock durationMs into the summary; the
+            // hook copies it onto the gate_run telemetry entry.
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
+            fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
+            fs.writeFileSync(summaryPath, JSON.stringify({ overall: true, durationMs: 4213 }));
+
+            // Act — production-shape payload (no exit_code on tool_response)
+            processEvent({
+                tool_input: { command: 'node .claude/core/gate.js --test' },
+                tool_response: { stdout: '...' },
+            });
+
+            // Assert
+            const entry = JSON.parse(fs.readFileSync(jsonlPath, 'utf8').trim().split('\n')[0]);
+            expect(entry.duration_ms).toBe(4213);
+            expect(entry.outcome).toBe('success');
+        });
+
+        it('processEvent_gateRun_summaryWithoutDurationMs_durationNull', () => {
+            // Backward-compat: a summary from an older gate.js (no durationMs)
+            // yields duration_ms: null rather than undefined/NaN.
             const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
             const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });

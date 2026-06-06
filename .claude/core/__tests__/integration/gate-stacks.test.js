@@ -166,7 +166,9 @@ describe('gate.js stack detection integration', () => {
             version: '1.0.0',
             scripts: {
                 build: 'node -e "console.log(\'build ok\')"',
-                test: 'node -e "console.log(\'test ok\')"',
+                // Emit a parseable summary — a bare "test ok" collects 0 tests,
+                // which the C11/F1 teeth now (correctly) fail as a false-green.
+                test: 'node -e "console.log(\'Tests: 1 passed, 1 total\')"',
             },
         }));
 

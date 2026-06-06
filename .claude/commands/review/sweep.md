@@ -5,9 +5,17 @@ argument-hint: "[PR range / epic names — e.g. '109-128' or 'Auth,Billing,Searc
 
 # Maintenance Sweep
 
-Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise nine separate interactive commands (`/review:code-review`, `/review:check-sync`, `/review:retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:memory-defrag`, `/review:memory-health`, `/review:check-templates`, `/review:timeline`).
+Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise ten separate interactive commands (`/review:code-review`, `/review:check-sync`, `/review:retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:evolve-skills`, `/review:memory-defrag`, `/review:memory-health`, `/review:check-templates`, `/review:timeline`).
 
 Use it after cranking out a batch of work (a string of merged PRs, a finished epic, a sprint) when you want the system to review, learn, propagate the learnings, re-align the agents, and clean up — without babysitting per-proposal Accept/Reject prompts.
+
+## Telemetry (run first)
+
+This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
+
+```bash
+node .claude/core/telemetry-log.js review:sweep
+```
 
 ## The Ordering Rule (why this order, and why defrag is LAST)
 
@@ -17,6 +25,7 @@ Use it after cranking out a batch of work (a string of merged PRs, a finished ep
 3. Implement recs   → auto-apply agent/skill/command fixes + doc-drift fixes + write new memories  ← creates the pile
 4. Promote          → auto-promote above-threshold concepts → skills / CLAUDE.md
 5. Optimize agents  → re-align agents with codebase + new memories + retro findings
+   5b. Evolve skills → propose skill CREATE/IMPROVE from this run's signals (PROPOSE-ONLY)  ← self-improvement
 6. Defrag           → LAST memory op: merge/clean the now-GROWN store              ← the cleanup
 7. Health & integrity → verify: memory lint/decay + check-templates (.claude/ wiring) + timeline refresh
 ```
@@ -68,7 +77,7 @@ INPUT: $ARGUMENTS — optional scope hint. Two forms:
    ```
    Record `total_memories`, per-category counts, and `lint` score as the BEFORE numbers.
 3. **Resolve scope** from INPUT (PR range → themes + epics, or epic list → epics).
-4. **Write the sweep plan** to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md` with a `## Phase Log` section. This is the durable artifact — if the session dies mid-sweep, the plan + completed-phase markers survive and the sweep is resumable (skip phases already marked `[x]` in the Phase Log).
+4. **Compute the run stamp once** — `date +%y%m%d-%H%M` (e.g. `260606-1642`) — and reuse this SAME `{YYMMDD-HHMM}` for **every** artifact this sweep writes (the plan, each phase's report, the final report) so one run's files sort together and a same-day re-run never clobbers a prior run. **Resuming a dead sweep:** if a `*-sweep.md` from today already exists with an incomplete Phase Log, reuse ITS stamp (the most recent one) instead of minting a new one, so you append to the same plan. Then **write the sweep plan** to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md` with a `## Phase Log` section. This is the durable artifact — if the session dies mid-sweep, the plan + completed-phase markers survive and the sweep is resumable (skip phases already marked `[x]` in the Phase Log).
 
 ---
 
@@ -79,7 +88,7 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 1. Classify the in-scope PRs/commits into themes (e.g. auth, data, API, UI, infra/CI). **Skip pure-infra/CI and doc-only changes** unless `--review-scope all`.
 2. **Tell every reviewer to ignore generated/vendored code** (lockfiles, `dist/`, minified bundles, migration scaffolding/snapshots) — sanity-check intent only.
 3. Dispatch one `code-reviewer` agent per theme, in parallel (background OK). Omit the `model:` param so each inherits `review.default`. Each gets the merge commits, diffs via `git diff <hash>^1 <hash>` (fallback `^2`), and returns a CRITICAL/MAJOR/MINOR/NIT findings table. They auto-load the `code-review` skill — do not paste the rubric.
-4. Consolidate all findings into `docs/.output/reviews/{YYYY-MM-DD}-code-review.md`.
+4. Consolidate all findings into `docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`.
 5. Commit (unless `--single-commit`) per the convention below: `docs: /review:sweep p1 — code review, {N} findings ({C}C/{M}M/{m}m)`.
 6. Append the findings summary to the sweep plan's Phase Log — **the retro consumes this.**
 
@@ -127,8 +136,21 @@ Reuses `/review:optimize-agents --fix`.
 2. Compare against each `.claude/agents/*.md` `## Project Context`; classify CURRENT / DRIFTED / MISSING.
 3. Inject proven patterns (confidence ≥ 0.7) + this sweep's retro findings + the day-scoped `docs/.output/agent-updates/{date}.md` issues into DRIFTED/MISSING agents (idempotent replace).
 4. Dispatch `code-reviewer` for the skill-effectiveness audit (ACTIVE / NOT_USED / gaps).
-5. Write `docs/.output/reviews/{YYYY-MM-DD}-agent-optimization.md`.
+5. Write `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`.
 6. Commit: `docs: /review:sweep p5 — agent re-alignment ({N} agents updated)`.
+
+## Phase 5b — Evolve Skills (PROPOSE-ONLY)
+
+Reuses `/review:evolve-skills --auto`. Runs *after* Phase 5 (so it sees freshly-promoted memories + this run's agent re-alignment) and *before* Phase 7b (so the templates audit validates any staged change). This is the self-improving-skills step: it turns the same signals Phase 5 reads (agent-updates) plus the memory store into skill work.
+
+**Why propose-only inside the sweep.** Skill *bodies* are the system's own brain. Unlike memory promotion (Phase 4, which has a clean ≥0.9 auto-threshold), a skill rewrite or a brand-new skill has no safe unattended threshold — and the `skill-authoring` doctrine requires a positive **differential eval** to justify any change, which is an expensive multi-subagent run that shouldn't fire blind in a maintenance pass. So Phase 5b **stages proposals; it never applies them.**
+
+1. `node .claude/core/skill-evolution.js intake --date {YYYY-MM-DD}` → reads `intake.json`: IMPROVE candidates (agent-update misalignments attributed to a skill) + CREATE candidates (uncovered recurring memory clusters).
+2. For each candidate clearing the bar (IMPROVE: ≥1 attributed misalignment; CREATE: cluster size ≥3 OR avg confidence ≥0.8), the orchestrator (Opus) does the **reflective diagnosis** (what gap, what the skill should say) and drafts a candidate edit/new SKILL.md into the workspace under `docs/.output/skill-evolution/{date}/`, then conformance-gates it:
+   `node .claude/core/skill-evolution.js check <skill> <candidate>`.
+3. **Do NOT apply, do NOT run the full differential benchmark here** (that's the human-confirmed `/review:evolve-skills` standalone run). Record each staged proposal — skill, evidence, the candidate diff, conformance result — in `docs/.output/skill-evolution/{date}/proposals.md`.
+4. Commit the staging artifacts only: `docs: /review:sweep p5b — {N} skill-evolution proposals staged`.
+5. Surface the staged proposals under **"Still needs you"** in the final report — the user runs `/review:evolve-skills --apply <skill>` (which runs the differential) to accept any of them.
 
 ## Phase 6 — Defrag (LAST)
 
@@ -140,7 +162,7 @@ Reuses `/review:memory-defrag` in **auto-approve** mode — now operating on the
    - MERGE → `memory-manager.js update` primary (fold in duplicate's load-bearing fields) + `memory-manager.js delete <cat> <duplicate_id>`.
    - SPLIT/MOVE → `create` new + `delete`/reduce source.
    - CROSS-REF → append reciprocal `[[…]]` links to both.
-4. Write `docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md` (plan + review log).
+4. Write `docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md` (plan + review log).
 5. Commit: `docs: /review:sweep p6 — defrag: {M} merges, {S} splits, {X} cross-refs ({before}→{after})`.
 
 ## Phase 7 — Health & Integrity (verify + housekeeping)
@@ -178,7 +200,7 @@ With `--single-commit`, stage everything and make one commit after Phase 7 inste
 
 ## Final Report
 
-Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
+Display (and persist to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md`):
 
 ```markdown
 ## /review:sweep Complete — {YYYY-MM-DD}
@@ -192,6 +214,7 @@ Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
 | 3 Implement | {applied} recs applied, {staged} memories staged, {fixed} bug fixes | {hash} |
 | 4 Promote | {P} promoted, {Q} manual-review candidates | {hash} |
 | 5 Optimize | {A} agents updated, {G} skill gaps flagged | {hash} |
+| 5b Evolve skills | {N} proposals staged ({I} IMPROVE / {C} CREATE) | {hash} |
 | 6 Defrag | {M} merges / {Sp} splits / {X} cross-refs | {hash} |
 | 7a Memory health | lint {before}→{after}, {stale} stale | — |
 | 7b Templates audit | {conformance pass/fail}; {orphans} orphaned agents, {unused} unused skills, {broken} broken skill refs | {hash if fixed} |
@@ -203,6 +226,7 @@ Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
 ### Still needs you (not auto-applied)
 - {MINOR/NIT code findings left for human judgment}
 - {manual-review promotion candidates below threshold}
+- {staged skill-evolution proposals — run `/review:evolve-skills --apply <skill>` to run the differential + accept}
 - {any phase that halted + why}
 ```
 
@@ -217,4 +241,4 @@ Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
 
 ## Relationship to the Sub-Commands
 
-This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:check-sync` (in retro) → `/review:retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:memory-defrag` → `/review:memory-health` → `/review:check-templates` → `/review:timeline`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/review:sweep` when you want the whole lifecycle hands-off.
+This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:check-sync` (in retro) → `/review:retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:evolve-skills --auto` (propose-only) → `/review:memory-defrag` → `/review:memory-health` → `/review:check-templates` → `/review:timeline`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/review:sweep` when you want the whole lifecycle hands-off.
