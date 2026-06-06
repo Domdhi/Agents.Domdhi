@@ -3,7 +3,7 @@ description: Show project status — parse TODO files, display progress, generat
 argument-hint: [--text-only to skip HTML generation]
 ---
 
-# /status — Project Status Dashboard
+# /review:status — Project Status Dashboard
 
 Parse all TODO files in `docs/` and show progress. Generates an HTML dashboard at `docs/.output/status.html`.
 
@@ -12,7 +12,7 @@ Parse all TODO files in `docs/` and show progress. Generates an HTML dashboard a
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
 
 ```bash
-node .claude/core/telemetry-log.js status
+node .claude/core/telemetry-log.js review:status
 ```
 
 ## Variables

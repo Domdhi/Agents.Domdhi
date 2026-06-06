@@ -98,7 +98,7 @@ skills/
 
 ## SKILL.md Structure
 
-**Frontmatter (YAML):** Five required fields — see `.claude/skills/system-builder/SKILL.md` for the canonical contract.
+**Frontmatter (YAML):** Five required fields — the canonical contract is documented immediately below.
 - `name`: Use letters, numbers, and hyphens only (no parentheses, special chars)
 - `description`: Third-person. MAY lead with a brief *what it does* clause, but MUST state *when to use* it — the Agent Skills open spec allows both (≤ 1024 characters).
   - Keep the "Use WHEN..." triggering conditions — required even when a what-clause is present
@@ -384,6 +384,25 @@ pptx/
   scripts/       # Executable tools
 ```
 When: Reference material too large for inline
+
+## Toolkit Skill Archetypes & Wiring
+
+A skill in this toolkit is one of two shapes, and the `Overview / When to Use / Core Pattern` skeleton above is only one of them:
+
+- **Doc-producer** — owns a `docs/_project-*.md` template in `assets/` (wired into `scaffold.js`'s `SKILL_TEMPLATE_MANIFEST`) and validates the artifact it produces. Use a `Document Template (one-line pointer to assets/) / Required Sections Checklist / Quality Criteria / Interview Questions` skeleton. The `assets/` copy is the **scaffold source of record** — raw, with the `<!-- @@template -->` first line — so the skill and `scaffold.js` share one copy.
+- **Technique / prose** — encodes a method or voice, owns no scaffolded template. Use the `Overview / When to Use / Core Pattern` skeleton above. Examples: this skill, `systematic-debugging`, the design-technique skills (`design-taste-frontend`, `tailwind-css-patterns`), `ghostwriting`.
+
+When in doubt, ask "does this skill own a scaffolded `_project-*.md` template?" Yes → doc-producer; No → technique/prose.
+
+**Where the planning-pipeline doc-producers live:** the planning *text* documents are consolidated into **one** skill, **`project-planning`** (brief, requirements, feature-ideas, epics/stories backlog, and the project-context quick-ref — each its own `references/` guide + `assets/` template). It is NOT one skill per document and there is NO `-writer` suffix convention. The genuine design disciplines — **`architecture`** and **`ux-design`** — stay self-contained (each owns its own template *and* its craft knowledge), because they carry real domain judgment beyond producing a doc.
+
+**Wiring checklist (new skill):**
+- [ ] Directory at `.claude/skills/{name}/SKILL.md`, `name:` field matches the directory
+- [ ] At least one agent lists it in frontmatter `skills:` — OR it's loaded directly by a command via `Read` (both valid)
+- [ ] Content is domain knowledge, not orchestration (orchestration belongs in commands)
+- [ ] No duplication of content already in another skill
+- [ ] `description` leads with what-it-does + keeps the "Use WHEN…" triggering clause (CSO) — never a workflow summary
+- [ ] If a doc-producer: template lives in `assets/` (raw, marker on line 1) and is registered in `SKILL_TEMPLATE_MANIFEST`
 
 ## The Law (evidence bookends the work)
 

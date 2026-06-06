@@ -126,8 +126,8 @@ describe('live skill conformance', () => {
 // ---------------------------------------------------------------------------
 
 describe('skill-consolidation shape', () => {
-    const GONE = ['project-context', 'epic-writer', 'architecture-writer', 'article-writer', 'writing-skills', 'ux-designer'];
-    const PRESENT = ['project-planning', 'architecture', 'ghostwriting', 'skill-authoring', 'ux-design', 'skill-creator'];
+    const GONE = ['project-context', 'epic-writer', 'architecture-writer', 'article-writer', 'writing-skills', 'ux-designer', 'system-builder'];
+    const PRESENT = ['project-planning', 'architecture', 'ghostwriting', 'skill-authoring', 'ux-design', 'skill-creator', 'agent-creator', 'command-creator'];
 
     it.each(GONE)('folded/renamed skill dir no longer exists: %s', (dir) => {
         expect(fs.existsSync(path.join(SKILLS_ROOT, dir)), `stale skill dir "${dir}" still present`).toBe(false);
@@ -149,10 +149,10 @@ describe('skill-consolidation shape', () => {
         expect(fs.existsSync(path.join(refs, 'backlog.md'))).toBe(true);
     });
 
-    it('exactly 22 skills ship', () => {
+    it('exactly 23 skills ship', () => {
         const dirs = fs
             .readdirSync(SKILLS_ROOT, { withFileTypes: true })
             .filter((d) => d.isDirectory() && fs.existsSync(path.join(SKILLS_ROOT, d.name, 'SKILL.md')));
-        expect(dirs.length).toBe(22);
+        expect(dirs.length).toBe(23);
     });
 });

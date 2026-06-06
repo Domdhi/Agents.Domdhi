@@ -11,7 +11,7 @@ Organize loose files into structured date/session folders.
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
 
 ```bash
-node .claude/core/telemetry-log.js organize
+node .claude/core/telemetry-log.js review:organize
 ```
 
 ## Execution

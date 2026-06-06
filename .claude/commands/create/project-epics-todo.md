@@ -298,7 +298,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage files created 
 3. Link docs with markdown links `[Name](path)`
 4. **NEVER include code blocks, code snippets, or implementation examples**
 5. Focus on WHAT to do, not HOW to do it
-6. Include ALL sections even if empty (for consistency with `/do` and `/organize`)
+6. Include ALL sections even if empty (for consistency with `/do` and `/review:organize`)
 7. **Stories MUST be in dependency-optimized order**
 8. **Every story MUST include Dependencies, Unblocks, Track, Domain, and Estimate metadata**
 9. Acceptance criteria MUST match `_backlog.md` exactly — do not paraphrase or invent new ones

@@ -7,7 +7,7 @@ argument-hint: "[--quiet]"
 
 Produce a **template-performance feedback report** for this project: an automated telemetry digest joined to a short qualitative self-review. The point is to flow real signal about how the Domdhi.Agents template performed — on this project, this session — back to the maintainer, instead of letting it evaporate in chat. Works on any project (new or onboarded) and is safe to re-run.
 
-This is **not** `/listen` (that aggregates post-MVP *product* signals into `intake/`) and **not** `/status` (workflow progress). This axis is *template/workflow health*.
+This is **not** `/listen` (that aggregates post-MVP *product* signals into `intake/`) and **not** `/review:status` (workflow progress). This axis is *template/workflow health*.
 
 ## Telemetry (run first)
 

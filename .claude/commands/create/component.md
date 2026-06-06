@@ -23,11 +23,7 @@ INPUT: $ARGUMENTS
 
 ## Workflow
 
-### Step 1: Parse Input & Load Skill
-
-```
-Read .claude/skills/system-builder/SKILL.md
-```
+### Step 1: Parse Input & Load the Type-Specific Creator Skill
 
 Parse `INPUT` into:
 - **type**: agent | command | skill
@@ -35,6 +31,16 @@ Parse `INPUT` into:
 - **description**: what it does and when to use it
 
 If any part is ambiguous, ask with `AskUserQuestion`.
+
+Then load the creator skill for that type (each owns its template, field rules, and wiring checklist):
+
+```
+agent   → Read .claude/skills/agent-creator/SKILL.md
+command → Read .claude/skills/command-creator/SKILL.md
+skill   → Read .claude/skills/skill-authoring/SKILL.md   (doctrine + toolkit conventions; use skill-creator for the create→eval→improve loop)
+```
+
+The shared three-tier architecture + "no duplication between layers" rule lives in CLAUDE.md.
 
 ### Step 2: Check for Conflicts
 
@@ -79,7 +85,7 @@ If the description doesn't make the answers obvious, ask with `AskUserQuestion` 
 
 ### Step 4: Generate
 
-Follow the templates in the `system-builder` skill exactly. Write the file:
+Follow the template in the type-specific creator skill loaded in Step 1 exactly. Write the file:
 
 - **Agent** → `.claude/agents/{name}.md`
 - **Command** → `.claude/commands/{name}.md` (or `create/` or `review/` based on category)
@@ -107,7 +113,7 @@ The generated content must:
 
 ### Step 6: Verify
 
-Run the wiring checklist from the `system-builder` skill against the created component. Report any issues.
+Run the wiring checklist from the type-specific creator skill (loaded in Step 1) against the created component. Report any issues. For skills, also run `node .claude/core/skill-conformance.js` to confirm name/dir match, description CSO, and the ≤500-line budget.
 
 ### Step 7: Commit
 

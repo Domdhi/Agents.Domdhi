@@ -61,14 +61,40 @@ git add docs/__handoff.md
 node .claude/core/commit.js
 ```
 
-### 5. Show the user
+### 5. Leave a clean tree (session cleanup)
 
-Output the file content for review.
+**Goal: the next session must NOT open on uncommitted old work.** After the handoff commit, sweep up anything this session left behind — but *reviewed*, never a blind `git add .`.
+
+```bash
+git status --short
+```
+
+If the tree is already clean → skip to Step 6.
+
+If anything remains, **review the list before staging** (this is the safety step the Post-Command Commit Convention's "stage specific files" rule protects):
+
+1. **Read what's there.** For each remaining file, confirm it's genuine session output, not a secret, half-finished WIP you shouldn't freeze, or an unrelated change that wandered in.
+2. **Stage the safe session zones only** — tracked modifications plus new files under `docs/` and `.claude/` (this session's artifacts, system edits, and reports):
+   ```bash
+   git add -u                       # tracked modifications + deletions
+   git add docs/ .claude/           # new artifacts in the safe zones (gitignore already excludes memories/telemetry/sessions)
+   ```
+3. **Do NOT auto-stage anything outside those zones** — new files in the repo root, `src/`, `tools/`, or anywhere unexpected. List them in the Report under "Left uncommitted (review these)" so the user decides deliberately. Same for anything that looked like a secret or unfinished WIP in step 1.
+4. Commit the swept files (skip if step 2 staged nothing):
+   ```
+   chore: /end — session cleanup ({N} stray files)
+   ```
+   Write the message to `docs/.output/.commit-msg`, then `node .claude/core/commit.js`.
+5. Re-run `git status --short` to confirm. The tree is now clean, or the only remainder is the explicitly-surfaced out-of-zone files.
+
+### 6. Show the user
+
+Output the handoff content for review, and end with the **tree state**: either `Tree: clean ✓` or an explicit list of the out-of-zone files left uncommitted (with why each was held back).
 
 ## Rules
 
 All rules live in the `session-handoff` skill — read them there. Two reminders specific to `/end`:
 
-- **Commit, don't push.** `/end` commits the handoff but does NOT auto-push. The user decides when to push.
+- **Commit, don't push.** `/end` commits the handoff *and* sweeps up any other session work into a cleanup commit (Step 5) so the next session opens on a clean tree — but it does NOT auto-push. The user decides when to push. The cleanup is *reviewed*, never a blind `git add .`: only the `docs/` and `.claude/` safe zones are auto-staged; anything outside them is surfaced for a deliberate decision, not committed.
 - **Memory acquisition happens via the session-handoff skill's Step 6** (Main Agent writes 0–3 structured memories from handoff bullets that qualify as reusable learnings). No auto-extraction fires from `/end` or any other command. The Stop hook still captures raw daily logs and runs the curator under `MEMORY_PROFILE=strict`. See `docs/.output/reviews/2026-04-20-adr-memory-unification.md`.
 - **Supersession confirm:** Before committing the handoff (Step 4), review any write-time `supersedes_candidates` flags that were attached to memories created this session. For each flagged pair, decide: if the new memory genuinely replaces the old one, confirm by running `node .claude/core/memory-manager-cli.js supersede <category> <oldId> <newId>`; otherwise skip it. This is always flag-then-confirm — nothing supersedes automatically. If no memories were created this session, skip this step.

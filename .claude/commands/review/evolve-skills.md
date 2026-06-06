@@ -31,7 +31,7 @@ CREATE is deliberately distinct from `/review:promote-memories` (which injects a
 ## Variables
 
 - `--improve-only` / `--create-only` — run just one path (default: both).
-- `--auto` — **sweep mode**: propose-only. Run intake + draft candidates + gate them, but do NOT apply or run the full benchmark; surface staged proposals for human review. Used by `/review:sweep` Phase 5b. (Skill *bodies* are the system's brain — never mutate them unattended; there is no safe auto-threshold for a rewrite, unlike memory promotion.)
+- `--auto` — **sweep mode**: propose-only. Run intake + draft candidates + gate them, but do NOT apply or run the full benchmark; surface staged proposals for human review. Used by `/sweep` Phase 5b. (Skill *bodies* are the system's brain — never mutate them unattended; there is no safe auto-threshold for a rewrite, unlike memory promotion.)
 - `--apply <skill-name>` — apply a previously-staged proposal for that skill (re-validates conformance + gate before committing).
 - `--since YYYY-MM-DD` — only consider agent-updates on/after this date (default: all day-rotated files).
 

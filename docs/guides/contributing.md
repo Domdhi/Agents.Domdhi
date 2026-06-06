@@ -59,14 +59,14 @@ Examples:
 /create:component command babysit-pr Watch an open PR for CI status, apply review feedback, and re-request review
 ```
 
-The command reads the `system-builder` skill for the authoritative conventions, checks for name conflicts, asks a couple of targeted questions if your description leaves anything ambiguous, and writes the file in the right directory with correct frontmatter. It also does the wiring work — if your new skill is listed in an agent's skills list, the agent's frontmatter gets updated automatically.
+The command reads the creator skill for the component type (`agent-creator`, `command-creator`, or `skill-authoring` + `skill-creator`) for the authoritative conventions, checks for name conflicts, asks a couple of targeted questions if your description leaves anything ambiguous, and writes the file in the right directory with correct frontmatter. It also does the wiring work — if your new skill is listed in an agent's skills list, the agent's frontmatter gets updated automatically.
 
 After `/create:component` runs, you still need to:
 
 - **Flesh out the body.** The scaffolding gives you correct structure and placeholder content. Replace the placeholders with real domain expertise.
 - **Run `/review:check-templates`** to verify wiring (see Verification below).
 
-You can also skip the command and write the file by hand. That's legitimate for experienced contributors — the convention rules live in the `system-builder` skill at `.claude/skills/system-builder/SKILL.md`. But the command catches naming mistakes and wiring gaps that are easy to miss when hand-rolling.
+You can also skip the command and write the file by hand. That's legitimate for experienced contributors — the convention rules live in the per-type creator skills (`.claude/skills/agent-creator/SKILL.md`, `.claude/skills/command-creator/SKILL.md`, and `.claude/skills/skill-authoring/SKILL.md`). But the command catches naming mistakes and wiring gaps that are easy to miss when hand-rolling.
 
 ## Where Files Go
 
@@ -102,7 +102,7 @@ One rule to remember, then a handful of specifics that follow from it: **kebab-c
 
 ## Frontmatter Rules
 
-Each tier has a required frontmatter shape. The full field tables live in the `system-builder` skill; this section calls out the fields that matter most for not shooting yourself in the foot.
+Each tier has a required frontmatter shape. The full field tables live in the per-type creator skills (`agent-creator`, `command-creator`, `skill-authoring`); this section calls out the fields that matter most for not shooting yourself in the foot.
 
 ### Agents
 
@@ -150,7 +150,7 @@ allowed-tools: {tool list}
 ---
 ```
 
-**The description field must start with `Use WHEN`.** This is not optional, and the reason is mechanical: Claude Code reads the description to decide whether to load the skill. Descriptions that summarize the workflow ("Dispatches subagent per task...") get followed as shortcuts instead of triggering a skill read. Descriptions that describe triggering conditions ("Use WHEN tests have race conditions...") force a full skill-body read. The system-builder skill has the detail at `.claude/skills/system-builder/SKILL.md` under "Description Field: Claude Search Optimization (CSO)."
+**The description field must start with `Use WHEN`.** This is not optional, and the reason is mechanical: Claude Code reads the description to decide whether to load the skill. Descriptions that summarize the workflow ("Dispatches subagent per task...") get followed as shortcuts instead of triggering a skill read. Descriptions that describe triggering conditions ("Use WHEN tests have race conditions...") force a full skill-body read. The `skill-authoring` skill has the detail at `.claude/skills/skill-authoring/SKILL.md` under "Claude Search Optimization (CSO)."
 
 `user-invocable: false` is the default — it means the skill is used by agents or commands but doesn't appear in the `/skill-name` slash-command list. Set it to `true` only if you genuinely want users to invoke the skill directly (like `/simplify` or `/skill-authoring`).
 

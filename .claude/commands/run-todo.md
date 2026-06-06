@@ -164,7 +164,7 @@ Use the Write tool directly. Template:
 
 ### Step 4: Double-check TaskList + plan alignment
 
-Run `/organize` to move any stray plan files (the plan above is already at the right path, but catch anything else). Note: `organize.cjs` only reorganizes within `docs/.output/plans/` — it does not move plans across directories, so the plan written in Step 3 is safe.
+Run `/review:organize` to move any stray plan files (the plan above is already at the right path, but catch anything else). Note: `organize.cjs` only reorganizes within `docs/.output/plans/` — it does not move plans across directories, so the plan written in Step 3 is safe.
 
 Double-check: is the TaskList complete? Does the dependency chain match the wave plan? Does the written plan file match the TaskList? Fix any gaps before execution.
 
@@ -576,7 +576,7 @@ Agent(
   1. Mark these stories done: {IDs}. Set the STORY-LEVEL marker to [x] — the row
      in the Story Index table if the TODO has one, OR the `## Story N.M … [x]`
      header marker for per-epic TODOs that use story headers (no Story Index
-     table). That story-level marker is what /status reads — NOT the sub-task
+     table). That story-level marker is what /review:status reads — NOT the sub-task
      checkboxes — so flip it. Also check the story's done sub-task `- [ ]` boxes
      for human readability. (R7: status.js treats the header marker as
      authoritative; a header left [ ] reads as not-done even with all tasks checked.)
@@ -805,7 +805,7 @@ Stories that are read-only verification (no code changes):
 10. **Always update TODO after completing a story. Always commit after updating TODO.** Before starting a story, check for pending commits.
 11. **Log every agent fuck-up to `docs/.output/agent-updates/{YYYY-MM-DD}.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
 12. **Log new decisions and implementations** that affect agent alignment. Keep agents current.
-13. **Use `/organize` to clean up plan files** after they're created.
+13. **Use `/review:organize` to clean up plan files** after they're created.
 14. **Commit per wave, not per story.** Keeps git history clean and atomic.
 15. **Main Agent fixes alignment issues and gate failures directly.** Do not re-dispatch agents for small fixes.
 16. **Pre-flight must pass.** Never start on a broken baseline.

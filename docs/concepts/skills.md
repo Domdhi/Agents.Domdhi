@@ -28,7 +28,8 @@ The story heading for this doc calls out "user-invocable vs internal," and in pr
 | `playwright-cli` | `playwright` agent + `/run-tests` | Browser automation patterns |
 | `ghostwriting` | `shadow` agent | Blog/article writing patterns |
 | `content-formats` | direct invocation | LinkedIn, newsletter, Twitter, YouTube templates |
-| `system-builder` | `/create:component` | Agent/command/skill creation conventions |
+| `agent-creator` | `/create:component` | Agent creation template + conventions |
+| `command-creator` | `/create:component` | Command creation template + conventions |
 | `tailwind-css-patterns` | `ux-designer` agent + `/review:specialize` (as exemplar) | Tailwind utility patterns |
 | `full-output-enforcement` | `general-purpose` agent | Anti-truncation rules |
 | `systematic-debugging` | `general-purpose` agent | 4-phase root cause investigation |

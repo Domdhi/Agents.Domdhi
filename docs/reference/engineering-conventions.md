@@ -1,6 +1,6 @@
 # Engineering Conventions
 
-Durable engineering rules for **contributors to this toolkit** (the `.claude/core/` Node code and its tests). These are NOT adopter-facing guidance — they describe how the toolkit's own internals are built and tested. Promoted from the agent-memory store (`/review:sweep` 2026-06-06) so they survive memory decay and are discoverable in review.
+Durable engineering rules for **contributors to this toolkit** (the `.claude/core/` Node code and its tests). These are NOT adopter-facing guidance — they describe how the toolkit's own internals are built and tested. Promoted from the agent-memory store (`/sweep` 2026-06-06) so they survive memory decay and are discoverable in review.
 
 ## Code patterns
 

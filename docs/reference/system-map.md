@@ -44,7 +44,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | ~~`/recap`~~ | — | — | *Removed — memory auto-compounds via Stop hook* |
 | `/organize` | — (hooks) | — | Move plan files to dated folders |
 | `/create:module` | product-strategist + architect + ux-designer + general-purpose | project-planning | Add a new module to an existing project |
-| `/create:component` | — (main) | system-builder | Create a new agent, command, or skill following conventions |
+| `/create:component` | — (main) | agent-creator, command-creator, skill-authoring | Create a new agent, command, or skill following conventions |
 | `/listen` | — (main) | — | Post-MVP Tier 1: aggregate push-from-reality signals → dated intake file (no triage) |
 | `/triage` | — (main) | project-planning | Post-MVP Tier 2: classify intake signals → ranked backlog (severity≠priority, auto-decide mechanical calls, kill/defer ledger) |
 
@@ -105,7 +105,8 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | playwright-cli | playwright | run-tests | Browser automation patterns |
 | ghostwriting | shadow | — | Blog/article writing patterns |
 | content-formats | — | — | LinkedIn, newsletter, Twitter, YouTube templates |
-| system-builder | — | create:component | Agent/command/skill creation conventions |
+| agent-creator | — | create:component | Agent creation template + conventions |
+| command-creator | — | create:component | Command creation template + conventions |
 | tailwind-css-patterns | ux-designer | specialize (as exemplar) | Tailwind utility patterns |
 | full-output-enforcement | general-purpose | — | Anti-truncation rules |
 | systematic-debugging | general-purpose | — | 4-phase root cause investigation |

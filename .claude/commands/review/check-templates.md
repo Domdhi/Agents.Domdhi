@@ -41,7 +41,7 @@ Glob: .claude/skills/*/SKILL.md
 
 For each skill, record the skill directory name.
 
-**CSO linter** — every skill's `description:` field must start with `"Use WHEN"` to satisfy the Conditional Skill Orchestration rule (see `skill-authoring/SKILL.md` and `system-builder/SKILL.md`). Shell check:
+**CSO linter** — every skill's `description:` field must start with `"Use WHEN"` to satisfy the Conditional Skill Orchestration rule (see `skill-authoring/SKILL.md`). Shell check:
 
 ```bash
 grep -L "^description: \"Use WHEN" .claude/skills/*/SKILL.md
