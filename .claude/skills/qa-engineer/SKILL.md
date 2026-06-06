@@ -112,6 +112,14 @@ AC: "Given a valid email, When user submits login, Then redirect to dashboard"
 - Testing implementation details (mock verification overuse)
 - Tests that always pass (no meaningful assertion)
 
+## Testing Conventions & Checkers
+
+Two patterns for the case where the thing under test is itself a *rule* (a cross-file convention) or a *checker* (a script that validates the tree):
+
+- **Enforce a cross-file convention with a fail-closed meta-test that enumerates the file-set at runtime.** When a rule must hold for *every* file of a kind (every command self-instruments, every skill conforms, every agent has a required section), do not hand-maintain a list of files in the test — `fs.readdir`-recurse the directory and `it.each` over the result, asserting the rule per file. A new file that violates the convention then fails automatically the moment it's added; a hardcoded list silently omits it. Fail-closed: an empty enumeration (glob matched nothing) is itself a failure, not a pass.
+
+- **Test a checker's LOGIC against fixtures, never against the live tree.** When a checker/linter script lands before the cleanup that makes the real tree pass (TDD-ordered: add-the-check, then fix-the-violations), its unit test must assert the checker's logic against *synthetic/fixture inputs*, not by scanning the real repo. A test that scans the live tree fails the instant the checker is introduced (the violations it's meant to catch still exist) and passes later for the wrong reason — it tests the tree's current state, not the checker. Fixture inputs make the test deterministic and independent of cleanup ordering.
+
 ## Cross-References
 - Reads: `docs/_project-architecture.md` (test framework), `docs/todo/_backlog.md` (acceptance criteria)
 - Produces: Test files in appropriate test directories

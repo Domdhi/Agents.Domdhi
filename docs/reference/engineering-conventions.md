@@ -23,6 +23,14 @@ Do **not** use a blind per-migration `try/catch`-on-duplicate-column. Two diverg
 
 *Why:* the `importance` column was added this way (ME-2.1); `invalid_at`/`superseded_by` extend the **same** helper (ME-3.1). The backend-agnostic test simulates a pre-migration DB via `ALTER TABLE DROP COLUMN`.
 
+### A union/`-X union` merge of two `.claude` trees silently DUPLICATES idempotent constructs
+
+Resolving a merge of two divergent `.claude` trees with `git merge -X union` (or a union driver) concatenates both sides instead of conflicting where the content is *idempotent*: identical top-level function definitions, and repeated hook entries inside one `settings.json` matcher block. The code still **runs correctly** (JS last-definition-wins; duplicate hook entries are idempotent) and the **gate still passes**, so neither tests nor build flag the duplication — it accretes silently across syncs.
+
+Do not trust a clean union merge of `.claude` files. After any union-merged sync, scan for duplicated function definitions and repeated hook entries and de-dupe by hand; prefer an explicit three-way resolution over a union driver for `settings.json` and core scripts.
+
+*Why:* surfaced consolidating divergent template trees; the gate's green is a false-negative here because duplication is behavior-preserving (memory `union-merge-duplicates-idempotent-code`).
+
 ## Testing conventions
 
 ### A stub must assert the real subsystem's contract, not just the call

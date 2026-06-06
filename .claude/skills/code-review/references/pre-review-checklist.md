@@ -144,11 +144,19 @@ Task tool (code-reviewer):
 
 ---
 
+## Moved / Relocated Code — Verify It Still Works at the New Home
+
+A diff that **moves** a pattern, rule, or regex between tiers/files (or refactors a matcher) is high-risk for a silent regression: the relocated code can stop matching its canonical target while looking fine in the diff. Don't assume a moved rule still fires.
+
+- When a regex/pattern is moved or edited, confirm there is a **matcher test asserting it still matches the canonical command/input** it is meant to catch — test the form the tool emits *by default*, not a contrived variant. (e.g. a guardrail `Remove-Item .+-Recurse .+-Force` rule silently never matched the canonical single-space `Remove-Item foo -Recurse -Force`; it rode along through a tier-move with zero coverage.)
+- When a rule moves between a **hard tier and a softer/escalatable tier**, verify the precedence is still correct — a hard-block invariant must not become reachable through a softer tier that happens to match the same input.
+
 ## Red Flags — Never Do These
 
 - Skip review because "it's simple"
 - Ignore Critical issues
 - Proceed with unfixed Important issues
 - Argue with valid technical feedback without reasoning
+- Wave through **moved/relocated** patterns without checking they still match at the new home (see above)
 
 If reviewer is wrong: push back with technical reasoning, show code/tests that prove it works, request clarification.

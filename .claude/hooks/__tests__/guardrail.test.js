@@ -658,6 +658,16 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
     it('gitPushForce_stillBlocked', () => {
         expect(decision('git push --force')).toBe('block');
     });
+
+    it('zeroAccessPath_delete_isHardBlock_notEscalatableViaNudge', () => {
+        // sweep A1: `rm -rf .env` matches the nudge rm pattern, but .env is a
+        // zeroAccessPath. The path-tier hard block runs BEFORE the nudge/confirm
+        // decision, so it wins and IGNORES the escalation marker — a protected
+        // secret file can never be escalated to a user-approvable confirm.
+        expect(decision('rm -rf .env')).toBe('block');
+        expect(decision('rm -rf .env  # guardrail:confirm')).toBe('block');
+        expect(decision('rm -rf .env.production')).toBe('block');
+    });
 });
 
 // ─── Real rules file: rm autonomy exemptions (regression for 2026-06-05 widen) ──
@@ -727,6 +737,27 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
         expect(act('git rm --cached -r build')).toBe('allow');
         // A bare `rm -rf` of the same real path still nudges.
         expect(act('rm -rf .claude/skills/orphan')).toBe('nudge');
+    });
+
+    it('nudges PowerShell recursive force-remove in either flag order (sweep A2)', () => {
+        // The old `/Remove-Item .+-Recurse .+-Force/` needed ≥1 char BETWEEN the
+        // flags, so the canonical single-space form silently PASSed. The fixed
+        // pattern matches single-space and reverse flag order.
+        expect(act('Remove-Item foo -Recurse -Force')).toBe('nudge');
+        expect(act('Remove-Item foo -Force -Recurse')).toBe('nudge');
+        expect(act('Remove-Item -Recurse -Force ./build')).toBe('nudge');
+        expect(act('Remove-Item foo')).toBe('allow');          // no recurse/force
+        expect(act('Remove-Item foo -Recurse')).toBe('allow');  // recurse only
+    });
+
+    it('anchors the git rm exemption to a real git invocation (sweep A3)', () => {
+        // A standalone `git rm` is exempt; a word ending in "git" (`legit`) or a
+        // var-assignment prefix (`X=git`, where git is the value and rm is a real
+        // command) is NOT a git invocation, so a real rm still nudges.
+        expect(act('git rm -rf src/legacy')).toBe('allow');
+        expect(act('cd x && git rm -rf src')).toBe('allow');
+        expect(act('legit rm -rf ~/x')).toBe('nudge');
+        expect(act('X=git rm -rf ~/x')).toBe('nudge');
     });
 
     it('still blocks catastrophic commands', () => {

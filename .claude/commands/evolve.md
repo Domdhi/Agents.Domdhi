@@ -33,7 +33,7 @@ node .claude/core/telemetry-log.js evolve
 SCOPE: $ARGUMENTS
 
 - `--force` — archive even with incomplete (`[ ]`/`[!]`) stories. The incomplete set is recorded in `_cycle-summary.md` under "Unfinished, carried forward" and seeded into the next cycle's backlog — never silently dropped.
-- `--dry-run` — report the close-out plan (what would be archived, the evidence digest, the re-plan path) but write **nothing** — no archive, no git mv, no sub-command invocation, no commit.
+- `--dry-run` — report the close-out plan (what would be archived, the evidence digest, the re-plan path) but write **nothing** — no archive, no git mv, no sub-command invocation, no commit. (Sole exception: the one-line telemetry log at the top still fires — the command *was* invoked. It writes only a `command_invocation` row, never project state.)
 - `--replan-arch` — also regenerate `_project-architecture.md` (default: architecture carries forward unchanged).
 - `--no-todo` — skip Step 5.6 (the lead-epic make-ready). Default is **on**: `/evolve` ends with the first epic's execution-ready `TODO_epic*.md` so the cycle is *runnable*, not just *planned*. Pass `--no-todo` to stop at the backlog (e.g. you want to hand-pick the first epic, or re-prioritize before breaking anything down).
 - A trailing free-text **cycle label** — a friendly name folded into the archive dir + summary (e.g. `/evolve "MVP launch"` → `cycle-1-260606-mvp-launch/`). Optional.
@@ -60,8 +60,8 @@ Compute the run-stamp once: `STAMP=$(date +%y%m%d-%H%M)`. Reuse it for every pat
 - **Emoji cross-check (EV4 — flag disagreement, don't silently trust one view).** `_backlog.md` and `TODO_{Project}.md` often carry an *emoji* Story-Index in parallel (✅ done / ⬜ todo / 🔲 etc.) alongside (or instead of) checkboxes. After the checkbox tally, scan those emoji status columns and compare per story:
   - If the emoji view and the checkbox view **disagree** for any story (e.g. checkbox `[x]` but Story-Index row says `⬜`, or vice-versa), **print a ⚠ drift warning** naming the file + line + both values. This is internal backlog drift (a stale representation), and the checkbox-only tally is blind to it — so surface it rather than archiving on a half-stale backlog.
   - Disagreement does **not** by itself block the archive (checkboxes win), **but** if the emoji view would have made the cycle look *incomplete* while checkboxes say done, say so explicitly in the report so the human can confirm the code really shipped before the cycle is sealed.
-  - If a file uses only emoji (no checkboxes at all), tally from the emoji instead and note that the gate fell back to the emoji view for that file.
-- **Hard gate:** if any `[ ]` or `[!]` story exists and `--force` is NOT set → **STOP**. Print the incomplete stories (file + line) and:
+  - If a file uses only emoji (no checkboxes at all), tally from the emoji instead and note that the gate fell back to the emoji view for that file. **For these emoji-only files the emoji ARE the gate signal:** map ⬜/🔲 (and any non-✅ todo-state) to the same gate weight as `[ ]`, so an emoji-only file that is genuinely incomplete blocks the archive exactly like an unchecked checkbox would. (Without this the checkbox-only gate is blind on emoji-only files — it sees zero `[ ]`/`[!]` and archives an incomplete cycle. EV4 gate hole.)
+- **Hard gate:** if any `[ ]` or `[!]` story (or, on an emoji-only file, any non-✅ todo-state emoji) exists and `--force` is NOT set → **STOP**. Print the incomplete stories (file + line) and:
 
   ```
   Cycle not complete — {K} stories still open/blocked. Finish them (/do, /run-todo),
@@ -69,14 +69,14 @@ Compute the run-stamp once: `STAMP=$(date +%y%m%d-%H%M)`. Reuse it for every pat
   ```
 
   Per CLAUDE.md gate posture (F3): hitting this gate means *finish the work, then resume* — `--force` is an explicit user override, never the recommended path.
-- Determine the cycle number **N**: `1 + (count of existing docs/todo/_archive/cycle-* dirs)`. If `_archive/` is absent, this is cycle 1 (the original `/create:new-project` backlog).
+- Determine the cycle number **N** by the **highest existing cycle number + 1**, not a raw directory count: parse the numeric prefix of each `docs/todo/_archive/cycle-{NN}-*` dir (regex `^cycle-(\d+)-`) and take `max(NN) + 1`. (A raw count miscomputes N if `_archive/` holds a stray, partial, or hand-made dir — e.g. a previous aborted run — producing a skipped or duplicated cycle number.) If `_archive/` is absent or has no `cycle-\d+-` dirs, this is cycle 1 (the original `/create:new-project` backlog).
 - State the resolved cycle number, project name, and completion tally in the report.
 
 ### Step 2: Gather re-planning evidence (the "from reality" inputs)
 
 This is what makes it *evolve* and not *restart*. Collect, then synthesize into the evidence digest:
 
-- **2a. Production signals.** Glob `docs/.output/intake/*.md`. If the newest is missing or older than the most recent archive (stale), **run `/listen` first** to get a fresh sweep. Read the newest intake.
+- **2a. Production signals.** Glob `docs/.output/intake/*.md`. If the newest is missing or older than the most recent archive (stale), **run `/listen` first** to get a fresh sweep — **but NOT under `--dry-run`** (`/listen` writes + commits an intake file, which would violate the "writes nothing" dry-run contract; under `--dry-run` read the existing intake only and report "(would refresh stale intake)"). Read the newest intake.
 - **2b. Lessons.** Read every `docs/.output/reviews/retro-*.md` (epic retrospectives from this cycle). If none exist, note it — a cycle with no retros re-plans on thinner evidence.
 - **2c. Deferred / waiting work.** Read the triage ledger `docs/.output/triage/_decisions.md` (deferred items whose revisit window has now arrived) and `docs/todo/_feature-ideas.md`. These are candidate cycle N+1 stories.
 - **2d. What shipped.** Extract the cycle's delivered scope — the `[x]` stories from the about-to-be-archived backlog, plus the headline commits (`git log` since the cycle's first commit / the prior archive date).
@@ -86,18 +86,25 @@ This is what makes it *evolve* and not *restart*. Collect, then synthesize into 
 ### Step 3: Archive the completed cycle (history-preserving) — skip all writes if `--dry-run`
 
 - `mkdir -p docs/todo/_archive/cycle-{N}-{STAMP}[-{label-slug}]/`
-- Move the cycle's files in with **`git mv`** (preserves history; log/blame follow the move). Fall back to plain `mv` for any untracked file:
+- Move the cycle's files in with **`git mv`** (preserves history; log/blame follow the move). **Move each file individually with a per-file existence guard — never pass a bare `TODO_epic*.md` glob to `git mv`.** A `--no-todo` cycle (or one whose epics were never materialized) has zero `TODO_epic*.md` files; an unexpanded literal glob makes `git mv` error **atomically**, so `_backlog.md` and `TODO_{Project}.md` are left un-moved — and then Step 5 regenerates `_backlog.md` in place, **silently overwriting the un-archived backlog (data loss — the exact opposite of this command's reason to exist)**. Guard each path; fall back to plain `mv` for an untracked file:
   ```bash
-  git mv docs/todo/_backlog.md docs/TODO_{Project}.md docs/todo/TODO_epic*.md \
-         docs/todo/_archive/cycle-{N}-{STAMP}/
+  ARCH=docs/todo/_archive/cycle-{N}-{STAMP}
+  for f in docs/todo/_backlog.md docs/TODO_{Project}.md docs/todo/TODO_epic*.md; do
+    [ -e "$f" ] || continue                      # skip globs that didn't expand
+    git mv "$f" "$ARCH/" 2>/dev/null || mv "$f" "$ARCH/"
+  done
   ```
-- **Snapshot the cycle's planning context** into the archive too (copy, not move — the create-chain will overwrite the live ones in Step 5):
+- **Assert the archive is populated before Step 5 runs.** After the loop, confirm `_backlog.md` is now inside `$ARCH/` (and absent from `docs/todo/`). If it is not, **STOP** — do not let Step 5 regenerate over an un-archived backlog.
+- **Snapshot the cycle's planning context** into the archive too (copy, not move — the create-chain will overwrite the live ones in Step 5). Guard each `cp` so a missing/stub doc cannot abort the step mid-archive:
   ```bash
-  cp docs/_project-brief.md docs/_project-requirements.md docs/todo/_archive/cycle-{N}-{STAMP}/
+  for f in docs/_project-brief.md docs/_project-requirements.md; do
+    [ -e "$f" ] && cp "$f" "$ARCH/"
+  done
   ```
+  (These two are content copies, not git-tracked moves — note that in the summary so "history-preserving" isn't over-claimed for them.)
 - **Do NOT archive `_feature-ideas.md`** — it is the deferred-ideas bridge between cycles and carries forward into the next backlog.
 
-### Step 4: Write `_cycle-summary.md` (the self-contained close-out record)
+### Step 4: Write `_cycle-summary.md` (the self-contained close-out record) — skip if `--dry-run`
 
 Into the archive dir, so the folder alone tells the whole story of cycle N:
 
@@ -138,7 +145,7 @@ Into the archive dir, so the folder alone tells the whole story of cycle N:
 Without this step `/evolve` ends one rung short of runnable: it produces a fresh `_backlog.md` + master index, but its own Step-7 `Next:` line points at `/run-todo` / `/do {first story}` — and **neither can run**, because there is no per-epic `TODO_epic*.md` and no `/todo` contract yet. The user lands back in the same "what now?" stall `/evolve` exists to cure, just one rung higher (adopter finding: *evolve should leave the next TODO execution-ready*). Close that gap:
 
 - **Pick the lead epic.** From the fresh cycle N+1 `_backlog.md`, choose the **first dependency-root epic** — the lowest-numbered epic with no unmet dependencies. Only this one is materialized now; later epics' breakdowns will shift as the lead epic is built, so just-in-time is correct for the rest (do **not** pre-break-down the whole backlog). When the lead epic finishes, running `/todo` with **no argument** auto-resolves the next epic from the master index — so the loop self-continues without re-running `/evolve`.
-- **Materialize it.** Chain **`/create:project-epics-todo {lead epic}`** to produce `docs/todo/TODO_epic{NN}_{slug}.md` (per-epic story checklist), then **`/todo {lead epic}`** to make it execution-ready (AC, file lists from real codebase research, wave plan) — `/todo` is epic-number aware and reads the epic's stories straight from `_backlog.md`. Seed both with the same evidence digest. (If `/create:project-epics-todo`'s output is already execution-ready for this project's conventions, running `/todo` on top is still valid — it adds the research-backed file lists `/run-todo` trusts.)
+- **Materialize it.** Chain **`/create:project-epics-todo {lead epic}`** to produce `docs/todo/TODO_epic{NN}_{slug}.md` (per-epic story checklist), then **`/todo {lead epic}`** to make it execution-ready (AC, file lists from real codebase research, wave plan) — `/todo` is epic-number aware and reads the epic's stories straight from `_backlog.md`. Seed both with the same evidence digest. (Both write the SAME epic-keyed file `TODO_epic{NN}_{slug}.md` — `/todo` **enriches/overwrites it in place** (epic-keyed files are a deliberate run-stamp exception, so the second pass is meant to replace the first, not collide). If `/create:project-epics-todo`'s output is already execution-ready for this project's conventions, running `/todo` on top is still valid — it adds the research-backed file lists `/run-todo` trusts.)
 - **The Step-7 `Next:` line must now point at this real file** — `/run-todo docs/todo/TODO_epic{NN}_{slug}.md` (or `/do {first story id}`) — not at a backlog that has no runnable contract behind it.
 - If `--no-todo`, skip all of the above and let Step 7 say the cycle is *planned, not yet broken down* — `Next: /create:project-epics-todo {lead epic}` then `/todo {lead epic}`.
 

@@ -291,13 +291,13 @@ if [ -f "$USAGE_FILE" ]; then
             make_bar "$SONNET_INT"; SONNET_COLOR="$BAR_COLOR"
         fi
         if [ -n "$WEEK_INT" ] && [ -n "$SONNET_INT" ]; then
-            WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%/S ${SONNET_COLOR} ${SONNET_INT}%"
+            WEEK_SONNET_DISPLAY="📅${WEEK_COLOR} ${WEEK_INT}%/S${SONNET_COLOR} ${SONNET_INT}%"
             [ -n "$WEEK_RESET_LABEL" ] && WEEK_SONNET_DISPLAY+=" ↻ ${WEEK_RESET_LABEL}"
         elif [ -n "$WEEK_INT" ]; then
-            WEEK_SONNET_DISPLAY="📅 ${WEEK_COLOR} ${WEEK_INT}%"
+            WEEK_SONNET_DISPLAY="📅${WEEK_COLOR} ${WEEK_INT}%"
             [ -n "$WEEK_RESET_LABEL" ] && WEEK_SONNET_DISPLAY+=" ↻ ${WEEK_RESET_LABEL}"
         elif [ -n "$SONNET_INT" ]; then
-            WEEK_SONNET_DISPLAY="S ${SONNET_COLOR} ${SONNET_INT}%"
+            WEEK_SONNET_DISPLAY="S${SONNET_COLOR} ${SONNET_INT}%"
         fi
     fi
 fi

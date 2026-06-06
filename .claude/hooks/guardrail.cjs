@@ -225,18 +225,15 @@ function processEvent(parsedJson) {
         const resp = buildHookResponse('block', { command, pattern: decision.pattern });
         return { block: true, feedback: resp.stderr };
     }
-    if (decision.action === 'nudge') {
-        // Soft deny (exit 2) with an alternatives + escalation message. The agent
-        // tries a reversible path first; if there is none, it re-runs with the
-        // `# guardrail:confirm` marker, which evaluate() routes to a user confirm.
-        const resp = buildHookResponse('nudge', { command, pattern: decision.pattern });
-        return { block: true, feedback: resp.stderr };
-    }
-    if (decision.action === 'confirm') {
-        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}` };
-    }
 
     // P2.5 — four-tier path check for delete-style bash ops.
+    // MUST run BEFORE the nudge/confirm decision: zeroAccessPaths (and a frozen
+    // path) are HARD blocks that the nudge escalation marker can never override.
+    // The nudge/confirm `rm`/`del`/`Remove-Item` patterns also match a protected
+    // path (`rm -rf .env`), so if the nudge branch returned first, `rm -rf .env
+    // # guardrail:confirm` would escalate a should-be-hard-block to a user-
+    // approvable confirm — violating the "zero-access = all ops blocked"
+    // invariant. Checking the path tier here keeps it non-escalatable. (sweep A1)
     const deletePaths = extractDeletePaths(sanitizedCommand);
     for (const p of deletePaths) {
         const absPath = resolveAbsPath(p);
@@ -258,6 +255,17 @@ function processEvent(parsedJson) {
             });
             return { block: true, feedback: resp.stderr };
         }
+    }
+
+    if (decision.action === 'nudge') {
+        // Soft deny (exit 2) with an alternatives + escalation message. The agent
+        // tries a reversible path first; if there is none, it re-runs with the
+        // `# guardrail:confirm` marker, which evaluate() routes to a user confirm.
+        const resp = buildHookResponse('nudge', { command, pattern: decision.pattern });
+        return { block: true, feedback: resp.stderr };
+    }
+    if (decision.action === 'confirm') {
+        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}` };
     }
 
     return null;

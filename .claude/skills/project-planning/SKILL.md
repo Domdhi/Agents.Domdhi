@@ -50,6 +50,8 @@ These rules apply across every document in the pipeline:
    - A **pick** *selects one option* when alternatives would satisfy the constraint — defer it to architecture: "use Web3Forms", "host on Netlify", "store leads in Redis", a proposed section flow.
    - If the user volunteers a pick, record it as a **stated preference for the architecture phase to weigh**, not as a locked decision. Don't recommend tools the user didn't ask for. A premature pick in a planning doc anchors every downstream agent into rubber-stamping or arguing against it, and collides with the architecture phase's own (correct) reasoning. Strip the pick and the architect reasons cleanly from the constraints — which is its job.
 
+5. **Verify an asserted fact before you build a plan on it.** Before sizing a TODO/backlog around a claimed *system behavior* (a capability gap, a missing dependency, a limitation) or around a *research/synthesis doc's recommendation*, prove the claim against reality first — a 30-second probe, or a grep/read of the live code. Do not trust the assertion (or a stale research doc) on faith. A whole remediation backlog was once built on "FTS5 needs an npm install" — false; a one-line `node -e` probe disproved it. Verify *each* "we should fix X" against the actual files before it becomes scoped work; an unverified premise produces a plan that solves a problem that does not exist.
+
 ---
 
 ## Navigation

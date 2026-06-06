@@ -136,14 +136,20 @@ nudge_patterns:
   # nudge first, then confirm via `# guardrail:confirm`. The path-tier check
   # (zeroAccess/readOnly/noDelete) remains the hard guard for protected paths.
   #
-  # `git rm` is EXEMPT (leading negative lookbehind `(?<!git )`): it stages a
-  # history-preserving removal that `git checkout`/`git restore` fully reverses,
+  # `git rm` is EXEMPT (negative lookbehind `(?<!(?:^|[\s;&|(])git )`): it stages
+  # a history-preserving removal that `git checkout`/`git restore` fully reverses,
   # so it IS the reversible alternative this nudge tells you to use — nudging it
-  # would loop the agent against its own advice. (Dom 2026-06-06)
-  # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge + git-rm-exempt 2026-06-06)
-  - /(?<!git )rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
+  # would loop the agent against its own advice. The boundary group `(?:^|[\s;&|(])`
+  # anchors the exemption to a real `git` INVOCATION (start / after whitespace or
+  # `;`/`&`/`|`/`(`), so `legit rm` and `X=git rm` (a var-assignment prefix on a
+  # real rm) still fire — only a standalone `git rm` is exempt. (sweep A3)
+  # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge + git-rm-exempt 2026-06-06; boundary-anchored 2026-06-06)
+  - /(?<!(?:^|[\s;&|(])git )rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
   - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
-  - /Remove-Item .+-Recurse .+-Force/  # PowerShell: recursive force remove
+  # PowerShell recursive force remove. `.*` (not `.+`) so the canonical single-space
+  # `Remove-Item foo -Recurse -Force` matches, and a second alternation covers the
+  # reverse flag order `-Force … -Recurse`. (sweep A2)
+  - /Remove-Item\b.*(-Recurse\b.*-Force|-Force\b.*-Recurse)\b/
 
   # --- Git: Working tree destruction (moved from confirm 2026-06-06) ---
   # All reversible via a stash/backup first, so nudge ("git stash" or a backup
