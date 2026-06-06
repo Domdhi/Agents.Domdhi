@@ -103,6 +103,8 @@ After the agent completes, verify:
 - Parallel workstreams don't share hidden dependencies
 - Recommendations don't violate architecture boundaries
 - If issues found, note them in the report
+- **Sub-agent return contract (F13):** the delegated agent must return its **full** analysis as its result, not a headline summary. If it returns only a summary, request the complete artifact (via `SendMessage`) before proceeding — do not reconstruct it from the summary.
+- **Count integrity (F14):** if the agent rewrote the backlog, re-derive the totals yourself from the rewritten file (epics, stories, done/total per phase) and confirm they match the rewrite's stated counts. Rewrite agents frequently introduce count drift ("41 total / 13 done", "13 of 27"). Fix any mismatch before commit.
 
 ### 5. Ask: Apply Optimizations? (main agent)
 
@@ -114,6 +116,8 @@ Present the optimization report to the user and ask:
 > 3. **Full rewrite** — Restructure phases and dependencies based on optimizations (delegate back to agent)
 
 If option 2 or 3: delegate the rewrite to the project-planner agent with specific instructions.
+
+> **Rewrite in place — never emit a parallel file (F12).** A "full rewrite" must update the canonical `docs/todo/_backlog.md` **in place** (overwriting it). Do NOT write a parallel `_epics.md`/`_backlog-optimized.md` and leave the human to rename it — a parallel file forces out-of-band file management and leaves stale self-references (wrong title, circular "derived from" notes, self-links, wrong counts) that then have to be hand-repaired. If the user wants to preview first, use option 1 (report only); when they choose rewrite, write the canonical file directly and re-run the count check in Step 4.
 
 ### 6. Persist Output (main agent)
 

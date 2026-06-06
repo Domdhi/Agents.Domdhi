@@ -36,6 +36,8 @@ Read the first line of each file. Check that both exist AND neither contains `<!
   - If `_project-requirements.md` missing → suggest `/create:project-requirements`
   - If `_project-architecture.md` missing → suggest `/create:project-architecture`
 
+> **Gate posture (F3) — the default is to SATISFY the gate, not bypass it.** When you stop at a hard gate, the right next action is to **generate the missing prerequisite** (run the suggested `/create:*` command), then resume. If you surface a choice to the user via `AskUserQuestion`, the **Recommended** option must be "create the missing doc first" — **never** present "proceed off the stale/stub doc" or `--yolo` as the recommended path. Bypass is an explicit user override, not a nudge. Quietly building epics off a leftover `_prd.md` or a template stub is the failure mode this gate exists to prevent.
+
 - **Optional**: Read `docs/_project-design.md` for UI-specific stories (only if real, not template)
 
 ### 2. Check for Existing Output (main agent)

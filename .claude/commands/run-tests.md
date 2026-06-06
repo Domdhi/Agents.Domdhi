@@ -1,6 +1,6 @@
 ---
-description: Execute a manual/E2E testing checklist with parallel agents, screenshots, and TODO updates
-argument-hint: [path to testing TODO file]
+description: Execute a manual/E2E testing checklist with parallel agents, screenshots, and TODO updates — plus canary mode (--baseline / --compare) for post-deploy golden-signal monitoring
+argument-hint: [testing TODO file] [--baseline | --compare {baseline.json}] [--tolerance N]
 ---
 
 # /run-tests — Manual Testing Executor
@@ -47,7 +47,16 @@ Use mcp__claude-in-chrome__computer for clicks and interactions.
 | `30m`–`1h` | Mid-day polling on a busy branch — smoke checklist re-run |
 | `2h`–`6h` | Background canary — broader checklist, low-frequency assurance |
 
-Each iteration writes a fresh report to `docs/.output/screenshots/{date}/{Task}/TEST-REPORT.md`, so subsequent loops overwrite prior reports for the same task. If you need history, vary the task slug per loop or copy reports out before the next fire. **Don't build a project-local `/canary` or `/run-tests --watch` flag** — those are just `/loop` wrappers, and re-implementing scheduling primitives we already have is duplication. The same applies to any future scheduled-command idea (cleanup, listen, monitor): start by trying `/loop /<command>` first.
+Each iteration writes a fresh report to `docs/.output/screenshots/{date}/{Task}/TEST-REPORT.md`, so subsequent loops overwrite prior reports for the same task. If you need history, vary the task slug per loop or copy reports out before the next fire. **Don't build a standalone `/canary` command or a `/run-tests --watch` flag** — the *scheduling* half of a canary is just a `/loop` wrapper, and re-implementing scheduling primitives we already have is duplication. The same applies to any future scheduled-command idea (cleanup, listen, monitor): start by trying `/loop /<command>` first.
+
+What `/loop` does **not** give you is the *stateful* half of a canary — capturing a known-good baseline, diffing live samples against it, and tolerating transient blips. That lives in **Canary Mode** below (`--baseline` / `--compare`), driven by `/loop` for the polling:
+
+```
+/run-tests --baseline                              # once, pre-deploy: snapshot golden signals
+/loop 60s /run-tests --compare baseline-{slug}.json   # post-deploy: /loop polls, --compare diffs + tolerates transients
+```
+
+This is the deliberate split: `/loop` owns *when to sample*, Canary Mode owns *what changed vs. baseline and whether it's real*. Neither re-implements the other.
 
 ## Persistent Test Output
 
@@ -67,7 +76,72 @@ The goal: every test run leaves behind artifacts that can be re-executed without
 
 ## Variables
 
-TODO_FILE: $ARGUMENTS
+ARGS: $ARGUMENTS
+
+- `TODO_FILE` — path to a testing checklist (the default mode; see Phase 0).
+- `--baseline` — **Canary Mode (capture).** Visit the target page(s), record golden signals as the known-good baseline, exit. No checklist required.
+- `--compare {baseline.json}` — **Canary Mode (verify).** Visit the same page(s), diff golden signals vs the baseline, apply transient tolerance, emit a verdict. No checklist required.
+- `--tolerance N` — consecutive breaches required before a regression escalates to `REGRESSED` (default **2**, matching gstack's 2-consecutive-check rule). Only meaningful with `--compare`.
+
+If `--baseline` or `--compare` is present, run **Canary Mode** (below) instead of the checklist phases. The two are mutually exclusive. A `TODO_FILE` may still be supplied alongside `--compare` to scope which pages to sample (its target URL + page list); without one, sample the app root or the URLs given.
+
+---
+
+## Canary Mode (`--baseline` / `--compare`)
+
+Post-deploy soak monitoring, **without a standalone command**. The scheduling half is `/loop`'s job (see "Repeated runs via `/loop`" above); this mode owns the stateful half — baseline capture, golden-signal delta, and transient tolerance. Inspiration: gstack `/canary` (`docs/research/competitive/_gstack-deep-dive.md` :339); framing: Google SRE four golden signals (alert thresholds derived from baseline, not absolutes).
+
+### The four golden signals (per page)
+
+Synthetic browser probing observes three of the four SRE golden signals; traffic/saturation aren't visible from a synthetic probe and are out of scope.
+
+| Signal | What's captured | SRE signal | Severity if breached vs baseline |
+|--------|-----------------|------------|----------------------------------|
+| **Availability** | page loads (HTTP 2xx, no nav error) | errors/availability | **CRITICAL** — page-load failure |
+| **Errors** | console errors + failed network requests (the *set*) | errors | **HIGH** — a *new* error not in baseline |
+| **Latency** | page load time (ms) | latency | **MEDIUM** — `latency_ms > 2× baseline` |
+| **Integrity** | in-page links resolve (the broken-link *set*) | errors | **LOW** — a *new* broken link |
+
+Severity tiers are the gstack monitors verbatim. "Breach" is always *relative to baseline* — a console error that was already present at baseline is not a regression.
+
+### `--baseline` (capture, run once pre-deploy)
+
+1. Resolve the target page(s): the `TODO_FILE` target URL + its listed pages, or the URLs passed as args, or the app root. Pre-flight each with `curl` (HARD STOP if the app isn't running — same rule as Phase 0 Step 3).
+2. Dispatch a **sonnet** browser agent (chrome MCP preferred, playwright fallback — same selection rule as the checklist mode) to visit each page and record the four signals. Take one baseline screenshot per page into `docs/.output/canary/baseline/`.
+3. Write `docs/.output/canary/baseline-{slug}.json` (slug = project or feature name; **stable filename, not date-rotated**, so `--compare` can find it across days):
+   ```json
+   {
+     "captured": "{YYYY-MM-DD HH:MM}",
+     "pages": {
+       "{url}": { "availability": true, "errors": [...], "latency_ms": 840, "links_broken": [] }
+     }
+   }
+   ```
+4. **Reset the streak file** `docs/.output/canary/{YYYY-MM-DD}/_streak.json` to `{}` — a fresh baseline starts a fresh tolerance count.
+5. Report the baseline path + per-page signal table. Do not commit unless asked (baselines are environment-specific; usually gitignored operational state).
+
+### `--compare {baseline.json}` (verify, run on every poll)
+
+This is what `/loop` fires each interval. It samples **once** and persists state — **it does NOT loop internally** (looping is `/loop`'s job; smuggling a `while`/poll here is the exact duplication this design avoids).
+
+1. Read the baseline + the current streak file (`docs/.output/canary/{date}/_streak.json`, default `{}`).
+2. Dispatch the browser agent (sonnet) to re-sample the same pages — same signals.
+3. **Diff vs baseline.** For each page+signal, decide breached/clear:
+   - availability false → CRITICAL breach
+   - any error in current ∖ baseline (set difference) → HIGH breach
+   - `latency_ms > 2 × baseline.latency_ms` → MEDIUM breach
+   - any broken link in current ∖ baseline → LOW breach
+4. **Update streaks.** For each signal: breached → `streak[sig] += 1`; clear → `streak[sig] = 0`. Write the streak file back.
+5. **Verdict** (`--tolerance N`, default 2):
+   - **HEALTHY** — no breaches this sample.
+   - **TRANSIENT** — breaches present, but every breached signal's streak `< N` (could be a blip; keep watching). Don't alarm.
+   - **REGRESSED** — at least one breached signal's streak `≥ N` (persisted across N consecutive samples → real). Surface loudly; recommend rollback / `/investigate`.
+6. Write a run record `docs/.output/canary/{date}/canary-{HH:MM}.md` — the verdict + a table (page · signal · baseline · current · breach? · streak · severity), and on REGRESSED the offending signal(s) and a one-line recommended action.
+7. Report the verdict line. Under `/loop`, only a REGRESSED verdict warrants interrupting the user; HEALTHY/TRANSIENT runs just append their record.
+
+### Why this honors the "no standalone /canary" rule
+
+`/loop /run-tests --compare …` is the whole canary: `/loop` schedules, `--compare` does baseline-delta + 2-check tolerance. No new command, no re-implemented scheduler — the two existing primitives compose into exactly gstack's behavior. (Decision: 2026-06-05; see `docs/.output/plans/2026-06-05-do-canary-via-runtests.md`.)
 
 ---
 

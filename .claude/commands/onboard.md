@@ -70,6 +70,7 @@ Fan out `Explore` agents over the source tree in parallel to map the landscape b
 - Top-level directories (src, lib, app, cmd, api, etc.)
 - Entry point files (main.*, index.*, server.*, app.*)
 - Module / package / namespace layout
+- **Shippable assets inventory (F10):** icons/images, `manifest.json` (extension `action`/`icons`/`options_page`), `public/`/`static/` assets, favicons, app store metadata. These are real surfaces reverse-engineering otherwise misses — list them so the architecture/design docs and backlog account for them, not just the code.
 
 **Thread B — Dependency graph**
 - Package manager manifests (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, `*.csproj`) for direct and key transitive dependencies
@@ -211,6 +212,27 @@ The `doc-writer` agent auto-loads `project-planning` and `documentation` skills 
 - `/run-todo` — execute a full TODO checklist
 - `/end` — save session state
 ```
+
+### 6b. Reconcile Legacy Docs & Stray Tracked Files
+
+Brownfield repos often already have planning docs under OLD names (`_architecture.md`, `_prd.md`), a root `_backlog.md` beside `todo/_backlog.md`, or duplicate `_feature-ideas.md`. The create-chain is blind to these and they silently become drift (two PRDs, two backlogs). **Reconcile them now** — do not leave both the legacy reals and the new `_project-*` files in place (F2).
+
+**1. Detect:**
+```bash
+node .claude/core/_lib/doc-drift.js
+```
+
+**2. Reconcile** each reported item (ask the user before deleting; show a diff if a legacy doc has content the canonical lacks):
+- Legacy doc + canonical both exist → merge anything unique from the legacy into the canonical, then **archive the legacy** to `docs/.archive/` (or delete with approval).
+- Legacy doc, no canonical → you already wrote the canonical in Steps 5–6; archive the legacy.
+- Duplicate basename (root vs `todo/`) → keep the canonical (`todo/`), remove the root copy.
+
+**3. Untrack stray ignored files (F7):** files committed BEFORE the `.gitignore` managed block existed stay tracked even though they now match an ignore rule (e.g. a root `domdhi.db`, `docs/.output/memories/`). Untrack them so they stop versioning:
+```bash
+git ls-files -ci --exclude-standard          # lists tracked-but-now-ignored files
+git ls-files -ci --exclude-standard -z | xargs -0 -r git rm --cached
+```
+Leave the files on disk (`--cached`); they're working state, not deletions. Report what was untracked.
 
 ### 7. CLAUDE.md Merge
 

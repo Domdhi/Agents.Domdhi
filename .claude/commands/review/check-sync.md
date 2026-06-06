@@ -97,6 +97,16 @@ Scan all docs for broken internal references yourself:
 - Verify each referenced file actually exists
 - Flag any doc that references a file path that no longer exists
 
+### 3b. Legacy / Duplicate Doc Check (main agent) — F2
+
+Run the drift detector for legacy-named and duplicated planning docs the create-chain is blind to (e.g. `_architecture.md` beside `_project-architecture.md`, a root `_backlog.md` beside `todo/_backlog.md`):
+
+```bash
+node .claude/core/_lib/doc-drift.js
+```
+
+Exit 1 means drift was found — fold every reported item into the report as a drift finding (recommend reconciling via `/onboard`'s Step 6b or manual cleanup). Exit 0 means clean.
+
 ### 4. Persist Output (main agent)
 
 Write the full drift analysis to disk before reporting:

@@ -441,12 +441,11 @@ In `--dry-run` mode, report "Would add {skill} to {agent}" without writing.
 
 **4a. Ensure directory structure** (if MODE is `--fix`):
 
-Create missing directories under `docs/.output/memories/`:
+Create the directories for **all five** memory categories under `docs/.output/memories/` (missing any one — e.g. `rejected-approaches` — hard-errors later tools that iterate the full category set):
 ```bash
-mkdir -p docs/.output/memories/patterns
-mkdir -p docs/.output/memories/constraints
-mkdir -p docs/.output/memories/decisions
-mkdir -p docs/.output/memories/workflows
+for c in patterns constraints decisions workflows rejected-approaches; do
+  mkdir -p "docs/.output/memories/$c"
+done
 ```
 
 **4b. Seed ADR decisions** (only if `decisions/` contains no `.json` files):

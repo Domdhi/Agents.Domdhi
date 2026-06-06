@@ -48,11 +48,11 @@ After confirming `_backlog.md` exists, run the epic-overlap CLI:
 node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
 ```
 
-- Exit 0 (no overlaps) → proceed to step 2
-- Exit 1 (overlaps found) → check whether `_backlog.md` contains a `## Acknowledged Overlaps` section that lists every reported pair. If yes → proceed (overlaps are explicitly intentional). If no → this is a **FAIL** finding for the readiness check; record overlap details in the verdict and ask the user to either fix the overlap or document it.
+- Exit 0 (no **same-phase** overlaps) → proceed to step 2. Note: the CLI now exits 0 even when **cross-phase** overlaps exist — those are printed as *informational only*. Epics in different `## Phase` sections run in separate `/run-todo` waves and physically cannot collide, so they do **not** require acknowledgment (F6). Do not ask the user to enumerate them.
+- Exit 1 (**same-phase** overlaps found) → only same-phase pairs gate. Check whether `_backlog.md` contains a `## Acknowledged Overlaps` section listing every **same-phase** pair the CLI reported under "SAME-PHASE". If yes → proceed (intentional). If no → **FAIL** finding; record the same-phase pairs and ask the user to split the files or document them.
 - Exit 2 (CLI tool error — e.g., parser crash, malformed backlog the parser can't read) → report the error and halt the readiness check; do **not** treat as a gate decision. The overlap signal is unknown, not pass/fail. Surface the CLI's stderr in the verdict so the user can fix the underlying issue (typically a malformed `_backlog.md`) and re-run.
 
-This catches silent merge conflicts before `/run-todo` dispatches parallel agents into the same files.
+This catches silent merge conflicts before `/run-todo` dispatches parallel agents into the same files — without the false-burden of hand-acknowledging cross-phase pairs that can't collide.
 
 ### 2. Delegate Completeness Checks (main agent → domain agents)
 
@@ -129,6 +129,14 @@ Combine agent results + consistency checks + ambiguity scan:
 - Critical sections empty
 - Fundamental inconsistencies (e.g., PRD says REST but architecture says GraphQL)
 - No acceptance criteria on Must-Have stories
+
+#### 5b. Remediation (F11) — don't just flag, offer to fix
+
+A readiness check that only reports CONCERNS and stops leaves the items to rot until a human re-notices them. On **CONCERNS** (not FAIL):
+- **Auto-fixable items** — legacy/duplicate-doc cleanup (from the doc-drift check), broken internal links, trivially stale cross-references, missing recommended sections you can fill from existing docs: list them, then **ask the user once** "Fix these N safe items now? (y/n)". On yes, apply them (or delegate to `/review:update-docs` for doc edits) and re-verify.
+- **Judgment items** — vague AC, scope questions, design taste: do NOT auto-fix; surface them as an explicit, numbered "Recommended Actions" follow-up the user must act on.
+
+Never silently end on CONCERNS without either fixing the safe items or making the remediation an explicit prompted step. On **FAIL**, stop and route to the command that produces the missing prerequisite.
 
 ### 6. Persist Output (main agent)
 

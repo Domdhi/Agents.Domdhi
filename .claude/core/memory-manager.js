@@ -153,6 +153,12 @@ class MemoryManager {
 
         try {
             fsSync.mkdirSync(this.memoriesDir, { recursive: true });
+            // Self-heal: ensure ALL category dirs exist so tools that iterate the
+            // full category set never hard-error on a partially-seeded store
+            // (F16 — seeding once created 4 of 5, missing rejected-approaches).
+            for (const category of this.categories) {
+                fsSync.mkdirSync(path.join(this.memoriesDir, category), { recursive: true });
+            }
             this.db = new DatabaseSync(this.dbPath);
             this.db.exec(`
                 CREATE TABLE IF NOT EXISTS memories (

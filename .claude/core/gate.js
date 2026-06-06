@@ -109,8 +109,18 @@ function loadConfig() {
             pkg = {};
         }
         const scripts = pkg.scripts || {};
+        // F4: only reach for `tsc --noEmit` when the project is actually TypeScript.
+        // A plain-JS project with no build script must NOT fail the gate on an
+        // inapplicable tsc — fall back to a no-op build instead.
+        const isTypeScript = files.includes('tsconfig.json') ||
+            !!(pkg.devDependencies && pkg.devDependencies.typescript) ||
+            !!(pkg.dependencies && pkg.dependencies.typescript);
+        let buildCommand;
+        if (scripts.build) buildCommand = 'npm run build';
+        else if (isTypeScript) buildCommand = 'npx tsc --noEmit';
+        else buildCommand = 'echo "No build step (plain JS — no build script)"';
         return {
-            build: { command: scripts.build ? 'npm run build' : 'npx tsc --noEmit', timeout: 300000 },
+            build: { command: buildCommand, timeout: 300000 },
             test: { command: scripts.test ? 'npm test' : 'echo "No test script"', timeout: 600000 },
             stack: 'node'
         };
@@ -366,6 +376,26 @@ function parseTestOutput(output, exitCode) {
     return tests;
 }
 
+/**
+ * F1 false-green guard. A real test runner that exits 0 but yields ZERO parsed
+ * tests is suspicious — it collected nothing, printed a summary the parser
+ * missed, or wrote to an unexpected stream. Reporting a clean "PASSED (0 passed)"
+ * would mask a project whose tests silently stopped running. Returns true when
+ * the gate should flag this (without hard-failing): a real runner (not the
+ * `echo` no-test fallback) exited 0 with 0 total, and the command did not opt
+ * into no-match passing (`--passWithNoTests`, used by `--changed` waves).
+ *
+ * @param {string} testCmd   The test command that ran
+ * @param {number} exitCode  Its exit code
+ * @param {number} total     Tests parsed from its output
+ * @returns {boolean}
+ */
+function isZeroCollected(testCmd, exitCode, total) {
+    const ranRealRunner = !/^\s*echo\b/.test(testCmd || '');
+    const noMatchAllowed = /--passWithNoTests/.test(testCmd || '');
+    return ranRealRunner && exitCode === 0 && total === 0 && !noMatchAllowed;
+}
+
 // ── Main ────────────────────────────────────────────────────────────
 
 async function main() {
@@ -457,12 +487,23 @@ async function main() {
             test.command = testCmd;
             test.timestamp = new Date().toISOString();
 
+            // F1: false-green guard — see isZeroCollected().
+            test.zeroCollected = isZeroCollected(testCmd, testResult.exitCode, test.total);
+
             fs.writeFileSync(
                 path.join(GATE_DIR, '_latest-test.json'),
                 JSON.stringify(test, null, 2)
             );
 
-            const testStatus = test.succeeded ? 'PASSED' : 'FAILED';
+            if (test.zeroCollected) {
+                const warn = '[GATE] Tests: WARNING — runner exited 0 but 0 tests were parsed ' +
+                    '(possible false-green: no tests collected, or summary format unrecognized). ' +
+                    'Verify the runner actually ran tests.';
+                console.log(warn);
+                fullLog += `\n${warn}\n`;
+            }
+
+            const testStatus = test.succeeded ? (test.zeroCollected ? 'PASSED (0 tests — see warning)' : 'PASSED') : 'FAILED';
             console.log(`[GATE] Tests: ${testStatus} (${test.passed} passed, ${test.failed} failed, ${test.skipped} skipped)`);
         }
     }
@@ -494,6 +535,7 @@ async function main() {
             failed: test.failed,
             skipped: test.skipped,
             total: test.total,
+            zeroCollected: !!test.zeroCollected,
             failureNames: test.failures.map(f => f.name)
         };
     }
@@ -517,4 +559,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { loadConfig, parseBuildOutput, parseTestOutput, acquireLock, releaseLock };
+module.exports = { loadConfig, parseBuildOutput, parseTestOutput, isZeroCollected, acquireLock, releaseLock };

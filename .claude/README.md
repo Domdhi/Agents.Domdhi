@@ -66,7 +66,7 @@ Skills (.claude/skills/*/SKILL.md)    — Domain knowledge (templates, quality c
 - `/todo` — Create execution-ready checklist with research, AC, wave plan, self-review
 - `/do` — Execute one task: size-aware (Opus direct or Sonnet delegate) → gate → AC verify → commit
 - `/run-todo` — Execute entire checklist with wave-based execution, AC gates, and auto-commit
-- `/run-tests` — Manual/E2E testing with parallel playwright agents, screenshots, and status protocol
+- `/run-tests` — Manual/E2E testing with parallel playwright agents, screenshots, and status protocol. **Canary Mode** (`--baseline` / `--compare {baseline.json}` / `--tolerance N`) adds post-deploy golden-signal monitoring — baseline capture, delta vs baseline, and 2-check transient tolerance. The full canary is `/loop 60s /run-tests --compare …` (scheduling is `/loop`'s job; no standalone `/canary` command — decision 2026-06-05). → `docs/.output/canary/`
 - `/end` — Save handoff context → `__handoff.md`
 
 ### Supporting
@@ -75,7 +75,8 @@ Skills (.claude/skills/*/SKILL.md)    — Domain knowledge (templates, quality c
 - `/organize` — Move plan files to dated folders
 - `/investigate` — Structured debug investigation with root cause analysis before fixes → `docs/.output/investigations/`
 - `/remember` — Capture a conversational insight to the daily log for memory acquisition
-- `/listen` — **Post-MVP lifecycle (Tier 1):** aggregate signals (git, telemetry, agent-updates, backlog drift, external) into `docs/.output/intake/{date}.md`. For when the initial backlog drains and work shifts from pull-from-plan to push-from-reality. Pairs with a future `/triage` (signals → backlog). Research: `docs/research/competitive/_post-mvp-lifecycle-synthesis.md`
+- `/listen` — **Post-MVP lifecycle (Tier 1):** aggregate signals (git, telemetry, agent-updates, backlog drift, external) into `docs/.output/intake/{date}.md`. For when the initial backlog drains and work shifts from pull-from-plan to push-from-reality. Pairs with `/triage` (signals → backlog). Research: `docs/research/competitive/_post-mvp-lifecycle-synthesis.md`
+- `/triage` — **Post-MVP lifecycle (Tier 2):** turn a `/listen` intake file into ranked backlog stories. Scores each signal's **Severity** objectively (engineering-led), then decides **Priority** (the disposition: promote / defer / kill / research) — auto-deciding the mechanical calls and interviewing **only** the genuine judgment calls (Mechanical/Taste/User-Challenge, same model as `/do` Step 6c). Promoted stories carry an ICE + MoSCoW lens; kills/defers land in an append-only ledger (`docs/.output/triage/_decisions.md`) so the next sweep doesn't re-surface them. Severity≠Priority and the durable decision ledger are the load-bearing ideas. → `docs/todo/_backlog.md` + `docs/.output/triage/{date}.md`
 
 ### Review (periodic)
 - `/review:code-review` — Risk-tiered architecture compliance review (read-only)
@@ -132,6 +133,8 @@ docs/
     ├── memories/           # Auto-compounded daily logs + compiled concepts (replaces old /recap)
     ├── telemetry/          # Command usage logs
     ├── intake/             # /listen post-MVP signal intake ({YYYY-MM-DD}.md, day-rotated)
+    ├── triage/             # /triage run records ({YYYY-MM-DD}.md, day-rotated) + _decisions.md ledger (append-only)
+    ├── canary/             # /run-tests canary mode: baseline-{slug}.json + {date}/canary-{HH:MM}.md + _streak.json
     └── agent-updates/      # Agent misalignment feedback ({YYYY-MM-DD}.md, day-rotated)
 ```
 
@@ -181,6 +184,8 @@ Create commands enforce prerequisite checks that prevent out-of-sequence executi
 | `/review:check-readiness` | Existing required docs PLUS no unacknowledged epic file overlaps in `_backlog.md` (per `epic-overlap.js`) |
 
 **`--yolo` flag**: Any gated command accepts `--yolo` to bypass hard gates (downgrades to warnings).
+
+**Gate posture (F3):** hitting a hard gate means *generate the missing prerequisite, then resume* — not bypass. Commands must never present "proceed off the stub/stale doc" or `--yolo` as the **Recommended** option in a clarifying question; `--yolo` is an explicit user override, never a nudge. **Enforcement note (F8):** gate checks (the `<!-- @@template -->` first-line test) are instruction-level, not tool-enforced — they rely on the agent actually performing the check. `doc-drift.js`'s `isRealDoc()` is the reusable tool-checkable primitive (real doc vs scaffold stub) when a hard check is needed.
 
 ## TODO Hierarchy
 
@@ -258,6 +263,8 @@ Ships only what `tools/publish-manifest.json` (the allowlist) permits. A hardcod
 | **Telemetry** | `docs/.output/telemetry/` | Command usage logs, gate build/test logs |
 | **Agent feedback** | `docs/.output/agent-updates/{YYYY-MM-DD}.md` | Misalignment logs from `/do`, `/run-todo`, `/run-tests` (day-rotated folder; legacy flat `agent-updates.md` still read as fallback) |
 | **Signal intake** | `docs/.output/intake/{YYYY-MM-DD}.md` | Post-MVP signals aggregated by `/listen` (day-rotated) |
+| **Triage decisions** | `docs/.output/triage/{YYYY-MM-DD}.md` + `_decisions.md` | `/triage` run records (day-rotated) + append-only kill/defer ledger |
+| **Canary monitoring** | `docs/.output/canary/baseline-{slug}.json` + `{date}/canary-{HH:MM}.md` | `/run-tests` canary mode: golden-signal baseline + per-poll delta records + `_streak.json` tolerance state |
 
 ### Context-Bundled Output
 
@@ -314,6 +321,8 @@ node .claude/core/memory-promoter.js mark <slug> <target> # Mark a memory as pro
 
 Confidence levels: 0.9 (architecture) → 0.8 (retro-validated) → 0.7 (implementation-proven) → 0.6 (story-discovered) → 0.5 (session-observed)
 
+**The memory store is intentionally LOCAL-only (F5).** `docs/.output/memories/` is ignored by the `.gitignore` managed block — memories are regenerable, per-project, decay-on-active-days working state, not version-controlled artifacts. So `git add docs/.output/memories/...` is *expected* to no-op, and no command should imply memories "persist in git" or stage them in a commit. (`/onboard`'s reconcile step and `git ls-files -ci` untrack any memories committed before the ignore rule existed — see F7.) Memories travel via the live store + SQLite index, not the repo.
+
 **Memory acquisition:** Main Agent writes 0–3 structured memories per session-handoff invocation (every `/do`, `/run-todo` wave, `/run-tests`, `/todo`, `/end`) by reviewing the Decisions & Context bullets it just authored in `docs/__handoff.md` and promoting the reusable-learning ones via `memory-manager.js create`. Zero ongoing in-process LLM cost — Main Agent already holds full context when writing the handoff, so no second-model extraction round-trip is needed. The `memory-extractor.js` CLI still exists but is a manual/brownfield tool for backfilling memories from historical docs in adopter projects; it does not fire from any command automatically. Decision record: `docs/.output/reviews/2026-04-20-adr-memory-unification.md`. When authoring each memory, assign an `importance` score of 1–5 in `content.importance` (1 = ephemeral/narrow, 5 = architecture-level/foundational, default 3 when unsure); the manager uses this as the retention floor so low-importance memories decay out on active repos while high-importance ones resist.
 
 **Inbox staging (sub-agents):** Sub-agents never write straight into the curated store. When a dispatched agent discovers something unexpected and reusable mid-task, it drops a draft JSON into `docs/.output/memories/_inbox/` (the **Memory Inbox Protocol** section in each agent's definition). Drafts are inert until the Main Agent reviews them — `inbox-list` to see them, `inbox-promote` to turn keepers into real memories (with optional category/id override), `inbox-discard` to drop the rest. This adds the missing review gate between "an agent noticed something" and "it's a curated memory." Only the Main Agent — which holds full session context — promotes.
@@ -361,6 +370,7 @@ Secret hooks share `secret-patterns.cjs`. The scanner runs ONLY as a Claude Code
 | `.claude/core/gen-timeline.js` | Weekly commit history generator → `docs/_project-timeline.md` |
 | `.claude/core/telemetry-log.js` | Self-instrumentation for user-typed slash commands (e.g. `/onboard`) that don't fire `PostToolUse:Skill` — appends a `command_invocation` row to `command-usage.jsonl` |
 | `.claude/core/feedback-digest.js` | Automated telemetry rollup (commands, gate, hooks, agents, memory, system-files) behind `/review:feedback`; `--json` for the collectible sidecar. Root-parameterized + headless |
+| `.claude/core/_lib/doc-drift.js` | Detects legacy-named / duplicated planning docs (`_architecture.md` vs `_project-architecture.md`, root vs `todo/` dupes) the create-chain is blind to; used by `/onboard` (reconcile) + `/review:check-sync` (flag). Exit 1 on drift |
 | `.claude/core/skill-conformance.js` | Agent Skills spec checker (body ≤500 lines, name==dir, description ≤1024 chars) — run by `/review:check-templates` Step 2b |
 | `.claude/core/metrics.js` | Workflow metrics from telemetry + git + TODOs |
 | `.claude/core/template-updater.js` | Zone-aware template sync to downstream projects |
