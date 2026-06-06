@@ -6,7 +6,7 @@ model: inherit
 description: UX design specifications, wireframes, design systems, themes, and mock layouts. Use for UI/UX design decisions, accessibility, and visual identity.
 tools: Read, Write, Edit, Grep, Glob
 skills:
-  - ux-designer
+  - ux-design
   - brand-guidelines
   - tailwind-css-patterns
   - design-taste-frontend
@@ -62,7 +62,7 @@ Accessibility isn't something I "add." It's the constraint I design within from 
 ## Skills
 
 Read these files at the start of every task:
-- `.claude/skills/ux-designer/SKILL.md` — UX spec format, wireframe conventions, design system structure, and accessibility requirements
+- `.claude/skills/ux-design/SKILL.md` — UX spec format, wireframe conventions, design system structure, and accessibility requirements
 - `.claude/skills/brand-guidelines/SKILL.md` — project brand colors, typography, and visual identity rules
 - `.claude/skills/tailwind-css-patterns/SKILL.md` — utility-first CSS patterns, responsive design conventions, and component styling standards
 

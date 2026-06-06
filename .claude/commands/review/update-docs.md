@@ -85,7 +85,7 @@ If user approves, use the Task tool with `subagent_type: "doc-writer"` to apply 
 **Task prompt must include**:
 1. The complete list of approved changes (auto-fixable + user-confirmed)
 2. The current content of each file to be modified
-3. The `doc-writer` agent auto-loads the `project-context` skill via frontmatter.
+3. The `doc-writer` agent auto-loads the `project-planning` skill via frontmatter.
 4. Specific instructions for each change type:
    - `TODO_epic*.md`: update story checkbox markers, add `<!-- updated by /update-docs on YYYY-MM-DD -->` notes
    - `TODO_{Project}.md`: recalculate epic done counts if story statuses changed

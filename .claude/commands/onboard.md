@@ -22,6 +22,16 @@ If `$ARGUMENTS` contains `--yolo`:
 
 ## Workflow
 
+### 0. Record Invocation (telemetry)
+
+`/onboard` is user-typed, so it does NOT fire the `PostToolUse:Skill` event that `command-usage-logger.cjs` listens for — without this step the run leaves no `command_invocation` row in `command-usage.jsonl` (only the chained `/review:specialize` and gate runs would show up). Log the invocation up front:
+
+```bash
+node .claude/core/telemetry-log.js onboard
+```
+
+This is best-effort — if it fails, continue the workflow regardless.
+
 ### 1. Source Check
 
 Confirm there is source code to reverse-engineer. Look for any of: `src/`, `lib/`, `app/`, top-level `*.ts`, `*.py`, `*.go`, `*.cs`, `*.rs`, `*.js` files, or a language-specific project file (`package.json`, `Cargo.toml`, `go.mod`, `*.csproj`/`*.sln`, `pyproject.toml`, `Makefile`).
@@ -130,7 +140,7 @@ Delegate to the `architect` agent to write `docs/_project-architecture.md` from 
 
 **Delegation via Task tool with `subagent_type: "architect"`.**
 
-The `architect` agent auto-loads the `architecture-writer` skill via frontmatter — do NOT instruct it to read the skill file.
+The `architect` agent auto-loads the `architecture` skill via frontmatter — do NOT instruct it to read the skill file.
 
 **Task prompt must include:**
 1. Project name (from git remote, directory name, or README heading — in that priority)
@@ -154,7 +164,7 @@ Delegate to the `doc-writer` agent to write `docs/_project-context.md` from the 
 
 **Delegation via Task tool with `subagent_type: "doc-writer"`.**
 
-The `doc-writer` agent auto-loads `project-context` and `documentation` skills — do NOT instruct it to read them.
+The `doc-writer` agent auto-loads `project-planning` and `documentation` skills — do NOT instruct it to read them.
 
 **Task prompt must include:**
 1. Detected stack and build/test commands (from Step 2)
@@ -275,6 +285,16 @@ Then run:
 ```bash
 node .claude/core/commit.js
 ```
+
+### 9b. Capture Feedback Report
+
+Chain `/review:feedback` as the final action. It rolls the just-captured telemetry (the onboard invocation logged in Step 0, the chained `/review:specialize`, gate runs, hooks, the freshly-written memories) plus a short agent self-review into `docs/.output/reviews/feedback-{date}.md` + `.json`, and self-commits.
+
+```
+/review:feedback
+```
+
+This is what flows onboard-performance signal back to the maintainer for every project — answer the self-review honestly from this run (what was ambiguous, what you inferred, what you'd change). Best-effort: if it fails, note it and continue to the report.
 
 ### 10. Final Report
 

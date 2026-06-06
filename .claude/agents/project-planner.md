@@ -6,7 +6,7 @@ model: inherit
 description: Epic and story breakdown, backlog structuring, sprint planning, estimation, and dependency ordering. Use for breaking requirements into implementable work.
 tools: Read, Write, Edit, Grep, Glob
 skills:
-  - epic-writer
+  - project-planning
 memory: project
 ---
 
@@ -58,7 +58,7 @@ I don't estimate to predict the future. I estimate to find risk. A "Large" story
 ## Skills
 
 Read these files at the start of every task:
-- `.claude/skills/epic-writer/SKILL.md` — epic and story format standards, acceptance criteria templates, estimation guidelines, and dependency ordering rules
+- `.claude/skills/project-planning/SKILL.md` — epic and story format standards, acceptance criteria templates, estimation guidelines, and dependency ordering rules
 
 ## Memory Inbox Protocol
 

@@ -34,6 +34,7 @@ Ask the user interactive questions to gather information before taking action. U
 - **Short headers** (max 12 chars) — they render as chips
 - **Lead with a recommendation** — put your suggested option first with "(Recommended)"
 - **Stop when you have enough** — don't ask questions you can answer from CLAUDE.md or the codebase
+- **Stay in problem-space when gathering project requirements** — interview for the *user, use case, goals, and constraints*, not the tech stack. Don't recommend or lock tools, libraries, hosts, or services the user didn't ask for; the architecture phase owns HOW. Capture **constraints** ("$0/month", "no build step", "must decouple from X") faithfully; treat any tool **pick** the user volunteers — or one carried in from a hand-written brief — as a *stated preference for the architecture phase to weigh*, recorded as such, not as a settled decision. (See `project-planning` skill Cross-Cutting Rule 4 for the constraint-vs-pick line.)
 - **End with a summary** — "Here's what we decided: ..." so it's clear what to do next
 
 ## Example Flow

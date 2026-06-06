@@ -86,6 +86,6 @@ Match CTA friction to relationship depth. Early subscribers get low-friction CTA
 
 ## Voice Calibration
 
-This skill teaches structure. Voice comes from the writer agent (shadow or article-writer). Load both when writing voice-matched newsletter content:
+This skill teaches structure. Voice comes from the writer agent (shadow or ghostwriting). Load both when writing voice-matched newsletter content:
 - This skill: structure, hook discipline, CTA placement
-- article-writer skill: voice rules, anti-patterns, approved phrasings
+- ghostwriting skill: voice rules, anti-patterns, approved phrasings

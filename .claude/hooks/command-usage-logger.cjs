@@ -42,9 +42,12 @@
  *   (e.g., tool_input.name, tool_input.command) would not help; the hook
  *   simply isn't being called for those events.
  *
- *   Fix path (when/if needed): wait for Claude Code to emit a
- *   PostUserSlashCommand or equivalent event, or instrument the slash
- *   commands themselves to write a telemetry entry from their preamble.
+ *   Fix path (IMPLEMENTED for opted-in commands): `.claude/core/telemetry-log.js`
+ *   lets a slash command self-instrument from its preamble —
+ *   `node .claude/core/telemetry-log.js <name>` appends a command_invocation
+ *   row tagged `source: 'self-instrumented'`. `/onboard` adopts it (Step 0);
+ *   other user-typed commands can opt in the same way. The platform-event path
+ *   (a future PostUserSlashCommand) would supersede this if Claude Code adds it.
  *
  *   Retro reference: `docs/.output/reviews/retro-platform-alignment-may-2026.md`
  *   System Improvements row "Telemetry coverage".
@@ -175,23 +178,30 @@ function processEvent(parsedJson) {
         //      'fail' but that masked the absence of any signal (A4 schema)
         const exitCode = parsedJson?.tool_response?.exit_code ?? parsedJson?.tool_output?.exit_code ?? null;
 
+        // Read the gate summary once — it carries both the outcome fallback AND
+        // the wall-clock duration. gate.js stamps `durationMs` into the summary
+        // immediately before exit; the PostToolUse:Bash payload has no timing of
+        // its own, so the summary is the only source for gate_run duration.
+        const summary = readGateSummary();
+
         let outcome;
         if (exitCode !== null) {
             outcome = exitCode === 0 ? 'success' : 'failure';
+        } else if (summary === null) {
+            outcome = 'unknown';
         } else {
-            const summary = readGateSummary();
-            if (summary === null) {
-                outcome = 'unknown';
-            } else {
-                outcome = summary.overall === true ? 'success' : 'failure';
-            }
+            outcome = summary.overall === true ? 'success' : 'failure';
         }
+
+        // duration_ms: real value from gate.js when available, else null (an
+        // older gate.js predating the durationMs field, or no summary written).
+        const durationMs = typeof summary?.durationMs === 'number' ? summary.durationMs : null;
 
         event = {
             timestamp: new Date().toISOString(),
             type: 'gate_run',
             command: gateCommand,
-            duration_ms: null,
+            duration_ms: durationMs,
             outcome,
         };
     }

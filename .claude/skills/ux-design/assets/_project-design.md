@@ -1,12 +1,10 @@
-# UX Spec Template (`_project-design.md`)
-
-```markdown
+<!-- @@template -->
 # UX Design Specification: {Project Name}
 
 | Attribute | Value |
 |-----------|-------|
 | **Version** | 1.0 |
-| **Status** | Draft / Review / Locked |
+| **Status** | Draft |
 | **Author** | {name} |
 | **Date** | {YYYY-MM-DD} |
 | **Source** | Based on PRD v{X} |
@@ -41,7 +39,21 @@
 
 ### Shell Structure
 ```
-{ASCII diagram of the application shell — header, sidebar, content area, footer}
++----------------------------------------------------------+
+|  [Logo]           Navigation Bar              [User Menu] |
++----------------------------------------------------------+
+|        |                                                  |
+| Sidebar|              Main Content                        |
+|        |                                                  |
+|  Nav   |  +------------------------------------------+   |
+|  Items |  |                                          |   |
+|        |  |         Content Area                     |   |
+|        |  |                                          |   |
+|        |  +------------------------------------------+   |
+|        |                                                  |
++----------------------------------------------------------+
+|                     Footer                                |
++----------------------------------------------------------+
 ```
 
 ### Grid System
@@ -127,10 +139,9 @@ All interactive components must define: Default, Hover, Active, Focus, Disabled,
 ---
 
 ## Related Documents
-- PRD: [_project-requirements.md](../_project-requirements.md)
+- PRD: [../_project-requirements.md](../_project-requirements.md)
 - Wireframes: [_wireframes.md](_wireframes.md)
 - Light Theme: [_design.light.md](_design.light.md)
 - Dark Theme: [_design.dark.md](_design.dark.md)
 - Mock Layout: [_mock-layout.html](_mock-layout.html)
-- Architecture: [_project-architecture.md](../_project-architecture.md)
-```
+- Architecture: [../_project-architecture.md](../_project-architecture.md)

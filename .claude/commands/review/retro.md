@@ -72,7 +72,7 @@ Use the Task tool with `subagent_type: "doc-writer"` to generate the retrospecti
 1. Epic name, number, and story list
 2. All gathered data from Step 2 (git stats, TODO context, work doc summaries, memory patterns, telemetry stats)
 3. Doc sync findings from Step 3
-4. The `doc-writer` agent auto-loads the `project-context` skill via frontmatter.
+4. The `doc-writer` agent auto-loads the `project-planning` skill via frontmatter.
 5. Instruction to write to `docs/.output/reviews/retro-{epic-slug}.md` using the output template below
 6. Instruction to analyze: what went well, what didn't, key decisions, metrics, recommendations
 7. Instruction to include a System Improvements section evaluating agent/skill/command/memory effectiveness

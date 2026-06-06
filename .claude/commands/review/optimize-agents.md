@@ -55,7 +55,7 @@ Delegate codebase scanning to the `architect` agent via Task tool with `subagent
 3. Instruction to detect frameworks from code patterns (imports, decorators, config files) and build a `DETECTED_STACK` model: `{backend: [...], frontend: [...], database: [...], testing: [...]}`
 4. Instruction to identify recurring implementation patterns: base classes, shared interfaces, DI registrations, middleware chains, test fixtures
 5. Instruction to extract actual dependency versions — this is ground truth, not what the architecture doc planned
-6. The `architect` agent auto-loads the `architecture-writer` skill via frontmatter
+6. The `architect` agent auto-loads the `architecture` skill via frontmatter
 
 **Agent must return**: A structured report with detected stack, project structure map, framework evidence, and implemented patterns.
 

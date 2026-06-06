@@ -78,7 +78,7 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the bra
 
 After the brainstorm agent completes, read the output and capture ideas into `docs/todo/_feature-ideas.md`:
 
-1. **If `_feature-ideas.md` doesn't exist or contains only template placeholders** → create it from the template structure (see `.claude/templates/todo/_feature-ideas.md`)
+1. **If `_feature-ideas.md` doesn't exist or contains only template placeholders** → create it from the template structure (see `.claude/skills/project-planning/assets/_feature-ideas.md`)
 2. **If it already has content** → append new ideas (don't overwrite existing ones)
 
 For each idea explored:

@@ -296,7 +296,7 @@ allowed-tools: {tool list}
 
 ## Document Template (if the skill produces a document)
 
-{Markdown template with `{placeholders}` for variable content.}
+{ONE-LINE POINTER to the canonical template in `assets/` — NOT an inline fenced block. The template is a raw file with `{placeholders}` + a `<!-- @@template -->` first line, so the skill and `scaffold.js` share one copy. If the document is scaffolded at project init, also register it in `scaffold.js`'s `SKILL_TEMPLATE_MANIFEST`. See `ux-design`/`project-planning`/`architecture` for the pattern.}
 
 ## Required Sections Checklist (if the skill validates output)
 
@@ -329,6 +329,17 @@ allowed-tools: {tool list}
 ### Skills With No Command Consumers
 
 Some skills are loaded directly by agents but not referenced by any command. This is valid — the agent uses the skill knowledge whenever it's invoked, regardless of which command triggered it.
+
+### Two Skill Archetypes (which skeleton to use)
+
+A skill is one of two shapes, and the Body Structure above is only one of them:
+
+- **Doc-producer** — owns a `docs/_project-*.md` template in `assets/` (wired into `scaffold.js`'s `SKILL_TEMPLATE_MANIFEST`) and validates the artifact it produces. Use the `Document Template / Required Sections / Quality Criteria / Interview Questions` skeleton above.
+- **Technique / prose** — encodes a method or voice, owns no scaffolded template. Use the `Overview / When to Use / Core Pattern` skeleton documented in **`skill-authoring/SKILL.md`**. Examples: `skill-authoring` itself, `systematic-debugging`, the design-technique skills (`design-taste-frontend`, `tailwind-css-patterns`), `ghostwriting`.
+
+The two skeletons are not a contradiction — they fit different archetypes. When in doubt, ask "does this skill own a scaffolded `_project-*.md` template?" Yes → doc-producer; No → technique/prose.
+
+**Where the planning-pipeline doc-producers live:** the planning *text* documents are consolidated into **one** skill, **`project-planning`** (brief, requirements, feature-ideas, epics/stories backlog, and the project-context quick-ref — each its own `references/` guide + `assets/` template). It is NOT one skill per document and there is NO `-writer` suffix convention. The genuine design disciplines — **`architecture`** and **`ux-design`** — stay self-contained (each owns its own template *and* its craft knowledge), because they carry real domain judgment beyond producing a doc.
 
 ---
 
@@ -376,7 +387,7 @@ Ask "is the verb already in Claude Code?" before authoring. If yes, your command
 When a command or library parses markdown structures (bullet lists, headings, fence blocks, key:value labels), the regex patterns must tolerate variable indentation:
 
 - **Use `\s*` (zero-or-more) for leading whitespace, not `\s+` (one-or-more)** — unless indentation is structurally significant. Markdown authors and dispatched agents both produce mixed indentation; `\s+` silently misses zero-indent occurrences with no error, so the parser returns clean-looking empty results when it should be matching.
-- **Verify the source-of-truth template emits the structure your parser keys off** — if a parser reads `**Files:**` blocks under stories, the skill template that generates the markdown MUST include those blocks. A parser dispatched without this verification step ships correct against fixtures and useless against real artifacts. (See `epic-overlap.js` + the `epic-writer` story template for a worked example.)
+- **Verify the source-of-truth template emits the structure your parser keys off** — if a parser reads `**Files:**` blocks under stories, the skill template that generates the markdown MUST include those blocks. A parser dispatched without this verification step ships correct against fixtures and useless against real artifacts. (See `epic-overlap.js` + the `project-planning` backlog/story template in `references/backlog.md` for a worked example.)
 
 Both rules apply at *dispatch time* — a parser-implementing story's prompt should explicitly require both checks.
 
@@ -385,6 +396,6 @@ Both rules apply at *dispatch time* — a parser-implementing story's prompt sho
 ## Related Skills
 
 For deeper methodology on writing effective skills and commands:
-- **`writing-skills`** — TDD for documentation, CSO optimization, pressure testing, rationalization tables
-- **`writing-skills/persuasion-principles.md`** — obligation language research (Cialdini/Meincke), principle combinations by skill type
-- **`writing-skills/anthropic-best-practices.md`** — official Anthropic skill authoring guidelines
+- **`skill-authoring`** — TDD for documentation, CSO optimization, pressure testing, rationalization tables
+- **`skill-authoring/persuasion-principles.md`** — obligation language research (Cialdini/Meincke), principle combinations by skill type
+- **`skill-authoring/anthropic-best-practices.md`** — official Anthropic skill authoring guidelines

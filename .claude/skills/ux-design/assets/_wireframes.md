@@ -1,12 +1,10 @@
-# Wireframes Template (`_wireframes.md`)
-
-```markdown
+<!-- @@template -->
 # Wireframes: {Project Name}
 
 | Attribute | Value |
 |-----------|-------|
 | **Version** | 1.0 |
-| **Status** | Draft / Review / Locked |
+| **Status** | Draft |
 | **Author** | {name} |
 | **Date** | {YYYY-MM-DD} |
 | **Source** | Based on UX Spec v{X} |
@@ -97,4 +95,3 @@
 - Light Theme: [_design.light.md](_design.light.md)
 - Dark Theme: [_design.dark.md](_design.dark.md)
 - Mock Layout: [_mock-layout.html](_mock-layout.html)
-```

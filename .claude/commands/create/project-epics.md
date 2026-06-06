@@ -69,7 +69,7 @@ Use the Task tool with `subagent_type: "project-planner"` to generate epics and 
    - Phase 3+: Feature phases ordered by dependency and Must Have priority
    - Final Phase: Polish & Launch
 
-The `project-planner` agent auto-loads the `epic-writer` skill via frontmatter — do NOT tell it to read the skill file.
+The `project-planner` agent auto-loads the `project-planning` skill via frontmatter — do NOT tell it to read the skill file.
 
 ### 5. Validate (main agent)
 

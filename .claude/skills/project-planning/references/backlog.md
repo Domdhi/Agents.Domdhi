@@ -1,91 +1,10 @@
----
-name: epic-writer
-description: "Use WHEN breaking requirements into epics and stories, structuring a backlog, or writing acceptance criteria for implementation work. Triggers: epic, story, backlog, sprint, user story, acceptance criteria"
-metadata:
-  version: 1.0.0
-  author: Domdhi.Agents
-  tags: [epics, stories, backlog, planning, estimation, dependencies]
-user-invocable: false
-allowed-tools: Read Write Edit Grep Glob
----
+# Backlog — Epics & Stories
 
-# Epic Writer
+Breaking requirements into implementable work. Creates epics (logical feature groupings) and stories (single-session implementable units) with proper dependency ordering.
 
-Expert in breaking requirements into implementable work. Creates epics (logical feature groupings) and stories (single-session implementable units) with proper dependency ordering.
+## Document Template
 
-## Epic Document Template
-
-The epic document follows the existing `/todo` checklist format for compatibility with `/do` and `/organize`.
-
-```markdown
-# Product Backlog: {Project Name}
-
-| Attribute | Value |
-|-----------|-------|
-| **Project** | {Project Name} |
-| **Version** | 1.0 |
-| **Status** | Specification Complete / In Progress |
-| **Author** | {name} |
-| **Tech Stack** | {from _project-architecture.md} |
-
----
-
-## Executive Summary
-
-{Brief overview of the full product scope and how work is organized into phases/epics}
-
----
-
-## Technology Stack
-
-{Copied from _project-architecture.md for quick reference}
-
----
-
-## Phase {N}: {Phase Name} (Sprint {X}-{Y})
-
-**Goal:** {What this phase achieves}
-
----
-
-### Epic {N}: {Epic Name}
-
-**Objective:** {What this epic delivers}
-
-* **Story {N}.1 ({Domain}): {Story Title}**
-  * **As a** {persona},
-  * **I want** {capability},
-  * **So that** {benefit}.
-  * **AC:**
-    * {Acceptance criterion 1}
-    * {Acceptance criterion 2}
-    * {Acceptance criterion 3}
-  * **Estimate:** {S/M/L/XL}
-  * **Dependencies:** {Story X.Y, or "None"}
-  * **Files:**
-    * `path/to/file1.ext` — new | modify | delete
-    * `path/to/file2.ext` — new | modify | delete
-
-* **Story {N}.2 ({Domain}): {Story Title}**
-  ...
-
----
-```
-
-## Story Index Template
-
-```markdown
-# Story Index: {Project Name}
-
-Quick reference for all stories across epics.
-
-| Story | Title | Phase | Epic | Estimate | Status | Dependencies |
-|-------|-------|-------|------|----------|--------|-------------|
-| 0.1 | {title} | 0 | Template Init | S | [ ] | None |
-| 0.2 | {title} | 0 | Template Init | M | [ ] | 0.1 |
-| 1.1 | {title} | 1 | {epic name} | L | [ ] | 0.2 |
-| ... | ... | ... | ... | ... | ... | ... |
-```
+The document you produce — the canonical, scaffold-blessed template — lives in `../assets/_backlog.md` (raw, with the `<!-- @@template -->` first-line marker). It carries both the epic/phase structure and the `## Story Index` section. Read it to know the artifact's structure; `scaffold.js` seeds `docs/todo/_backlog.md` from the same file.
 
 ## Breakdown Rules
 

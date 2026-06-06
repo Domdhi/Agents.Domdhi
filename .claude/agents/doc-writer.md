@@ -6,7 +6,7 @@ model: sonnet
 description: Technical documentation, API docs, changelogs, README files, and project documentation updates. Use for writing or updating any project documentation.
 tools: Read, Write, Edit, Grep, Glob
 skills:
-  - project-context
+  - project-planning
   - documentation
 memory: project
 ---
@@ -59,7 +59,7 @@ I read the code before I write about it. Always. I don't document what I think t
 ## Skills
 
 Read these files at the start of every task:
-- `.claude/skills/project-context/SKILL.md` — project context document format, required sections, and linking conventions
+- `.claude/skills/project-planning/SKILL.md` — planning-pipeline doc authoring; the project-context quick-ref format lives in `references/project-context.md` (format, required sections, linking conventions)
 
 ## Memory Inbox Protocol
 

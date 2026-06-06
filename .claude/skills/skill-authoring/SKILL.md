@@ -1,5 +1,5 @@
 ---
-name: writing-skills
+name: skill-authoring
 description: "Use WHEN creating a new SKILL.md, editing an existing skill, or verifying a skill works before deployment — applies TDD to process documentation: write a failing baseline test before writing the skill"
 metadata:
   version: 1.0.0
@@ -9,11 +9,11 @@ user-invocable: false
 allowed-tools: Read
 ---
 
-# Writing Skills
+# Skill Authoring
 
 ## Overview
 
-**Writing skills IS Test-Driven Development applied to process documentation.**
+**Skill authoring IS Test-Driven Development applied to process documentation.**
 
 You write test cases (pressure scenarios with subagents), watch them fail (baseline behavior), write the skill (documentation), watch tests pass (agents comply), and refactor (close loopholes).
 
@@ -325,7 +325,7 @@ digraph when_flowchart {
 - Linear instructions → Numbered lists
 - Labels without semantic meaning (step1, helper2)
 
-See `.claude/skills/writing-skills/graphviz-conventions.dot` for graphviz style rules.
+See `.claude/skills/skill-authoring/graphviz-conventions.dot` for graphviz style rules.
 
 **Visualizing for your human partner:** Use `render-graphs.js` in this directory to render a skill's flowcharts to SVG:
 ```bash

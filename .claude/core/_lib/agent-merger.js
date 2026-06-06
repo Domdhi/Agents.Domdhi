@@ -127,15 +127,42 @@ function extractFieldBlock(lines, key) {
 }
 
 /**
+ * Extract the YAML list block for a `skills:` (block-sequence) field: the index of
+ * the `skills:` line, the index just past its `- item` lines, and the item names.
+ *
+ * @param {string[]} lines
+ * @returns {{ start: number, end: number, items: string[] }|null}
+ */
+function extractSkillsList(lines) {
+    const start = lines.findIndex(l => /^skills\s*:/.test(l));
+    if (start === -1) return null;
+    let end = start + 1;
+    const items = [];
+    while (end < lines.length && /^\s*-\s+/.test(lines[end])) {
+        items.push(lines[end].replace(/^\s*-\s+/, '').trim());
+        end++;
+    }
+    return { start, end, items };
+}
+
+/**
  * Merge frontmatter strings: take src lines as the base, but preserve
  * `nickname:` and `aliases:` from dst if they exist. When opts.preserveDescription
  * is set, also preserve dst's `description:` block (multi-line safe) — used when the
  * agent is personalized/specialized so /review:* tuned descriptions survive updates.
  *
+ * When opts.canonicalSkills + opts.targetSkills are provided, project-specific skills
+ * in dst's `skills:` list are unioned into the result: a dst skill that is NOT shipped
+ * by the template (not in canonicalSkills) but DOES exist as a skill dir in the target
+ * (in targetSkills) is a specialization added by /review:specialize and must survive —
+ * otherwise the template's base skills list silently strips it.
+ *
  * @param {string} srcFm  — frontmatter string from src (no --- delimiters)
  * @param {string} dstFm  — frontmatter string from dst (no --- delimiters)
  * @param {object} [opts]
  * @param {boolean} [opts.preserveDescription]  — keep dst's description block
+ * @param {Set<string>} [opts.canonicalSkills]  — skills shipped by the template
+ * @param {Set<string>} [opts.targetSkills]     — skill dirs present in the target
  * @returns {string}       — merged frontmatter string (no --- delimiters)
  */
 function mergeFrontmatter(srcFm, dstFm, opts) {
@@ -195,6 +222,34 @@ function mergeFrontmatter(srcFm, dstFm, opts) {
         }
     }
 
+    // Union project-specific (bespoke) skills from dst into the result skills list.
+    // Bespoke = in dst, not shipped by the template, and still a real skill dir in the
+    // target. This is the fix for the merge stripping /review:specialize skills.
+    if (opts.canonicalSkills && opts.targetSkills) {
+        const destSkills = extractSkillsList(destLines);
+        if (destSkills) {
+            const resSkills = extractSkillsList(result);
+            const existing = resSkills ? resSkills.items : [];
+            const bespoke = destSkills.items.filter(s =>
+                !opts.canonicalSkills.has(s) &&
+                opts.targetSkills.has(s) &&
+                !existing.includes(s));
+            if (bespoke.length > 0 && resSkills) {
+                // Append into the existing list, matching its item indentation.
+                const sample = result[resSkills.start + 1] || '  - ';
+                const indent = (sample.match(/^(\s*)-/) || [, '  '])[1];
+                result.splice(resSkills.end, 0, ...bespoke.map(s => `${indent}- ${s}`));
+            } else if (bespoke.length > 0) {
+                // src has no `skills:` block at all — synthesize one so the project's
+                // bespoke skills are not lost (the no-template-skills shape of the bug).
+                const block = ['skills:', ...bespoke.map(s => `  - ${s}`)];
+                const at = result.findIndex(l => /^name\s*:/.test(l));
+                if (at >= 0) result.splice(at + 1, 0, ...block);
+                else result.push(...block);
+            }
+        }
+    }
+
     return result.join('\n');
 }
 
@@ -239,9 +294,14 @@ function mergeAgentFile(srcPath, dstPath, opts) {
     // generic template description doesn't clobber routing-tuned text on update.
     const preserveDescription = personalized || hasProjectCtx;
 
-    // Merge frontmatter (preserves nickname/aliases always; description when tuned)
-    const mergedFrontmatter = preserveDescription
-        ? mergeFrontmatter(src.frontmatter, dest.frontmatter, { preserveDescription })
+    // Merge frontmatter (preserves nickname/aliases always; description when tuned;
+    // unions project-specific skills when the caller supplies the skill sets).
+    const mergedFrontmatter = (preserveDescription || opts.canonicalSkills)
+        ? mergeFrontmatter(src.frontmatter, dest.frontmatter, {
+            preserveDescription,
+            canonicalSkills: opts.canonicalSkills,
+            targetSkills: opts.targetSkills,
+        })
         : src.frontmatter;
 
     // Choose soul zone
@@ -291,6 +351,7 @@ module.exports = {
     parseAgentSections,
     isPersonalized,
     extractFieldBlock,
+    extractSkillsList,
     mergeFrontmatter,
     mergeAgentFile,
 };

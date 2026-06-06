@@ -1,27 +1,10 @@
----
-name: architecture-writer
-description: "Use WHEN creating or updating a system architecture document, designing tech stack, or writing ADRs. Triggers: architecture, system design, ADR, tech stack, infrastructure, deployment"
-metadata:
-  version: 1.0.0
-  author: Domdhi.Agents
-  tags: [architecture, system-design, ADR, tech-stack, infrastructure]
-user-invocable: false
-allowed-tools: Read Write Edit Grep Glob
----
-
-# Architecture Writer
-
-Expert in technical architecture documentation. Produces architecture documents with ADRs (Architecture Decision Records), component diagrams (ASCII), and explicit tech stack rationale.
-
-## Document Template
-
-```markdown
+<!-- @@template -->
 # Architecture: {Project Name}
 
 | Attribute | Value |
 |-----------|-------|
 | **Version** | 1.0 |
-| **Status** | Draft / Review / Approved |
+| **Status** | Draft |
 | **Author** | {name} |
 | **Date** | {YYYY-MM-DD} |
 | **Source** | Based on PRD v{X} |
@@ -100,7 +83,10 @@ Expert in technical architecture documentation. Produces architecture documents 
 - **API Surface**: {how other components interact with it}
 
 ### {Component Name}
-...
+- **Responsibility**: {what it does}
+- **Technology**: {framework/library}
+- **Dependencies**: {what it depends on}
+- **API Surface**: {how other components interact with it}
 
 ---
 
@@ -180,7 +166,7 @@ Expert in technical architecture documentation. Produces architecture documents 
 ## Architecture Decision Records (ADRs)
 
 ### ADR-001: {Decision Title}
-- **Status**: Accepted / Superseded / Deprecated
+- **Status**: Accepted
 - **Date**: {YYYY-MM-DD}
 - **Context**: {Why this decision was needed}
 - **Decision**: {What was decided}
@@ -188,9 +174,6 @@ Expert in technical architecture documentation. Produces architecture documents 
   - {Option A}: {pros/cons}
   - {Option B}: {pros/cons}
 - **Consequences**: {What this means going forward}
-
-### ADR-002: {Decision Title}
-...
 
 ---
 
@@ -242,52 +225,3 @@ Expert in technical architecture documentation. Produces architecture documents 
 - PRD: [_project-requirements.md](_project-requirements.md)
 - UX Spec: [design/_project-design.md](design/_project-design.md)
 - Epics: [todo/_backlog.md](todo/_backlog.md)
-```
-
-## Required Sections Checklist
-
-An architecture doc is COMPLETE when it has:
-- [ ] System Overview with architecture style
-- [ ] Tech Stack with rationale for every choice
-- [ ] Architecture Diagram (ASCII)
-- [ ] Component Architecture (at least 3 components)
-- [ ] Data Architecture (entities + access patterns)
-- [ ] API Design (style + endpoint groups)
-- [ ] Authentication & Authorization
-- [ ] Infrastructure & Deployment
-- [ ] At least 1 ADR
-- [ ] Cross-Cutting Concerns (logging, error handling, caching)
-- [ ] Development Standards (project structure, testing strategy)
-
-## Quality Criteria
-
-### Good Architecture Doc
-- Every tech choice has a "Rationale" column (not just "we like it")
-- ADRs capture alternatives considered, not just the winner
-- Diagrams use ASCII (no external tools required)
-- Performance targets are measurable
-- Security model is explicit
-- Project structure is canonical (not "figure it out")
-
-### Bad Architecture Doc
-- Tech stack listed with no rationale
-- No ADRs (decisions are invisible)
-- Only happy-path architecture (no error handling, no monitoring)
-- No deployment strategy
-- Missing testing strategy
-
-## Interview Questions
-
-1. "What's the deployment target? (cloud, on-prem, hybrid)"
-2. "What's the team's primary expertise? (affects tech choices)"
-3. "Any existing infrastructure or services to integrate with?"
-4. "What's the expected scale? (users, data volume, request rate)"
-5. "Any regulatory constraints that affect architecture?"
-6. "Monolith or microservices? Any strong preference?"
-7. "What's the auth story? (existing SSO, build new, etc.)"
-8. "What databases are acceptable? (constraints from IT/ops)"
-
-## Cross-References
-- Reads from: `docs/_project-requirements.md` (required), `docs/_project-design.md` (optional)
-- Produces: `docs/_project-architecture.md`
-- Feeds into: `docs/todo/_backlog.md` (via `/create:project-epics`)

@@ -3,9 +3,11 @@
 /**
  * Project Scaffold
  *
- * Copies templates from .claude/templates/ into the project's docs/ directory.
- * Creates the docs/ structure if it doesn't exist. Skips files that already
- * exist (safe to re-run).
+ * Seeds the project's docs/ directory from two sources: skill-owned document
+ * templates (SKILL_TEMPLATE_MANIFEST → each producing skill's assets/) and the
+ * residual no-owner templates in .claude/templates/ (the CLAUDE.md docs-guide +
+ * root/ configs). Creates the docs/ structure if it doesn't exist. Skips files
+ * that already exist (safe to re-run).
  *
  * Usage: node .claude/core/scaffold.js [--force] [--set key=value ...]
  *   --force          Overwrite existing files (default: skip)
@@ -60,6 +62,34 @@ const DEFAULT_PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ||
 const TEMPLATE_RENAMES = {
     gitignore: { dest: '.gitignore', merge: true },
 };
+
+// ── skill-owned document templates → docs/ manifest ─────────────────────────
+//
+// Each producing skill owns the one canonical template for the artifact it
+// produces, stored in that skill's assets/. scaffold.js seeds docs/ from these
+// assets via this manifest instead of mirroring a global .claude/templates/
+// copy. `from` is project-root-relative; `to` is docs/-relative.
+//
+// Graceful degradation: runScaffold skips any entry whose `from` asset does
+// not yet exist (if (!fs.existsSync(srcAbs)) continue), so the manifest can be
+// declared in full while the per-skill migrations land incrementally — until
+// each asset exists, the residual .claude/templates/ copy still serves the
+// artifact via the scaffoldDir call above. Templates with no owning skill
+// (CLAUDE.md docs-guide, root/ configs) stay in .claude/templates/.
+
+const SKILL_TEMPLATE_MANIFEST = [
+    { from: '.claude/skills/ux-design/assets/_project-design.md', to: 'design/_project-design.md' },
+    { from: '.claude/skills/ux-design/assets/_wireframes.md', to: 'design/_wireframes.md' },
+    { from: '.claude/skills/ux-design/assets/_design.light.md', to: 'design/_design.light.md' },
+    { from: '.claude/skills/ux-design/assets/_design.dark.md', to: 'design/_design.dark.md' },
+    { from: '.claude/skills/ux-design/assets/_mock-layout.html', to: 'design/_mock-layout.html' },
+    { from: '.claude/skills/architecture/assets/_project-architecture.md', to: '_project-architecture.md' },
+    { from: '.claude/skills/project-planning/assets/_project-context.md', to: '_project-context.md' },
+    { from: '.claude/skills/project-planning/assets/_project-brief.md', to: '_project-brief.md' },
+    { from: '.claude/skills/project-planning/assets/_project-requirements.md', to: '_project-requirements.md' },
+    { from: '.claude/skills/project-planning/assets/_feature-ideas.md', to: 'todo/_feature-ideas.md' },
+    { from: '.claude/skills/project-planning/assets/_backlog.md', to: 'todo/_backlog.md' },
+];
 
 // ── --set <key>=<value> non-interactive template substitution ───────────────
 //
@@ -329,6 +359,40 @@ function runScaffold(projectDir, opts) {
     // Scaffold docs/ from templates (exclude root/ — those go to project root)
     scaffoldDir(templatesDir, docsDir, ['root'], results, force, target, substitutions);
 
+    // Seed docs/ from skill-owned templates (SKILL_TEMPLATE_MANIFEST).
+    // Graceful degradation: an entry whose source asset doesn't exist yet is
+    // silently skipped, so the manifest can be declared in full while per-skill
+    // migrations land incrementally. Same skip-if-exists / --force / --set
+    // semantics as scaffoldDir above.
+    //
+    // Precedence: manifest `to` targets are expected to be DISJOINT from the
+    // .claude/templates/ docs targets above (today templates ships only
+    // CLAUDE.md + root/, no overlap). If a path is ever produced by both passes,
+    // a normal run keeps the templates copy (skip-if-exists) while --force lets
+    // this manifest pass overwrite it — keep them disjoint to avoid that asymmetry.
+    const hasSubs = Object.keys(substitutions).length > 0;
+    for (const entry of SKILL_TEMPLATE_MANIFEST) {
+        const srcAbs = path.join(target, entry.from);
+        if (!fs.existsSync(srcAbs)) continue;
+
+        const dest = path.join(docsDir, entry.to);
+        const relDest = path.relative(target, dest);
+
+        if (fs.existsSync(dest) && !force) {
+            results.skipped.push(relDest);
+            continue;
+        }
+
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        if (hasSubs) {
+            const content = fs.readFileSync(srcAbs, 'utf8');
+            fs.writeFileSync(dest, applySubstitutions(content, substitutions));
+        } else {
+            fs.copyFileSync(srcAbs, dest);
+        }
+        results.created.push(relDest);
+    }
+
     // Create additional directories that don't have templates
     const extraDirs = [
         'docs/app',
@@ -363,7 +427,17 @@ function runScaffold(projectDir, opts) {
 
         for (const [srcName, rule] of Object.entries(TEMPLATE_RENAMES)) {
             const srcPath = path.join(rootTemplatesDir, srcName);
-            if (!fs.existsSync(srcPath)) continue;
+            if (!fs.existsSync(srcPath)) {
+                // A declared rename whose source is missing is a template-author
+                // misconfiguration — NOT a normal skip. This silently swallowed
+                // the `.gitignore` vs `gitignore` naming bug: the dotted file was
+                // never matched, so adopters' .gitignore never received the
+                // managed block. Surface it loudly and record it so it can't recur.
+                const msg = `TEMPLATE_RENAMES declares "${srcName}" but .claude/templates/root/${srcName} is missing — root file "${rule.dest}" was NOT scaffolded (was the asset renamed, e.g. to ".${srcName}"?)`;
+                (results.warnings ||= []).push(msg);
+                if (!silent) console.warn(`[scaffold] WARNING: ${msg}`);
+                continue;
+            }
 
             const destPath = path.join(target, rule.dest);
             const relDest = path.relative(target, destPath);
@@ -446,6 +520,7 @@ module.exports = {
     applySubstitutions,
     KNOWN_SCAFFOLD_VARS,
     TEMPLATE_RENAMES,
+    SKILL_TEMPLATE_MANIFEST,
     MANAGED_START,
     MANAGED_END,
 };

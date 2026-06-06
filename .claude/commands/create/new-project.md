@@ -243,6 +243,16 @@ git add docs/_project-context.md docs/.output/work/{date}/new-project-interview.
 node .claude/core/commit.js
 ```
 
+### 10b. Capture Feedback Report
+
+Chain `/review:feedback` as the final action so every newly-initialized project leaves a baseline template-performance report (`docs/.output/reviews/feedback-{date}.md` + `.json`). It rolls up the pipeline's telemetry (sub-command invocations, gate runs, hooks, memories) plus a short agent self-review, and self-commits.
+
+```
+/review:feedback
+```
+
+Answer the self-review honestly from this run (friction, what broke, one change you'd make). Best-effort: if it fails, note it and continue to the report.
+
 ### 11. Final Report
 
 ```markdown

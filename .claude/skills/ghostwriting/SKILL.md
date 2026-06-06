@@ -1,5 +1,5 @@
 ---
-name: article-writer
+name: ghostwriting
 description: "Use WHEN writing a blog post, technical article, or long-form thought leadership piece in a specific author's voice. Triggers: article, blog, post, writing, content"
 metadata:
   version: 1.0.0
@@ -9,7 +9,7 @@ user-invocable: false
 allowed-tools: Read Write Edit Grep Glob
 ---
 
-# Article Writer — Dom's Voice
+# Ghostwriting — Dom's Voice
 
 ## Activation
 
@@ -197,7 +197,7 @@ End with a punch, not a summary. Leave the reader with something that sticks.
 When writing articles, always pull from:
 1. `docs/.output/memories/daily/*.md` — daily session logs (auto-captured)
 2. `docs/.output/memories/concepts/**/*.md` — decision, constraint, and pattern concepts compiled from session logs (always present in scaffolded projects, paths use memory system for portability)
-3. `.claude/skills/article-writer/references/_voice/fingerprint.md` — quantitative voice analysis (302 convos, 3,928 messages)
+3. `.claude/skills/ghostwriting/references/_voice/fingerprint.md` — quantitative voice analysis (302 convos, 3,928 messages)
 4. Real commit hashes, test counts, file counts from git log
 
 ## Article Organization

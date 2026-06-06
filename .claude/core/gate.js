@@ -369,6 +369,7 @@ function parseTestOutput(output, exitCode) {
 // ── Main ────────────────────────────────────────────────────────────
 
 async function main() {
+    const startedAt = Date.now();
     ensureDirs();
 
     if (!acquireLock()) {
@@ -475,6 +476,10 @@ async function main() {
         mode,
         stack: config.stack || 'configured',
         overall,
+        // Wall-clock duration of the whole gate run. Read by command-usage-logger
+        // to populate gate_run telemetry's duration_ms (the PostToolUse:Bash hook
+        // has no timing of its own — see that hook's gate_run branch).
+        durationMs: Date.now() - startedAt,
         build: {
             succeeded: build.succeeded,
             errorCount: build.errors.length,

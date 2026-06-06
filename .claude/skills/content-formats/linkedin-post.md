@@ -93,4 +93,4 @@ LinkedIn posts perform better when they end with an invitation to conversation r
 
 This skill teaches LinkedIn-specific structure and platform mechanics. Voice comes from the writer agent. For voice-matched LinkedIn content, load both:
 - This skill: hook discipline, structure, platform mechanics
-- The relevant writer skill (article-writer / shadow): voice rules and anti-patterns
+- The relevant writer skill (ghostwriting / shadow): voice rules and anti-patterns

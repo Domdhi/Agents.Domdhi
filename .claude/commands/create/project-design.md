@@ -58,7 +58,7 @@ Read the first line of `docs/_project-requirements.md`. Check that it exists AND
 
 ### 4a. Interview Mode (main agent)
 
-Use AskUserQuestion to gather design direction. Use the Interview Questions from the `ux-designer` skill as the question bank — cover design philosophy, visual style, component library, layout approach, and device targets.
+Use AskUserQuestion to gather design direction. Use the Interview Questions from the `ux-design` skill as the question bank — cover design philosophy, visual style, component library, layout approach, and device targets.
 
 ### 4b. Context Mode (main agent)
 
@@ -78,7 +78,7 @@ Use the Task tool with `subagent_type: "ux-designer"` for each artifact.
 1. **UX Spec** — `Task(ux-designer)`: MUST complete first (other files depend on it)
    - Prompt includes: PRD summary, design brief, user interview answers
    - Output: `docs/_project-design.md`
-   - Agent auto-loads `ux-designer` skill for template/quality criteria
+   - Agent auto-loads `ux-design` skill for template/quality criteria
 
 2. **Wireframes + Themes** — Run in parallel after UX spec completes:
    - `Task(ux-designer)`: Create wireframes → `docs/design/_wireframes.md`
@@ -95,7 +95,7 @@ Use the Task tool with `subagent_type: "ux-designer"` for each artifact.
 - What to produce and exact file path
 - Reference to UX spec (after first task completes)
 - Design brief / user preferences from the interview
-The `ux-designer` agent auto-loads the `ux-designer` skill via frontmatter — do NOT tell it to read the skill file.
+The `ux-designer` agent auto-loads the `ux-design` skill via frontmatter — do NOT tell it to read the skill file.
 
 ### 6. Validate (main agent)
 

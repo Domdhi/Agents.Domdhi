@@ -91,7 +91,7 @@ Use the Task tool with `subagent_type: "project-planner"`.
 3. All extracted epic data from Step 4
 4. Optimization data from Step 5 (if available)
 5. Architecture package boundaries (if `_project-architecture.md` exists)
-6. The `project-planner` agent auto-loads the `epic-writer` skill via frontmatter.
+6. The `project-planner` agent auto-loads the `project-planning` skill via frontmatter.
 7. Instruction to read `docs/todo/_backlog.md` for full context
 
 **The agent must produce an index with these sections:**

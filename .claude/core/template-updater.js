@@ -112,6 +112,21 @@ function runUpdate(targetPath, options) {
     // ── .claude/ files ────────────────────────────────────────────────────────
 
     const sourceClaudeDir = path.join(projectRoot, '.claude');
+
+    // Skill sets for the agent-merge skills-union. A skill in a target agent's
+    // frontmatter that is NOT shipped by the template (not canonical) but DOES exist
+    // as a skill dir in the target is a project specialization (added by
+    // /review:specialize) and must survive the merge — otherwise every update strips
+    // a specialized agent's domain skills off its frontmatter.
+    const listSkillDirs = (dir) => {
+        try {
+            return new Set(fs.readdirSync(dir, { withFileTypes: true })
+                .filter(d => d.isDirectory()).map(d => d.name));
+        } catch { return new Set(); }
+    };
+    const canonicalSkills = listSkillDirs(path.join(sourceClaudeDir, 'skills'));
+    const targetSkills    = listSkillDirs(path.join(targetClaudeDir, 'skills'));
+
     for (const srcAbs of walkDir(sourceClaudeDir, ALWAYS_SKIP_DIRS)) {
         const relToClause = path.relative(sourceClaudeDir, srcAbs);
         const zone        = classifyClaudeFile(relToClause);
@@ -157,7 +172,7 @@ function runUpdate(targetPath, options) {
                     stats.merged++;
                 } else {
                     tryAction(`.claude/${rel}`, () => {
-                        const r = mergeAgentFile(srcAbs, destAbs);
+                        const r = mergeAgentFile(srcAbs, destAbs, { canonicalSkills, targetSkills });
                         console.log(`  MERGE    .claude/${rel} — ${r.detail}`);
                         stats.merged++;
                     }, stats);
@@ -278,7 +293,8 @@ Zone behavior:
   Project zone    — Skipped: settings.json, settings.local.json, update-config.json
   Mixed zone      — Skipped with warning (default): agents/*.md
                     With --merge: section-aware merge preserving customizations
-                    (Soul Zone, Project Context, and tuned descriptions are kept)
+                    (Soul Zone, Project Context, tuned descriptions, and
+                    project-specific agent skills are kept)
   Exceptions      — Skipped with warning: skills/brand-guidelines/**
   Skill opt-out   — Skills named in the target's .claude/update-config.json
                     ("skillExclude": [...]) are never copied, so a project can
@@ -286,7 +302,8 @@ Zone behavior:
   Doc redirect    — Source CLAUDE.md → target .claude/README.md
 
 Flags:
-  --merge         Section-aware merge for agents/*.md (preserves Soul Zone + Project Context)
+  --merge         Section-aware merge for agents/*.md (preserves Soul Zone, Project Context,
+                  tuned descriptions, and project-specific skills)
   --dry-run       Preview all actions without writing any files.
 
 Notes:

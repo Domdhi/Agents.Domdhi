@@ -1,6 +1,4 @@
-# Mock Layout Template (`_mock-layout.html`)
-
-```html
+<!-- @@template -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -201,35 +199,58 @@
             <div class="card-grid">
                 <div class="card">
                     <div class="card-title">Metric 1</div>
-                    <div style="font-size:32px;font-weight:700;">42</div>
-                    <div style="color:var(--color-text-secondary);">Description</div>
+                    <div style="font-size: 32px; font-weight: 700;">42</div>
+                    <div style="color: var(--color-text-secondary);">Description</div>
                 </div>
                 <div class="card">
                     <div class="card-title">Metric 2</div>
-                    <div style="font-size:32px;font-weight:700;">128</div>
-                    <div style="color:var(--color-text-secondary);">Description</div>
+                    <div style="font-size: 32px; font-weight: 700;">128</div>
+                    <div style="color: var(--color-text-secondary);">Description</div>
                 </div>
                 <div class="card">
                     <div class="card-title">Metric 3</div>
-                    <div style="font-size:32px;font-weight:700;">97%</div>
-                    <div style="color:var(--color-text-secondary);">Description</div>
+                    <div style="font-size: 32px; font-weight: 700;">97%</div>
+                    <div style="color: var(--color-text-secondary);">Description</div>
                 </div>
             </div>
-            <div class="card" style="margin-top:var(--space-md);">
+            <div class="card" style="margin-top: var(--space-md);">
                 <div class="card-title">Recent Items</div>
                 <table class="data-table">
-                    <thead><tr><th>Name</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        <tr><td>Item 1</td><td>Active</td><td>2025-01-01</td><td><button class="btn btn-secondary">View</button></td></tr>
-                        <tr><td>Item 2</td><td>Pending</td><td>2025-01-02</td><td><button class="btn btn-secondary">View</button></td></tr>
-                        <tr><td>Item 3</td><td>Complete</td><td>2025-01-03</td><td><button class="btn btn-secondary">View</button></td></tr>
+                        <tr>
+                            <td>Item 1</td>
+                            <td>Active</td>
+                            <td>2025-01-01</td>
+                            <td><button class="btn btn-secondary">View</button></td>
+                        </tr>
+                        <tr>
+                            <td>Item 2</td>
+                            <td>Pending</td>
+                            <td>2025-01-02</td>
+                            <td><button class="btn btn-secondary">View</button></td>
+                        </tr>
+                        <tr>
+                            <td>Item 3</td>
+                            <td>Complete</td>
+                            <td>2025-01-03</td>
+                            <td><button class="btn btn-secondary">View</button></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </main>
 
-        <footer class="footer">&copy; {Year} {Project Name}. All rights reserved.</footer>
+        <footer class="footer">
+            &copy; {Year} {Project Name}. All rights reserved.
+        </footer>
     </div>
 </body>
 </html>
-```

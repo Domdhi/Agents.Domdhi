@@ -47,7 +47,7 @@ Read the first line of `docs/_project-requirements.md`. Check that it exists AND
 
 ### 4a. Interview Mode (main agent)
 
-Use AskUserQuestion to gather tech decisions. Use the Interview Questions from the `architecture-writer` skill as the question bank — cover deployment, tech stack, scale, security, and team constraints.
+Use AskUserQuestion to gather tech decisions. Use the Interview Questions from the `architecture` skill as the question bank — cover deployment, tech stack, scale, security, and team constraints.
 
 ### 4b. Context Mode (main agent)
 
@@ -69,11 +69,11 @@ Use the Task tool with `subagent_type: "architect"` to generate the architecture
 3. User's tech decisions from interview (if any)
 4. Mode (Context/Interview/Reverse-Engineering)
 
-The `architect` agent auto-loads the `architecture-writer` skill via frontmatter — do NOT tell it to read the skill file.
+The `architect` agent auto-loads the `architecture` skill via frontmatter — do NOT tell it to read the skill file.
 
 ### 6. Validate (main agent)
 
-After the agent completes, read `docs/_project-architecture.md` and validate against the `architecture-writer` skill's **Required Sections Checklist**. If any section is missing, delegate back to the agent to fill it.
+After the agent completes, read `docs/_project-architecture.md` and validate against the `architecture` skill's **Required Sections Checklist**. If any section is missing, delegate back to the agent to fill it.
 
 ### 7. Commit (main agent)
 

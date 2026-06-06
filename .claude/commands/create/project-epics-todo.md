@@ -81,7 +81,7 @@ Use the Task tool with `subagent_type: "project-planner"`.
 3. All stories with full details from Step 4
 4. Architecture context (tech stack, project structure)
 5. Optimization data (critical path, parallel tracks, bottlenecks)
-6. The `project-planner` agent auto-loads the `epic-writer` skill via frontmatter.
+6. The `project-planner` agent auto-loads the `project-planning` skill via frontmatter.
 7. Instruction to follow the checklist template from `/todo` command format
 
 **The agent must produce a checklist following the `/todo` template structure:**

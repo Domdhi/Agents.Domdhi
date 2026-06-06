@@ -1,12 +1,10 @@
-# Light Theme Template (`_design.light.md`)
-
-```markdown
+<!-- @@template -->
 # Light Theme: {Project Name}
 
 | Attribute | Value |
 |-----------|-------|
 | **Version** | 1.0 |
-| **Status** | Draft / Review / Locked |
+| **Status** | Draft |
 | **Author** | {name} |
 | **Date** | {YYYY-MM-DD} |
 | **Source** | Based on UX Spec v{X} |
@@ -99,4 +97,3 @@
 - UX Spec: [_project-design.md](_project-design.md)
 - Dark Theme: [_design.dark.md](_design.dark.md)
 - Mock Layout: [_mock-layout.html](_mock-layout.html)
-```

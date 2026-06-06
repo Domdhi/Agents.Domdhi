@@ -1,25 +1,27 @@
 ---
-description: Autonomous post-work maintenance sweep — code review → retro → implement recommendations → promote → optimize agents → defrag → health. One command, auto-approved, report at end.
+description: Autonomous post-work maintenance sweep — code review → retro (+ doc-drift check) → implement recommendations → promote → optimize agents → defrag → health (memory + .claude/ templates audit) → timeline refresh. One command, auto-approved, report at end.
 argument-hint: "[PR range / epic names — e.g. '109-128' or 'Auth,Billing,Search'] [--review-scope high-risk|systemic|all] [--gated] [--skip 1,4]"
 ---
 
 # Maintenance Sweep
 
-Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise six separate interactive commands (`/review:code-review`, `/review:retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:memory-defrag`, `/review:memory-health`).
+Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise nine separate interactive commands (`/review:code-review`, `/review:check-sync`, `/review:retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:memory-defrag`, `/review:memory-health`, `/review:check-templates`, `/review:timeline`).
 
 Use it after cranking out a batch of work (a string of merged PRs, a finished epic, a sprint) when you want the system to review, learn, propagate the learnings, re-align the agents, and clean up — without babysitting per-proposal Accept/Reject prompts.
 
 ## The Ordering Rule (why this order, and why defrag is LAST)
 
 ```
-1. Code review     → findings feed the retro
-2. Retro           → analyzes the work + review findings → Recommendations + System Improvements
-3. Implement recs  → auto-apply agent/skill/command fixes + write new memories   ← creates the pile
-4. Promote         → auto-promote above-threshold concepts → skills / CLAUDE.md
-5. Optimize agents → re-align agents with codebase + new memories + retro findings
-6. Defrag          → LAST: merge/clean the now-GROWN store                        ← the cleanup
-7. Memory-health   → read-only verify: lint score recovered, nothing stale
+1. Code review      → findings feed the retro
+2. Retro (+check-sync) → work + review findings + doc drift → Recommendations + System Improvements
+3. Implement recs   → auto-apply agent/skill/command fixes + doc-drift fixes + write new memories  ← creates the pile
+4. Promote          → auto-promote above-threshold concepts → skills / CLAUDE.md
+5. Optimize agents  → re-align agents with codebase + new memories + retro findings
+6. Defrag           → LAST memory op: merge/clean the now-GROWN store              ← the cleanup
+7. Health & integrity → verify: memory lint/decay + check-templates (.claude/ wiring) + timeline refresh
 ```
+
+**Why these three fold in here.** `check-sync` (doc drift) runs *inside* the retro (Phase 2) because its findings are retro input and its fixes are Phase-3 work. `check-templates` (`.claude/` structural audit — orphaned agents, unused skills, broken wiring, skill-conformance) runs in Phase 7 *after* Phases 3 & 5 have edited agents/skills/commands, so it validates the sweep's own edits left nothing dangling. `timeline` regeneration is pure end-of-run housekeeping — it just reflects the commits the sweep itself made.
 
 **Defrag runs last on purpose.** Steps 2–5 spawn a pile of new memories. Defragging *before* that pile lands gets invalidated the moment the new memories are written — you'd have to defrag twice. Defrag is the *final cleanup pass* over the grown store, not the opener.
 
@@ -141,13 +143,24 @@ Reuses `/review:memory-defrag` in **auto-approve** mode — now operating on the
 4. Write `docs/.output/reviews/{YYYY-MM-DD}-memory-defrag.md` (plan + review log).
 5. Commit: `docs: /review:sweep p6 — defrag: {M} merges, {S} splits, {X} cross-refs ({before}→{after})`.
 
-## Phase 7 — Memory Health (verify)
+## Phase 7 — Health & Integrity (verify + housekeeping)
 
-Reuses `/review:memory-health` (read-only, **no commit**).
+Reuses `/review:memory-health`, `/review:check-templates`, and `/review:timeline`. The memory + template checks are read-only verification of the sweep's own edits; the timeline refresh is the one write (committed).
 
+### 7a — Memory health (read-only)
 1. `node .claude/core/memory-manager.js lint` → confirm the **hard cap is relieved** (every category < 50 so writes work). NOTE: the category-balance warning persists while a category is ≥80% (40), so the lint score may stay below max — that is expected and is NOT a failure. Only flag it if a category is still AT the hard cap (50) or a deeper consolidation is warranted.
 2. `node .claude/core/memory-manager.js decay-report` → confirm no `decayed_confidence < 0.3` left unaddressed.
 3. If lint is below target or stale entries exist, note them in the report as residual follow-ups.
+
+### 7b — `.claude/` integrity (read-only — validates THIS sweep's edits)
+Phases 3 and 5 edited agents/skills/commands. Run the `check-templates` audit to confirm none of it left the system inconsistent:
+1. `node .claude/core/skill-conformance.js` → every skill conforms (body ≤500 lines, name==dir, description ≤1024). A FAIL here is almost always a Phase-3/5 edit — flag it.
+2. Audit wiring (the `check-templates` methodology): orphaned agents (defined, never dispatched), unused skills (no agent/command references them), broken skill references in agent frontmatter (a `skills:` entry with no matching dir — the exact failure class the Phase-5/optimize and template-merge work touches), missing hooks.
+3. **Anything CRITICAL that this sweep introduced** (a skill edit that broke conformance, an agent edit that orphaned a skill) → fix it in place and re-verify, since it's the sweep's own damage. Pre-existing issues unrelated to this sweep → log as residual follow-ups, don't auto-fix.
+
+### 7c — Timeline refresh (housekeeping, committed)
+1. `node .claude/core/gen-timeline.js` → regenerate/update `docs/_project-timeline.md` with the latest weekly commit history (now including this sweep's commits).
+2. Commit: `docs: /review:sweep p7 — timeline refresh`. (Skip the commit if `gen-timeline.js` produced no change.)
 
 ---
 
@@ -180,7 +193,9 @@ Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
 | 4 Promote | {P} promoted, {Q} manual-review candidates | {hash} |
 | 5 Optimize | {A} agents updated, {G} skill gaps flagged | {hash} |
 | 6 Defrag | {M} merges / {Sp} splits / {X} cross-refs | {hash} |
-| 7 Health | lint {before}→{after}, {stale} stale | — |
+| 7a Memory health | lint {before}→{after}, {stale} stale | — |
+| 7b Templates audit | {conformance pass/fail}; {orphans} orphaned agents, {unused} unused skills, {broken} broken skill refs | {hash if fixed} |
+| 7c Timeline | refreshed `_project-timeline.md` | {hash} |
 
 **Memory store:** {total_before} → {total_after} (per-category deltas)
 **Lint:** {lint_before} → {lint_after}
@@ -202,4 +217,4 @@ Display (and persist to `docs/.output/reviews/{YYYY-MM-DD}-sweep.md`):
 
 ## Relationship to the Sub-Commands
 
-This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:memory-defrag` → `/review:memory-health`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/review:sweep` when you want the whole lifecycle hands-off.
+This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:check-sync` (in retro) → `/review:retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:memory-defrag` → `/review:memory-health` → `/review:check-templates` → `/review:timeline`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/review:sweep` when you want the whole lifecycle hands-off.

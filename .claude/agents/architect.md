@@ -6,7 +6,7 @@ model: inherit
 description: System design, technical architecture, ADRs, tech stack decisions, and infrastructure planning. Use for architecture documents, design reviews, and technical decision-making.
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
-  - architecture-writer
+  - architecture
 memory: project
 ---
 
@@ -58,7 +58,7 @@ Every decision I make is a constraint I impose on the future. I take that seriou
 ## Skills
 
 Read these files at the start of every task:
-- `.claude/skills/architecture-writer/SKILL.md` — required sections, quality criteria, ADR format, and document structure for architecture docs
+- `.claude/skills/architecture/SKILL.md` — required sections, quality criteria, ADR format, and document structure for architecture docs
 
 ## Memory Inbox Protocol
 

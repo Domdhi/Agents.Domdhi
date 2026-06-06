@@ -4,102 +4,7 @@ Expert in capturing strategic product vision. Produces concise briefs that infor
 
 ## Document Template
 
-```markdown
-# Project Brief: {Project Name}
-
-| Attribute | Value |
-|-----------|-------|
-| **Author** | {name} |
-| **Date** | {YYYY-MM-DD} |
-| **Status** | Draft / Review / Approved |
-| **Version** | 1.0 |
-
----
-
-## Vision
-
-{1-2 sentences: What is this product and why does it matter?}
-
-## Problem Statement
-
-### The Problem
-{What problem exists today? Be specific about who is affected and how.}
-
-### Current State
-{How are people solving this today? What are the pain points with current solutions?}
-
-### Desired State
-{What does the world look like after this product exists?}
-
----
-
-## Target Users
-
-### Primary Persona: {Name/Role}
-- **Who**: {description}
-- **Goal**: {what they need to accomplish}
-- **Pain**: {current frustration}
-- **Frequency**: {how often they encounter this}
-
-### Secondary Persona: {Name/Role}
-- **Who**: {description}
-- **Goal**: {what they need}
-
----
-
-## Key Features (High Level)
-
-| # | Feature | Priority | Description |
-|---|---------|----------|-------------|
-| 1 | {name} | Must Have | {brief description} |
-| 2 | {name} | Must Have | {brief description} |
-| 3 | {name} | Should Have | {brief description} |
-| 4 | {name} | Nice to Have | {brief description} |
-
----
-
-## Success Metrics
-
-| Metric | Target | How Measured |
-|--------|--------|-------------|
-| {metric} | {target value} | {measurement method} |
-
----
-
-## Constraints
-
-- **Timeline**: {deadline or timeframe}
-- **Budget**: {financial constraints}
-- **Technical**: {platform, language, infrastructure constraints}
-- **Regulatory**: {compliance requirements}
-- **Team**: {who's building this, skill constraints}
-
----
-
-## Out of Scope
-
-{Explicitly list what this product will NOT do in v1}
-
-- {item}
-- {item}
-
----
-
-## Open Questions
-
-- {Questions that need answers before proceeding}
-
----
-
-## Appendix
-
-### Competitive Landscape
-{Brief notes on alternatives/competitors if relevant}
-
-### Related Documents
-- Brainstorming: link to `docs/app/{feature}/brainstorm.md` or `docs/.output/research/{date}-{slug}.md` (if exists)
-- Research: link to `docs/app/{feature}/research.md` or `docs/.output/research/{date}-{slug}.md` (if exists)
-```
+The document you produce — the canonical, scaffold-blessed template — lives in `../assets/_project-brief.md` (raw, with the `<!-- @@template -->` first-line marker). Read it to know the artifact's structure; `scaffold.js` seeds `docs/_project-brief.md` from the same file.
 
 ## Required Sections Checklist
 
@@ -121,6 +26,7 @@ A project brief is COMPLETE when it has:
 - Features map directly to user pain points
 - Out of scope is explicit (prevents scope creep)
 - Constraints are realistic, not aspirational
+- **Stays in problem-space** — captures *what must be true*, never *which tool to use*. The architecture phase picks the stack.
 
 ### Bad Brief
 - Vision is generic: "improve the user experience"
@@ -128,6 +34,20 @@ A project brief is COMPLETE when it has:
 - Features are solutions, not outcomes
 - No success metrics
 - Missing constraints (everything is possible!)
+- **Makes premature tool picks** — "use Web3Forms", "host on Netlify", "store in Redis". These anchor the architecture phase and collide with its reasoning. (See Cross-Cutting Rule 4 in `SKILL.md`.)
+
+### Constraint vs. pick (the load-bearing distinction)
+
+The `Constraints → Technical` line is where tool picks leak in. Discipline it:
+
+| Keep (constraint — bounds the solution space) | Defer to architecture (pick — selects one option) |
+|---|---|
+| "no build step", "$0/month", "must work offline" | "use Vite", "deploy on Vercel" |
+| "must decouple from the Domdhi platform" | "use Cloudflare Pages Functions + D1" |
+| "vanilla JS only, no framework" | "use Alpine.js for the form" |
+| "send the operator an email on each lead" | "use Resend for transactional email" |
+
+A constraint comes from the user's reality and *every* valid solution must honor it. A pick chooses one tool when others would satisfy the constraint just as well — that's the architect's call. If the user volunteers a pick, record it under Open Questions or as a noted preference "for the architecture phase to weigh," not as settled.
 
 ## Interview Questions
 

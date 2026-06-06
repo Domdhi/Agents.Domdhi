@@ -70,7 +70,7 @@ Use the Task tool with `subagent_type: "doc-writer"` to classify changes and gen
 **Task prompt must include**:
 1. Version or scope identifier and date range
 2. All gathered data from Step 2 (commit list, file stats, contributors, epic stories, retro findings, daily log summaries)
-3. The `doc-writer` agent auto-loads the `project-context` skill via frontmatter.
+3. The `doc-writer` agent auto-loads the `project-planning` skill via frontmatter.
 4. Instruction to classify changes into: Added, Changed, Fixed, Removed, Security, Infrastructure, Documentation
 5. Instruction to derive categories from commit prefixes (feat, fix, docs, refactor, chore, security), story titles, and daily log entries
 6. Instruction to write the changelog section using the output template below

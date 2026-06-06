@@ -53,7 +53,7 @@ Use the Task tool with `subagent_type: "project-planner"` to analyze and optimiz
 1. The full story list with dependencies (extracted in step 2)
 2. The dependency graph summary (roots, leaves, bottlenecks, cross-phase deps)
 3. The architecture package boundaries (extracted from `docs/_project-architecture.md` component architecture)
-4. The `project-planner` agent auto-loads the `epic-writer` skill via frontmatter.
+4. The `project-planner` agent auto-loads the `project-planning` skill via frontmatter.
 5. Instruction to read `docs/todo/_backlog.md` for the full backlog context
 6. Instruction to read `docs/_project-architecture.md` for package boundaries
 

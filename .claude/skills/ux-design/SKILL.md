@@ -1,5 +1,5 @@
 ---
-name: ux-designer
+name: ux-design
 description: "Use WHEN creating a UX specification, wireframes, design system, theme files, or HTML mock layout. Triggers: ux, wireframe, design system, color palette, typography, layout, accessibility, theme, mock"
 metadata:
   version: 1.0.0
@@ -9,7 +9,7 @@ user-invocable: false
 allowed-tools: Read Grep Glob
 ---
 
-# UX Designer
+# UX Design
 
 Expert in UX specification documents. Produces a complete design artifact suite: design system spec, wireframes (ASCII), theme files (light/dark), interaction patterns, accessibility guidelines, and self-contained HTML mock layouts.
 
@@ -27,11 +27,11 @@ Expert in UX specification documents. Produces a complete design artifact suite:
 
 | Producing… | Load |
 |------------|------|
-| UX spec (`_project-design.md`) | `assets/ux-spec.md` |
-| Wireframes (`_wireframes.md`) | `assets/wireframes.md` |
-| Light theme (`_design.light.md`) | `assets/light-theme.md` |
-| Dark theme (`_design.dark.md`) | `assets/dark-theme.md` |
-| Mock layout (`_mock-layout.html`) | `assets/mock-layout.md` |
+| UX spec (`_project-design.md`) | `assets/_project-design.md` |
+| Wireframes (`_wireframes.md`) | `assets/_wireframes.md` |
+| Light theme (`_design.light.md`) | `assets/_design.light.md` |
+| Dark theme (`_design.dark.md`) | `assets/_design.dark.md` |
+| Mock layout (`_mock-layout.html`) | `assets/_mock-layout.html` |
 
 ## Required Sections Checklist
 

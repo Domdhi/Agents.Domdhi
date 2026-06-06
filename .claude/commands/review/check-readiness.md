@@ -62,7 +62,7 @@ Launch domain agents **in parallel** via Task tool. Each agent auto-loads its sk
 
 Task prompt:
 1. Read `docs/_project-architecture.md`
-2. Validate completeness against the architecture-writer skill's quality checklist
+2. Validate completeness against the architecture skill's quality checklist
 3. Return a structured report: section name, present (Y/N), issues found
 4. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
 
@@ -78,7 +78,7 @@ Task prompt:
 
 Task prompt:
 1. Read `docs/todo/_backlog.md`
-2. Validate completeness against the epic-writer skill's quality checklist
+2. Validate completeness against the project-planning skill's quality checklist
 3. Check: Phase 0 exists, every story has AC, dependencies specified, estimates present, domain tags present
 4. Return a structured report: check name, pass (Y/N), issues found
 5. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
@@ -87,7 +87,7 @@ Task prompt:
 
 Task prompt:
 1. Read all design files: `docs/_project-design.md`, `docs/design/_wireframes.md`, `docs/design/_design.light.md`, `docs/design/_design.dark.md`, `docs/design/_mock-layout.html`
-2. Validate completeness against the ux-designer skill's quality checklist
+2. Validate completeness against the ux-design skill's quality checklist
 3. Check cross-file consistency: token names match across all 5 files, WCAG compliance table present
 4. Return a structured report: file name, complete (Y/N), issues found
 5. Rate overall: COMPLETE, PARTIAL, or INCOMPLETE
