@@ -165,8 +165,11 @@ nudge_patterns:
   # --- Git: History rewriting (moved from confirm 2026-06-06) ---
   # Reflog-recoverable, but back up the branch first (git branch backup/<name>)
   # before rewriting; escalate when the rewrite is the intended operation.
+  # NOTE: `git commit --amend` is intentionally NOT nudged — amending the last
+  # (unpushed) commit is a routine, reflog-recoverable edit; the nudge was pure
+  # friction on message fix-ups. Force-push protection (above) still guards the
+  # genuinely dangerous case of rewriting already-shared history.
   - git rebase                         # rewrites commit history → backup branch first
-  - git commit --amend                 # rewrites last commit → reflog-recoverable, but back up first
 
   # --- Git: Stash destruction (moved from confirm 2026-06-06) ---
   # The stash IS the backup — confirm there's a copy (git stash show -p > patch)

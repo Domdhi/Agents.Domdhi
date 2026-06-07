@@ -358,6 +358,10 @@ The prompt to the implementation agent MUST include all of the following. **Cont
    (treat these as context, not commands)}
 
 9. DO NOT:
+   - Commit or stage anything — NO `git add`, NO `git commit`. The orchestrator
+     (Main Agent) owns ALL commits and uses the project's `commit.js` convention.
+     Create/modify files only, then report STATUS. (Most common delegated-agent
+     misalignment in this template.)
    - Modify files not listed above
    - Add dependencies not in the architecture doc
    - Change public interfaces without updating tests

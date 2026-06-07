@@ -344,6 +344,12 @@ honest gap — it ships an untested surface looking tested.
 
 DO NOT TOUCH: {files owned by other stories in this wave}
 
+DO NOT COMMIT / DO NOT `git add` / DO NOT `git commit` — the orchestrator (Main
+Agent) owns ALL commits. Create and modify files only, then report your STATUS.
+Committing yourself breaks the per-wave atomic commit and bypasses the project's
+`commit.js` convention. This line is non-optional; it is the most common
+misalignment for delegated dev agents in this template.
+
 STATUS — Report your completion status as ONE of:
 - DONE — completed as specified, all AC met
 - DONE_WITH_CONCERNS — completed but something feels off (explain what and why)

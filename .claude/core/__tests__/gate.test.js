@@ -455,6 +455,44 @@ describe('gate', () => {
 
       expect(result.total).toBe(0);
     });
+
+    it('parseTestOutput_playwrightGreen_parsesPerLineSummary', () => {
+      // Playwright prints each outcome on its OWN line with the duration in
+      // PARENS and no "Tests:"/"total" keyword. Before the matcher, a green run
+      // parsed as 0 tests → isZeroCollected false-RED. flaky counts toward passed.
+      const output = '\n  14 passed (14.4s)\n  2 flaky\n  3 skipped\n';
+      const exitCode = 0;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(16); // 14 passed + 2 flaky
+      expect(result.skipped).toBe(3);
+      expect(result.failed).toBe(0);
+      expect(result.total).toBe(19);
+    });
+
+    it('parseTestOutput_playwrightFailures_countToFailed', () => {
+      const output = '  3 passed (2.1s)\n  1 failed\n  1 interrupted\n';
+      const exitCode = 1;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.passed).toBe(3);
+      expect(result.failed).toBe(2); // 1 failed + 1 interrupted
+      expect(result.total).toBe(5);
+    });
+
+    it('parseTestOutput_playwrightMatcher_ignoresNumberedFailureDetail', () => {
+      // A numbered failure-detail line ("1) e2e/foo.spec.js …") must NOT be read
+      // as "1 <outcome>" — the anchored regex requires an outcome keyword.
+      const output = '  1) e2e/foo.spec.js:3:1 › renders\n  1 failed\n';
+      const exitCode = 1;
+
+      const result = parseTestOutput(output, exitCode);
+
+      expect(result.failed).toBe(1);
+      expect(result.total).toBe(1);
+    });
   });
 
   // ─── testPassed (C11/F1 teeth) ───────────────────────────────────────────────
@@ -562,6 +600,44 @@ describe('gate', () => {
       const config = loadConfig();
 
       expect(config.e2e.command).toBe('npm run test:e2e');
+    });
+
+    it('loadConfig_explicitConfigWithoutE2e_inheritsAutoDetectedE2eLeg', () => {
+      // Root-cause regression: a pre-R1 explicit gate.config.json has no e2e key.
+      // The old early-return left config.e2e === undefined → the e2e leg silently
+      // SKIPped (false-PASS). loadConfig must now layer the explicit config over
+      // auto-detection so the omitted e2e key falls back to the detected script.
+      tmp.write('package.json', JSON.stringify({ scripts: { test: 'vitest run', 'test:e2e': 'playwright test' } }));
+      tmp.write('.claude/gate.config.json', JSON.stringify({
+        build: { command: 'node --check x.js', timeout: 60000 },
+        test: { command: 'npm test', timeout: 600000 },
+        stack: 'node',
+      }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      // Explicit keys win…
+      expect(config.build.command).toBe('node --check x.js');
+      // …but the omitted e2e key is filled from auto-detection (not undefined).
+      expect(config.e2e).toBeDefined();
+      expect(config.e2e.command).toBe('npm run test:e2e');
+      expect(config.e2e.missing).toBeUndefined();
+    });
+
+    it('loadConfig_explicitConfigWithE2e_explicitWins', () => {
+      // When the explicit config DOES declare e2e, it must win over auto-detect.
+      tmp.write('package.json', JSON.stringify({ scripts: { test: 'vitest run', 'test:e2e': 'playwright test' } }));
+      tmp.write('.claude/gate.config.json', JSON.stringify({
+        test: { command: 'npm test', timeout: 600000 },
+        e2e: { command: 'npm run e2e', timeout: 1200000 },
+        stack: 'node',
+      }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.e2e.command).toBe('npm run e2e');
     });
 
     it('loadConfig_noBuildScript_plainJS_fallsBackToNoOp', () => {

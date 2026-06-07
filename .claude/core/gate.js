@@ -94,15 +94,26 @@ function releaseLock() {
 // ── Config / Auto-Detection ─────────────────────────────────────────
 
 function loadConfig() {
-    // Try explicit config first
+    // Always compute auto-detection, even when an explicit config exists. An
+    // explicit gate.config.json wins per-key, but any key it OMITS falls back to
+    // auto-detection rather than staying undefined. This matters most for `e2e`
+    // (added by R1): a pre-R1 explicit config has no e2e key, and the old early
+    // return left config.e2e === undefined → the e2e leg silently SKIPped →
+    // false-PASS, the exact false-green class R1 exists to kill. The same merge
+    // also hardens build/test for a partial explicit config.
+    const detected = autoDetectConfig();
     if (fs.existsSync(CONFIG_FILE)) {
         try {
-            return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+            const explicit = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+            return { ...detected, ...explicit };
         } catch (err) {
             console.log(`[GATE] Warning: could not parse ${CONFIG_FILE}: ${err.message}`);
         }
     }
+    return detected;
+}
 
+function autoDetectConfig() {
     // Auto-detect from project files
     const files = fs.readdirSync(PROJECT_ROOT);
 
@@ -424,6 +435,26 @@ function parseTestOutput(output, exitCode) {
             tests.passed = pM ? parseInt(pM[1]) : 0;
             tests.failed = (fM ? parseInt(fM[1]) : 0) + (eM ? parseInt(eM[1]) : 0);
             tests.skipped = sM ? parseInt(sM[1]) : 0;
+            tests.total = tests.passed + tests.failed + tests.skipped;
+            continue;
+        }
+
+        // Playwright summary: each outcome prints on its OWN line, e.g.
+        //   "  15 passed (14.4s)"  /  "  1 failed"  /  "  2 flaky"  /  "  3 skipped"
+        // No "Tests:"/"total" keyword and the duration rides in PARENS (not
+        // "in <N>s"), so none of the branches above match and a green suite would
+        // parse as 0 tests → isZeroCollected false-REDs it. Accumulate across the
+        // lines (flaky = eventually-passed → counts toward passed). Anchored so a
+        // numbered failure-detail line ("1) e2e/foo.spec.js …") can't match.
+        const playwrightMatch = line.match(
+            /^\s*(\d+)\s+(passed|failed|flaky|skipped|interrupted|did not run)\b(?:\s*\([^)]*\))?\s*$/i
+        );
+        if (playwrightMatch) {
+            const n = parseInt(playwrightMatch[1]);
+            const kind = playwrightMatch[2].toLowerCase();
+            if (kind === 'passed' || kind === 'flaky') tests.passed += n;
+            else if (kind === 'failed' || kind === 'interrupted') tests.failed += n;
+            else tests.skipped += n; // skipped / did not run
             tests.total = tests.passed + tests.failed + tests.skipped;
             continue;
         }
