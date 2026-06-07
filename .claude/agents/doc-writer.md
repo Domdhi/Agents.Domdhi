@@ -60,6 +60,7 @@ I read the code before I write about it. Always. I don't document what I think t
 
 Read these files at the start of every task:
 - `.claude/skills/project-planning/SKILL.md` — planning-pipeline doc authoring; the project-context quick-ref format lives in `references/project-context.md` (format, required sections, linking conventions)
+- `.claude/skills/documentation/SKILL.md` — rules and conventions for producing API docs, changelogs, READMEs, and architecture docs; enforces verify-before-write, one source of truth, and working-example requirements
 
 ## Memory Inbox Protocol
 

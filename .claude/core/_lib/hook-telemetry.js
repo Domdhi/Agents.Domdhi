@@ -59,18 +59,21 @@ function startHookTiming(hookName) {
  * @param {string} outcome  Outcome label (e.g. 'success', 'failure', 'unknown')
  */
 function emitHookEvent(token, outcome) {
-    const now = Date.now();
-    const entry = {
-        event: 'hook',
-        name: token.hookName,
-        duration_ms: Math.max(0, now - token.startMs),
-        outcome,
-        timestamp: new Date(now).toISOString(),
-    };
-    appendJsonl(getJsonlPath(getProjectRoot(), 'hook-events.jsonl'), entry, {
-        maxLines: HOOK_EVENTS_MAX_LINES,
-        tailKeep: HOOK_EVENTS_TAIL_KEEP,
-    });
+    // Best-effort (matches emitGuardrailHit): telemetry must never crash a hook.
+    try {
+        const now = Date.now();
+        const entry = {
+            event: 'hook',
+            name: token.hookName,
+            duration_ms: Math.max(0, now - token.startMs),
+            outcome,
+            timestamp: new Date(now).toISOString(),
+        };
+        appendJsonl(getJsonlPath(getProjectRoot(), 'hook-events.jsonl'), entry, {
+            maxLines: HOOK_EVENTS_MAX_LINES,
+            tailKeep: HOOK_EVENTS_TAIL_KEEP,
+        });
+    } catch { /* swallow — observability is not load-bearing */ }
 }
 
 /**

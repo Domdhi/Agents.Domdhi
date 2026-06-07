@@ -57,6 +57,7 @@ Is it well-built — clean, tested, maintainable?
 - A MINOR finding in a HIGH-risk file (auth, crypto, secrets) escalates to MAJOR.
 - Three or more similar MINOR findings of the same type indicate a systemic issue — escalate one to MAJOR with a note.
 - CRITICAL findings in test-only files are downgraded to MAJOR (tests do not run in production).
+- **A silently-swallowed error (empty `catch`, ignored exit code, discarded `Promise` rejection) in a tool that DELETES files, writes/migrates data, or publishes to a remote is a MAJOR** — the operation's summary becomes untrustworthy (it reports success for work that didn't happen). Either surface the failure in the result or abort; never swallow and continue. (Field-proven: a fleet-prune tool reported `removed:` for files an `rmSync` had failed to delete.)
 
 **MAJOR-Fix-Inline Discipline:** MAJORs are fixed before commit, not deferred. If a MAJOR genuinely needs design discussion, file a follow-up story in the TODO and block the commit until it is filed. Never silently downgrade MAJOR to MINOR to clear the review.
 

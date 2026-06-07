@@ -161,4 +161,15 @@ describe('emitGuardrailHit', () => {
         expect(emitGuardrailHit({})).toBeNull();          // no decision
         expect(readGuardrailEvents()).toHaveLength(0);
     });
+
+    it('tail-rotates guardrail-events.jsonl past MAX_LINES (5000) down to TAIL_KEEP (4000)', () => {
+        const { emitGuardrailHit, GUARDRAIL_EVENTS_MAX_LINES, GUARDRAIL_EVENTS_TAIL_KEEP } = require('../hook-telemetry');
+        const seed = GUARDRAIL_EVENTS_MAX_LINES + 50;
+        for (let i = 0; i < seed; i++) emitGuardrailHit({ decision: 'block', rule: `r-${i}`, tier: null });
+        const events = readGuardrailEvents();
+        expect(events.length).toBeLessThan(seed);                       // rotation fired
+        expect(events.length).toBeLessThanOrEqual(GUARDRAIL_EVENTS_MAX_LINES);
+        expect(events.length).toBeGreaterThanOrEqual(GUARDRAIL_EVENTS_TAIL_KEEP);
+        expect(events.some(e => e.rule === `r-${seed - 1}`)).toBe(true); // newest kept
+    });
 });

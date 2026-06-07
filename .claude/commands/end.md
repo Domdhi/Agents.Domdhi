@@ -6,7 +6,7 @@ argument-hint: [optional notes]
 
 # End Session
 
-Write `docs/__handoff.md` — the handoff file that `/prime` reads next session.
+Write this session's handoff — a per-session, branch-tagged file under `docs/.output/handoffs/` that `/prime` reads next session. The path is resolved by `node .claude/core/handoff-path.js write end` (see the `session-handoff` skill); per-session files are how parallel branches avoid conflicting on a single shared handoff in PRs.
 
 This command is the **end-of-session** invocation of the handoff writer. `/do`, `/run-todo`, `/run-tests`, and `/todo` also produce handoffs as part of their own pipelines, so running `/end` after one of those is optional — but it's harmless and gives you a dedicated save point.
 
@@ -20,7 +20,7 @@ node .claude/core/telemetry-log.js end
 
 ## Shared writer
 
-The handoff template, fill rules, and command-specific tailoring all live in the **`session-handoff` skill** (`.claude/skills/session-handoff/SKILL.md`). Read it before writing. That skill is the single source of truth for what goes in `docs/__handoff.md`; this command is the orchestrator.
+The handoff path resolver, template, fill rules, and command-specific tailoring all live in the **`session-handoff` skill** (`.claude/skills/session-handoff/SKILL.md`). Read it before writing. That skill is the single source of truth for where the handoff lives and what goes in it; this command is the orchestrator.
 
 ## Steps
 
@@ -34,19 +34,37 @@ node .claude/hooks/organize.cjs
 
 ```bash
 git status --short
-git log --oneline -5
+git log --oneline -10
 ls docs/.output/plans/**/*.md 2>/dev/null
 ```
 
 Check unfinished plans (grep for `- [ ]` in each plan file).
 
+**Authorship reconciliation (session-handoff Step 1):** the log may contain commits you did NOT author — the user, or a parallel agent on another branch. `git show --stat <hash>` any commit you don't recognize (those without a `Co-Authored-By: Claude` trailer are almost always human/external) and capture its intent in Decisions & Context. Don't write the handoff from conversation memory alone, or you'll silently drop real session work.
+
 ### 3. Write the handoff
+
+Resolve this run's handoff path once and reuse it:
+
+```bash
+HANDOFF=$(node .claude/core/handoff-path.js write end)
+```
 
 Follow the `session-handoff` skill template. Tailor for the `/end` case (Step 4 in the skill): general session close, covering everything that happened this session.
 
-**Overwrite `docs/__handoff.md` completely.** Never append.
+**Write `$HANDOFF` completely.** Never append, and never reach back to edit a prior run's handoff.
 
-### 4. Commit the handoff
+### 4. Commit the handoff (and prune old ones for this branch)
+
+Prune this branch's older handoffs to the newest 3 (keeping `$HANDOFF`), so the directory doesn't sprawl. `git rm` only files that are tracked; ignore the rest:
+
+```bash
+BR=$(node .claude/core/handoff-path.js branch)
+# newest-first, skip the 3 newest, git rm the rest (POSIX: tail -n +4 is portable).
+# git rm only — older handoffs are always committed by the time we prune, so a
+# bare `rm -f` is unnecessary (and trips the destructive-rm guardrail).
+ls -1t docs/.output/handoffs/*-"$BR".md 2>/dev/null | tail -n +4 | while read -r f; do git rm -q "$f" 2>/dev/null || true; done
+```
 
 Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
 
@@ -57,7 +75,7 @@ docs: /end — {brief summary of session focus}
 Then run:
 
 ```bash
-git add docs/__handoff.md
+git add "$HANDOFF"
 node .claude/core/commit.js
 ```
 

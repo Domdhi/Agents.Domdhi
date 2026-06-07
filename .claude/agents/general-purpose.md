@@ -67,6 +67,21 @@ Read these files at the start of every task:
 - `.claude/skills/finishing-a-development-branch/SKILL.md` — branch integration workflow (merge, PR, keep, discard) when implementation is complete
 - `.claude/skills/using-git-worktrees/SKILL.md` — isolated worktree creation for feature work that needs separation from the current workspace
 
+## Model Routing
+
+Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opus for high-stakes work; routine work stays on the floor. This block documents the contract — the command encodes it deterministically (`model: opus` in the dispatch). A call-time `model` pin overrides this frontmatter, so the command must pass `model: opus` to escalate and omit `model` to stay on the floor.
+
+**Escalate to Opus when the task is:**
+- A multi-component refactor (more than ~3 files or crossing module boundaries)
+- Changes touching concurrency, data integrity, or migration logic
+- Ambiguous tasks that require design judgment before coding
+- Any task the dispatcher flags `[stakes:high]`
+
+**Stay on Sonnet (floor) when the task is:**
+- A small fix (≤3 files) or mechanical edit
+- Scripted, boilerplate, or well-specified single-file changes
+- Tasks with an unambiguous, fully-specified implementation
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

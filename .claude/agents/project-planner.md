@@ -1,8 +1,8 @@
 ---
 name: project-planner
 nickname: Tweetle-Dee
-aliases: [Dee, Sweet Dee, planner, backlog]
-model: inherit
+aliases: [planner, backlog, sprint-planning, Dee]
+model: sonnet
 description: Epic and story breakdown, backlog structuring, sprint planning, estimation, and dependency ordering. Use for breaking requirements into implementable work.
 tools: Read, Write, Edit, Grep, Glob
 skills:
@@ -59,6 +59,21 @@ I don't estimate to predict the future. I estimate to find risk. A "Large" story
 
 Read these files at the start of every task:
 - `.claude/skills/project-planning/SKILL.md` — epic and story format standards, acceptance criteria templates, estimation guidelines, and dependency ordering rules
+
+## Model Routing
+
+Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opus for high-stakes work; routine work stays on the floor. This block documents the contract — the command encodes it deterministically (`model: opus` in the dispatch). A call-time `model` pin overrides this frontmatter, so the command must pass `model: opus` to escalate and omit `model` to stay on the floor.
+
+**Escalate to Opus when the task is:**
+- Critical-path or dependency-graph analysis across multiple epics
+- Sequencing under hard cross-team or cross-epic constraints
+- Estimation under high uncertainty where the ordering decision compounds
+- Any task the dispatcher flags `[stakes:high]`
+
+**Stay on Sonnet (floor) when the task is:**
+- Routine backlog decomposition of a settled epic
+- Generating a story checklist from a defined epic
+- Status rollups and progress accounting
 
 ## Memory Inbox Protocol
 

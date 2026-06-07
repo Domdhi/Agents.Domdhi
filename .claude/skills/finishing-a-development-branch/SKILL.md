@@ -88,6 +88,12 @@ git merge <feature-branch>
 
 # If tests pass
 git branch -d <feature-branch>
+
+# Clean up the merged branch's session handoffs (per-branch files under
+# docs/.output/handoffs/) so the base branch doesn't accumulate dead handoffs.
+# The work itself lives in commits + plan files; the handoff was a pointer.
+git rm -q docs/.output/handoffs/*-<feature-branch-slug>.md 2>/dev/null && \
+  (printf 'chore: drop merged-branch handoffs (<feature-branch>)\n' > docs/.output/.commit-msg && node .claude/core/commit.js) || true
 ```
 
 Then: Cleanup worktree (Step 5)

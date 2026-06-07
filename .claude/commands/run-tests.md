@@ -443,9 +443,15 @@ Write `docs/.output/screenshots/{YYYY-MM-DD}/{Task}/TEST-REPORT.md`:
 1. ...
 ```
 
-### Step 12: Regenerate `docs/__handoff.md` — session-handoff skill
+### Step 12: Regenerate the session handoff — session-handoff skill
 
-After the TEST-REPORT.md is written, refresh `docs/__handoff.md` using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Read that skill for the template, rules, and `/run-tests`-specific tailoring (Step 4 in the skill).
+After the TEST-REPORT.md is written, refresh the session handoff using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Resolve this run's path once and reuse it for the `git add` in Step 13:
+
+```bash
+HANDOFF=$(node .claude/core/handoff-path.js write run-tests)
+```
+
+Read that skill for the template, rules, and `/run-tests`-specific tailoring (Step 4 in the skill).
 
 Why: bugs found during testing and blocked checkpoints are high-value context for the next session. They belong in the handoff's Decisions & Context and Blockers sections so `/prime` surfaces them immediately. The TEST-REPORT path goes in Key Files.
 
@@ -469,7 +475,7 @@ git add docs/.output/screenshots/{YYYY-MM-DD}/{Task}/
 # TODO checkmark updates
 git add {TODO_FILE}
 # Handoff
-git add docs/__handoff.md
+git add "$HANDOFF"
 node .claude/core/commit.js
 ```
 
@@ -490,4 +496,4 @@ Skip the commit only if the user invoked `/run-tests` as a dry-run with no expec
 9. **Screenshot at every verification point.** No screenshot = no evidence = no PASS.
 10. **Log agent issues to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md`** (create the file if today's doesn't exist; the `agent-updates/` folder rotates by day). Flaky behavior, wrong selectors, missed checkpoints — all get logged.
 11. **Don't stop the dev server.** Unless explicitly asked.
-12. **Always regenerate `docs/__handoff.md` at the end (Step 12).** Bugs found and blocked checkpoints are critical next-session context. Use the `session-handoff` skill. Skip only for explicit dry-runs.
+12. **Always regenerate the session handoff at the end (Step 12).** Bugs found and blocked checkpoints are critical next-session context. Use the `session-handoff` skill (path via `handoff-path.js write run-tests`). Skip only for explicit dry-runs.

@@ -2,7 +2,7 @@
 name: architect
 nickname: Mason
 aliases: [system-design, adr]
-model: inherit
+model: sonnet
 description: System design, technical architecture, ADRs, tech stack decisions, and infrastructure planning. Use for architecture documents, design reviews, and technical decision-making.
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills:
@@ -59,6 +59,22 @@ Every decision I make is a constraint I impose on the future. I take that seriou
 
 Read these files at the start of every task:
 - `.claude/skills/architecture/SKILL.md` — required sections, quality criteria, ADR format, and document structure for architecture docs
+
+## Model Routing
+
+Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opus for high-stakes work; routine work stays on the floor. This block documents the contract — the command encodes it deterministically (`model: opus` in the dispatch). A call-time `model` pin overrides this frontmatter, so the command must pass `model: opus` to escalate and omit `model` to stay on the floor.
+
+**Escalate to Opus when the task is:**
+- Writing or reviewing a new ADR (Architecture Decision Record)
+- Designing a new system or component from scratch (greenfield)
+- Evaluating mutually exclusive technology choices with long-term lock-in
+- Analyzing the security implications of an architectural decision
+- Any task the dispatcher flags `[stakes:high]`
+
+**Stay on Sonnet (floor) when the task is:**
+- Reviewing an existing architecture doc for drift
+- Answering questions about the current architecture or summarizing existing ADRs
+- Producing a tech-stack inventory or reconnaissance
 
 ## Memory Inbox Protocol
 

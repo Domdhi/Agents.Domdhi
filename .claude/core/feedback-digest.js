@@ -35,6 +35,7 @@ const fs = require('fs');
 const path = require('path');
 const { getJsonlPath } = require('./_lib/telemetry-paths');
 const { readSummary } = require('./_lib/gate-summary');
+const { aggregate: aggregateGuardrail } = require('./guardrail-stats');
 
 function resolveRoot() {
     return process.env.CLAUDE_PROJECT_DIR || process.cwd();
@@ -135,6 +136,14 @@ function readHookEvents(root) {
     return { rows: rows.length, byName, failures };
 }
 
+function readGuardrailHits(root) {
+    // Reuse the guardrail-stats aggregator over guardrail-events.jsonl so the
+    // hit counter feeds the periodic feedback review, not just `guardrail:stats`.
+    const rows = readJsonl(getJsonlPath(root, 'guardrail-events.jsonl'));
+    const agg = aggregateGuardrail(rows);
+    return { total: agg.total, byDecision: agg.byDecision, byRule: agg.byRule };
+}
+
 function readSkillUsage(root) {
     const rows = readJsonl(getJsonlPath(root, 'skill-usage.jsonl'));
     let dispatches = 0;
@@ -213,6 +222,7 @@ function buildDigest(root = resolveRoot()) {
             : null,
         commands: readCommandUsage(root),
         hooks: readHookEvents(root),
+        guardrail: readGuardrailHits(root),
         agents: readSkillUsage(root),
         memoryStore: readMemoryStore(root),
         memoryTelemetry: readMemoryInjection(root),
@@ -251,6 +261,13 @@ function renderMarkdown(d) {
     const hk = Object.entries(d.hooks.byName).sort((a, b) => b[1] - a[1]);
     if (hk.length) L.push(`  - ${hk.map(([k, v]) => `${k}×${v}`).join(', ')}`);
     L.push('');
+    L.push('### Guardrail hits');
+    const gr = d.guardrail || { total: 0, byDecision: {}, byRule: {} };
+    const decisions = Object.entries(gr.byDecision).sort((a, b) => b[1] - a[1]);
+    L.push(`- hits logged: **${gr.total}**${decisions.length ? ` (${decisions.map(([k, v]) => `${k} ${v}`).join(', ')})` : ''}`);
+    const topRules = Object.entries(gr.byRule).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (topRules.length) L.push(`  - top rules: ${topRules.map(([k, v]) => `${v}× ${k.length > 50 ? k.slice(0, 47) + '…' : k}`).join('; ')}`);
+    L.push('');
     L.push('### Agent dispatches');
     L.push(`- dispatches: **${d.agents.dispatches}** · agents: ${d.agents.agents.join(', ') || 'none'}`);
     if (d.agents.skillsLoaded.length) L.push(`  - skills auto-loaded: ${d.agents.skillsLoaded.join(', ')}`);
@@ -276,6 +293,7 @@ function summarize(d) {
         gate_avg_ms: d.commands.gates.avgDurationMs,
         hook_fires: d.hooks.rows,
         hook_failures: d.hooks.failures,
+        guardrail_hits: d.guardrail ? d.guardrail.total : 0,
         agent_dispatches: d.agents.dispatches,
         memories: d.memoryStore.total,
         system: d.system,

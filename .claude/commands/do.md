@@ -42,7 +42,7 @@ IF INPUT is a file path → read it, extract the task
 IF INPUT is a description → use as the task brief
 IF INPUT is empty → infer:
   1. Current conversation (what were we just discussing?)
-  2. docs/__handoff.md next actions
+  2. the latest session handoff's next actions (`node .claude/core/handoff-path.js latest`)
   3. Find next pending [ ] story in docs/todo/TODO_epic*.md (dependency order)
   4. Ask user only as last resort
 ```
@@ -318,12 +318,23 @@ Use when the task is too large for Main Agent to hold in working memory, or when
 
 | Task domain | Agent | Model |
 |-------------|-------|-------|
-| Frontend / UI components | `general-purpose` | `sonnet` |
-| Backend / API / business logic | `general-purpose` | `sonnet` |
-| Database / migrations | `general-purpose` | `sonnet` |
+| Frontend / UI components | `general-purpose` | risk-routed (see B1a) |
+| Backend / API / business logic | `general-purpose` | risk-routed (see B1a) |
+| Database / migrations | `general-purpose` | risk-routed (see B1a) |
 | Tests only | `qa-engineer` | `sonnet` |
 | Documentation only | `doc-writer` | `sonnet` |
-| Infrastructure / config | `general-purpose` | `sonnet` |
+| Infrastructure / config | `general-purpose` | risk-routed (see B1a) |
+
+##### B1a. Risk-route the `general-purpose` model
+
+Pass `model: opus` when ANY of the following is true:
+- The task touches **> 3 files or crosses module boundaries** (multi-component refactor)
+- The task involves **concurrency, data-integrity, or migration logic**
+- The task is **ambiguous and needs design judgment** (multiple valid approaches, unclear spec)
+
+Omit `model:` (Sonnet floor) for tasks that are small and well-specified: ≤ 3 files, mechanical spec-to-code, scripted changes.
+
+`qa-engineer` and `doc-writer` always omit `model:` (they stay on their own Sonnet floor).
 
 #### B2. Assemble implementation prompt
 
@@ -402,7 +413,7 @@ Before assembling the prompt:
 ```
 Agent(
   subagent_type: "{agent-type}",
-  model: "sonnet",
+  model: "{sonnet | opus — from B1a for general-purpose; omit for qa-engineer/doc-writer}",
   prompt: "{assembled prompt from B2}",
   description: "Implement {story-id}: {title}"
 )
@@ -590,9 +601,15 @@ If any misalignment or quality issue was observed in Step 6, append to today's d
 - {what should be added/changed in future prompts to prevent this}
 ```
 
-### 9d. Regenerate `docs/__handoff.md` — session-handoff skill
+### 9d. Regenerate the session handoff — session-handoff skill
 
-Before the commit, refresh `docs/__handoff.md` using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Read that skill for the template, rules, and the `/do`-specific tailoring (Step 4 in the skill).
+Before the commit, refresh the session handoff using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Resolve this run's path once and reuse it for the `git add` in Step 9e:
+
+```bash
+HANDOFF=$(node .claude/core/handoff-path.js write do)
+```
+
+Read that skill for the template, rules, and the `/do`-specific tailoring (Step 4 in the skill).
 
 Why before commit: including the handoff in the same commit as the implementation gives you one atomic unit per `/do` invocation. The handoff reflects post-commit state — treat it as if the commit has already happened.
 
@@ -611,7 +628,7 @@ AC verified: {N}/{total} passed, {M} manual
 Then run:
 
 ```bash
-git add {implementation files} {test files} {TODO updates if any} docs/__handoff.md docs/.output/plans/{YYMMDD-HHMM}-do-{slug}.md
+git add {implementation files} {test files} {TODO updates if any} "$HANDOFF" docs/.output/plans/{YYMMDD-HHMM}-do-{slug}.md
 node .claude/core/commit.js
 ```
 
@@ -652,7 +669,7 @@ The resulting plan file is now a full record: intent at top, outcome at bottom.
 | Test | {PASS / SKIP} | {tests passed count} |
 | AC Verify | {N/M PASS} | {manual count if any} |
 | Document | DONE | {TODO updated, index cascaded} |
-| Handoff | DONE | docs/__handoff.md regenerated |
+| Handoff | DONE | session handoff regenerated (docs/.output/handoffs/) |
 | Commit | DONE | {hash} |
 
 ### AC Verification
@@ -704,6 +721,6 @@ This mode is for: "we just talked through a design — now do it."
 8. **Main Agent fixes gate failures directly.** Don't re-dispatch to Sonnet for build errors.
 9. **Log agent fuck-ups.** Every misalignment — no matter how small — goes to `docs/.output/agent-updates/{YYYY-MM-DD}.md`. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Don't log what worked; rails are for failures only.
 10. **Check for pending commits before implementing.** Don't build on dirty state.
-11. **Every `/do` ends with a handoff regeneration.** Step 9d uses the `session-handoff` skill to rewrite `docs/__handoff.md`. Don't skip it even for trivial tasks — the next session's `/prime` depends on it.
+11. **Every `/do` ends with a handoff regeneration.** Step 9d uses the `session-handoff` skill to write this run's session handoff (`docs/.output/handoffs/`, path from `handoff-path.js write do`). Don't skip it even for trivial tasks — the next session's `/prime` depends on it.
 12. **One task per invocation.** Use `/run-todo` for batch execution.
 13. **Never skip build+test after code changes.** Even for "trivial" changes.

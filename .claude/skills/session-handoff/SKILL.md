@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: "Use WHEN writing or regenerating docs/__handoff.md after a session, task, or test run — provides the template and fill rules consumed by /end, /do, /run-todo, /run-tests, and /todo."
+description: "Use WHEN writing or regenerating the session handoff after a session, task, or test run — provides the path resolver, template, and fill rules consumed by /end, /do, /run-todo, /run-tests, and /todo."
 metadata:
   version: 1.0.0
   author: Domdhi.Agents
@@ -13,11 +13,37 @@ allowed-tools: Read Write Bash Grep Glob
 
 ## Overview
 
-`docs/__handoff.md` is the file `/prime` reads on cold start to resume work. This skill owns the handoff template, rules, and fill guidance so every command that produces a handoff produces it the same way.
+The session handoff is the file `/prime` reads on cold start to resume work. This skill owns the handoff path resolver, template, rules, and fill guidance so every command that produces a handoff produces it the same way.
 
 **Core principle:** Only write what git CAN'T tell you. Git knows what changed. The handoff carries **intent, decisions, blockers, and next actions** — the stuff that lives in your head, not in commits.
 
 **Announce at start:** "I'm using the session-handoff skill to regenerate the handoff."
+
+## Where the handoff lives (path resolver — read before writing)
+
+Handoffs are **per-session, stamped, and branch-tagged**:
+
+```
+docs/.output/handoffs/{stamp}-{caller}-{branch}.md
+```
+
+`{stamp}` = the run's `YYMMDD-HHMM` (computed once per command run), `{caller}` ∈ `end|do|run-todo|run-tests|todo`, `{branch}` = the slugified current branch. Example: `docs/.output/handoffs/260607-1745-end-main.md`.
+
+**Why not one fixed `docs/__handoff.md`:** a single overwritten path is rewritten by every session, so it conflicts on every PR when agents work in parallel branches. A uniquely-named per-run file never collides. The files are **tracked** (the `.output` gitignore block excludes memories/telemetry/sessions, NOT `handoffs/`), so `git pull` carries your handoffs across machines — conflict-free *and* portable.
+
+**Never hand-build the path — use the resolver** (`.claude/core/handoff-path.js`), so stamp + branch slug + naming stay identical everywhere:
+
+```bash
+# Writing (capture ONCE per run; reuse the same string for Write AND git add):
+HANDOFF=$(node .claude/core/handoff-path.js write {caller})   # e.g. ... write end
+
+# Reading (/prime, hooks): newest for this branch, else newest overall, else empty:
+node .claude/core/handoff-path.js latest
+```
+
+**One file per run (the Run-Stamp Convention).** Compute the stamp once and reuse it for the whole command run. `/run-todo`'s per-wave handoffs and its end-of-run handoff all share that one stamp → they **overwrite the same file**, not spawn one per wave. That keeps the directory from sprawling.
+
+**Retention.** `/end` prunes its own branch's handoffs to the newest few (see `/end` Step 5). Merged-branch handoffs are cleaned by `finishing-a-development-branch`. Don't hand-curate beyond that.
 
 ## When each command invokes this skill
 
@@ -29,14 +55,22 @@ allowed-tools: Read Write Bash Grep Glob
 | `/run-tests` | After final report (Phase 3) | Test findings + bugs land in the handoff for next session triage |
 | `/todo` | After Phase 6 report | A newly-created TODO is "ready to execute" — handoff points the next session at it |
 
-The handoff is always a SNAPSHOT of current state, not a log. Each invocation **overwrites** — never appends.
+The handoff is always a SNAPSHOT of current state, not a log. Each command run writes ONE file (named by the resolver above) and **overwrites that run's file** — within a run, never append; across runs and branches, the resolver hands out a fresh name so parallel work never collides.
 
 ## Step 1: Gather live state
 
 ```bash
 git status --short
-git log --oneline -5
+git log --oneline -10
 ```
+
+**Authorship reconciliation — do NOT write the handoff from memory alone.** In any session where the user, or a parallel agent on another branch, commits alongside you, those commits are real session work you have zero conversation memory of. The git log is the source of truth, not your recollection. For any commit in the recent log you don't recognize as your own tool action, inspect it and capture its intent in Decisions & Context:
+
+```bash
+git show --stat <hash>   # for each unfamiliar commit
+```
+
+Agent-authored commits carry a `Co-Authored-By: Claude` trailer (added by `commit.js`); a commit without it is almost always human or external — read it before writing the handoff. Never silently omit a commit just because you didn't make it. (This gap is real: a `/review:feedback` run caught two user-authored commits that a memory-only handoff would have dropped.)
 
 No need to run tests — the caller has already gated.
 
@@ -50,7 +84,7 @@ For each plan file, grep for `- [ ]` unchecked items. Any with unchecked items s
 
 ## Step 3: Write the handoff from conversation memory
 
-You (the main agent) have the session context. Write the file directly — no sub-agent needed. Overwrite `docs/__handoff.md` completely; never append to old content.
+You (the main agent) have the session context. Resolve this run's path once — `HANDOFF=$(node .claude/core/handoff-path.js write {caller})` (substitute your caller: `end`/`do`/`run-todo`/`run-tests`/`todo`) — then write that file directly; no sub-agent needed. Overwrite the run's file completely; never append to old content.
 
 ### Template (target ~50 lines of content)
 
@@ -146,7 +180,7 @@ Ask: *"Will the next session need to read this file's full contents to do step 1
 ## Step 5: Commit (caller-dependent)
 
 - `/end` commits the handoff with `docs: /end — {brief}` since that's its whole job
-- `/do`, `/run-todo`, `/run-tests`, `/todo` already commit their primary work in a prior step. For them, the handoff is **included in the same commit** (stage `docs/__handoff.md` alongside the other changes) OR committed separately with a `docs: handoff refresh` message. Including in the primary commit is preferred — one atomic unit per operation.
+- `/do`, `/run-todo`, `/run-tests`, `/todo` already commit their primary work in a prior step. For them, the handoff is **included in the same commit** (stage the resolved `$HANDOFF` path alongside the other changes) OR committed separately with a `docs: handoff refresh` message. Including in the primary commit is preferred — one atomic unit per operation.
 
 **Never push automatically.** The user decides when to push.
 
@@ -290,7 +324,7 @@ Default to `/remember` for fleeting captures you want off your mental stack. Use
 ## Rules
 
 - **Target ~50 lines of content.** Enough to cold-start without re-reading code. Under 30 is too sparse; over 60 is a novel.
-- **Overwrite, don't append.** Each call nukes and rewrites the file.
+- **Overwrite within a run, don't append.** Each run writes/overwrites its own resolver-named file; never append to old content. Different runs/branches get different files (that's what kills PR conflicts) — never reach back and edit a prior run's handoff.
 - **Flag unfinished plans.** If `docs/.output/plans/` has active plans with unchecked items, call them out in Decisions & Context.
 - **No git narration.** Don't write "committed 302 tests" — git log shows that.
 - **No CLAUDE.md duplication.** Don't restate architecture, conventions, or infrastructure.
@@ -306,7 +340,8 @@ Default to `/remember` for fleeting captures you want off your mental stack. Use
 ## Cross-References
 
 - Template origin: originally lived inline in `.claude/commands/end.md`, extracted here for reuse.
+- Path resolver: `.claude/core/handoff-path.js` (`write <caller>` / `latest` / `branch`) — single source of stamp + branch slug + newest-for-branch resolution.
 - Reads: `git status`, `git log`, `docs/.output/plans/**/*.md` (for unfinished plans check)
-- Produces: `docs/__handoff.md` (overwrite)
+- Produces: `docs/.output/handoffs/{stamp}-{caller}-{branch}.md` (one per run, overwrite-within-run)
 - Writes: structured memories to `docs/.output/memories/{category}/{slug}.json` via `memory-manager.js create` (Step 6, 0–3 per session)
-- Consumed by: `/prime` — reads this file + its Key Files on cold start
+- Consumed by: `/prime` (reads the resolver's `latest` + its Key Files on cold start) and `pre-compaction-archive.cjs` (snapshots `latest`)

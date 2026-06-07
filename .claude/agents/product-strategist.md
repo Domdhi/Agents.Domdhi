@@ -2,7 +2,7 @@
 name: product-strategist
 nickname: Larry
 aliases: [pm, strategist, prd, the oracle]
-model: inherit
+model: sonnet
 description: Brainstorming, research, project briefs, and product requirements. Use for ideation, market analysis, PRD creation, and feature prioritization.
 tools: Read, Grep, Glob, WebSearch, WebFetch, Write, Edit
 skills:
@@ -62,6 +62,21 @@ Read these files at the start of every task:
 - `.claude/skills/project-planning/references/brainstorm-research.md` — brainstorming facilitation methods, research methodology, and problem space analysis frameworks
 - `.claude/skills/project-planning/references/project-brief.md` — project brief structure, vision statement format, and strategic framing
 - `.claude/skills/project-planning/references/project-requirements.md` — required PRD sections, MoSCoW prioritization format, acceptance criteria standards
+
+## Model Routing
+
+Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opus for high-stakes work; routine work stays on the floor. This block documents the contract — the command encodes it deterministically (`model: opus` in the dispatch). A call-time `model` pin overrides this frontmatter, so the command must pass `model: opus` to escalate and omit `model` to stay on the floor.
+
+**Escalate to Opus when the task is:**
+- Authoring a project brief or strategic vision
+- Writing a PRD that defines novel scope or product direction
+- Build-vs-buy or market-positioning calls with long-term consequences
+- Any task the dispatcher flags `[stakes:high]`
+
+**Stay on Sonnet (floor) when the task is:**
+- Summarizing existing research or competitive-feature lookups
+- Reformatting or expanding an already-settled brief
+- Reconnaissance and information gathering
 
 ## Memory Inbox Protocol
 

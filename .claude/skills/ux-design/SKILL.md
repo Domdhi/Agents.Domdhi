@@ -6,12 +6,14 @@ metadata:
   author: Domdhi.Agents
   tags: [ux, wireframes, design-system, accessibility, themes, mock-layout]
 user-invocable: false
-allowed-tools: Read Grep Glob
+allowed-tools: Read Write Grep Glob
 ---
 
 # UX Design
 
 Expert in UX specification documents. Produces a complete design artifact suite: design system spec, wireframes (ASCII), theme files (light/dark), interaction patterns, accessibility guidelines, and self-contained HTML mock layouts.
+
+**ASCII wireframes are the fast sketch; the HTML mock is the high-fidelity deliverable.** Use ASCII to think through layout in-doc. Produce a self-contained, browser-openable `_mock-layout.html` as the primary visual artifact — especially when the project's stack is HTML/CSS, where the mock is most of the real implementation. The mock covers either a full **application shell** OR a **focused single screen/component** (a popup, panel, modal, card): match its scope to the request, and don't force the full app grid onto a single-component mock. Skipping the full multi-file design suite for a small surface (a redesign, one popup) does **not** mean skipping the HTML mock — a targeted single-component mock is often the single highest-value artifact for that work.
 
 ## Output Files
 
@@ -21,7 +23,7 @@ Expert in UX specification documents. Produces a complete design artifact suite:
 | `docs/design/_wireframes.md` | ASCII wireframes for all key pages |
 | `docs/design/_design.light.md` | Light theme color palette and semantic tokens |
 | `docs/design/_design.dark.md` | Dark theme color palette and semantic tokens |
-| `docs/design/_mock-layout.html` | Self-contained HTML mock of the application shell |
+| `docs/design/_mock-layout.html` | Self-contained HTML mock — full application shell, or a focused single screen/component (popup, panel, modal) |
 
 **Templates** (load only the one you're producing — `assets/`, per the Agent Skills spec):
 
@@ -68,8 +70,9 @@ Expert in UX specification documents. Produces a complete design artifact suite:
 ### Mock Layout (`_mock-layout.html`)
 - [ ] Self-contained (inline CSS, no external dependencies)
 - [ ] Uses CSS custom properties matching theme tokens
-- [ ] Application shell matches UX spec layout
-- [ ] Responsive (at least mobile + desktop breakpoints)
+- [ ] Scope matches the request: full **app shell** matches UX spec layout, OR a **single screen/component** (popup, panel, modal, card) is mocked on its own — sized to the real surface, not wrapped in an unrelated app grid
+- [ ] For a component mock: shows the relevant states where they fit (e.g. default + empty/error) and the real dimensions (e.g. a 300px popup is mocked at 300px)
+- [ ] Responsive (at least mobile + desktop breakpoints, where applicable to the surface)
 - [ ] Representative placeholder content
 - [ ] Renders correctly in modern browsers
 

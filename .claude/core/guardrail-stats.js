@@ -48,9 +48,11 @@ function aggregate(events, opts = {}) {
 
     for (const e of events) {
         if (!e || e.event !== 'guardrail') continue;
-        if (since != null && e.timestamp) {
-            const t = Date.parse(e.timestamp);
-            if (!Number.isNaN(t) && t < since) continue;
+        if (since != null) {
+            // Policy: when --since is active, an event with no parseable timestamp
+            // is EXCLUDED — we can't prove it falls within the window.
+            const t = e.timestamp ? Date.parse(e.timestamp) : NaN;
+            if (Number.isNaN(t) || t < since) continue;
         }
         total++;
         const decision = e.decision || 'unknown';
@@ -58,8 +60,13 @@ function aggregate(events, opts = {}) {
         const rule = e.rule || '(unnamed)';
         byRule[rule] = (byRule[rule] || 0) + 1;
         if (e.timestamp) {
-            if (first === null || e.timestamp < first) first = e.timestamp;
-            if (last === null || e.timestamp > last) last = e.timestamp;
+            // Numeric compare — robust to mixed timezone representations, not just
+            // uniform UTC `Z` (which is all the writer emits today).
+            const t = Date.parse(e.timestamp);
+            if (!Number.isNaN(t)) {
+                if (first === null || t < Date.parse(first)) first = e.timestamp;
+                if (last === null || t > Date.parse(last)) last = e.timestamp;
+            }
         }
     }
     return { total, byDecision, byRule, range: { first, last } };
@@ -78,7 +85,7 @@ function parseEvents(raw) {
 
 /** Render the aggregate as a human-readable report string. */
 function formatReport(agg, opts = {}) {
-    const top = opts.top || Infinity;
+    const top = (opts.top != null && !Number.isNaN(opts.top)) ? opts.top : Infinity;
     const lines = [];
     lines.push('');
     lines.push('Guardrail hits' + (opts.since ? ` (since ${opts.since})` : ''));
@@ -114,7 +121,8 @@ function main() {
     const flag = (f) => args.includes(f);
     const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
     const since = val('--since');
-    const top = val('--top') ? Number(val('--top')) : undefined;
+    const topRaw = val('--top');           // `--top 0` is valid (string '0' is falsy — guard explicitly)
+    const top = topRaw !== undefined ? Number(topRaw) : undefined;
 
     const logPath = getJsonlPath(PROJECT_ROOT, 'guardrail-events.jsonl');
     let raw = '';

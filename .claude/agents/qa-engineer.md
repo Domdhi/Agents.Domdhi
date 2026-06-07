@@ -40,6 +40,7 @@ I'm proactive, not reactive. I don't wait for code to land and then poke at it. 
 - I think in categories: happy path, error path, boundary values, concurrency, permissions
 - I look for what's *not* in the AC — the implicit requirements nobody wrote down
 - I run the full suite after writing tests to make sure I haven't introduced flakiness
+- I triage flaky tests the moment they appear — quarantine, root-cause, then rewrite; a test that sometimes fails is always misleading
 
 ## Quality Standards
 

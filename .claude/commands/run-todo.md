@@ -359,12 +359,16 @@ STATUS — Report your completion status as ONE of:
 OUTPUT: List every file created/modified, what changed, and your STATUS.
 ```
 
+**Per-story model selection (risk-routed).** For each story in the wave, determine the model before dispatch:
+- Pass `model: opus` when the story touches **> 3 files or crosses module boundaries**, involves **concurrency/data-integrity/migration logic**, or is **ambiguous and needs design judgment**.
+- Omit `model:` (Sonnet floor) for stories that are small and well-specified: ≤ 3 files, mechanical, scripted.
+
 **Echo the dispatch plan before fan-out (transparency).** Right before sending the agents, print a one-line-per-story summary of what's about to be dispatched so the user can see — and interrupt — the parallel plan *before* it runs, not after:
 
 ```
 Wave {N} dispatch (parallel):
-  {ID-A} {title} → general-purpose/sonnet → owns: {files}
-  {ID-B} {title} → general-purpose/sonnet → owns: {files}
+  {ID-A} {title} → general-purpose/{sonnet|opus} → owns: {files}
+  {ID-B} {title} → general-purpose/{sonnet|opus} → owns: {files}
   {ID-C} {title} → general-purpose/sonnet → owns: {files}
 ```
 
@@ -374,9 +378,10 @@ This makes the agent-type + model + file-ownership explicit up front (the parall
 
 ```
 // All stories in wave — dev agents only (tests already written by Main Agent in Step 2b)
-Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{dev prompt}", description: "Implement {ID-A}")
-Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{dev prompt}", description: "Implement {ID-B}")
-Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{dev prompt}", description: "Implement {ID-C}")
+// model is "sonnet" or "opus" per the per-story risk-routing above; omit model: for Sonnet floor
+Agent(subagent_type: "general-purpose", model: "{sonnet|opus}", prompt: "{dev prompt}", description: "Implement {ID-A}")
+Agent(subagent_type: "general-purpose", model: "{sonnet|opus}", prompt: "{dev prompt}", description: "Implement {ID-B}")
+Agent(subagent_type: "general-purpose", prompt: "{dev prompt}", description: "Implement {ID-C}")
 ```
 
 `TaskUpdate: "Wave {N}: Story {ID}" → in_progress` (for each story, when dispatching)
@@ -654,9 +659,15 @@ Open `docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md` (written in Phase 1 S
 - **Code review:** {PASS/SKIP — reason}
 ```
 
-**8e. Regenerate `docs/__handoff.md` — session-handoff skill**
+**8e. Regenerate the session handoff — session-handoff skill**
 
-Use the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`) to refresh `docs/__handoff.md`. Read that skill for the template, rules, and `/run-todo`-specific tailoring (Step 4 in the skill).
+Resolve this run's handoff path ONCE (on the first wave) and reuse the same `$HANDOFF` string for every subsequent wave and the final handoff — so the whole run overwrites ONE file instead of spawning one per wave (the Run-Stamp Convention, same as the plan file):
+
+```bash
+HANDOFF=$(node .claude/core/handoff-path.js write run-todo)   # first wave only; reuse the value thereafter
+```
+
+Use the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`) to refresh `$HANDOFF`. Read that skill for the template, rules, and `/run-todo`-specific tailoring (Step 4 in the skill).
 
 Why per-wave: if the session dies after this wave, the next session's `/prime` sees a handoff that points at the right next-wave resume — not stale context from before the run started.
 
@@ -674,7 +685,7 @@ AC verified: {total_pass}/{total} passed, {manual_count} manual
 Then run:
 
 ```bash
-git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md docs/__handoff.md
+git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md "$HANDOFF"
 node .claude/core/commit.js
 ```
 
@@ -780,7 +791,7 @@ node .claude/hooks/organize.cjs
 
 ### 5. Final handoff regeneration
 
-After the plan file is updated, regenerate `docs/__handoff.md` ONE MORE TIME using the **`session-handoff`** skill. This is the end-of-run handoff — it points the next session at the next epic/TODO or at `/review:retro`, not at the next wave (the last wave commit already did per-wave handoff).
+After the plan file is updated, regenerate the session handoff ONE MORE TIME using the **`session-handoff`** skill — writing the SAME `$HANDOFF` file captured on the first wave (Step 8e), so the run still owns a single handoff file. This is the end-of-run handoff — it points the next session at the next epic/TODO or at `/review:retro`, not at the next wave (the last wave commit already did per-wave handoff).
 
 ### 6. Final plan commit
 
@@ -795,7 +806,7 @@ docs: /run-todo {slug} — final report + handoff
 Then run:
 
 ```bash
-git add docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md docs/__handoff.md
+git add docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md "$HANDOFF"
 node .claude/core/commit.js
 ```
 
@@ -806,7 +817,7 @@ Then display the Final Summary content in chat.
 ## Verification-Only Waves
 
 Stories that are read-only verification (no code changes):
-1. Dispatch `code-reviewer` agents (no `model:` pin → inherits `review.default`, Opus) — 1 per story, parallel
+1. Dispatch `code-reviewer` agents (no `model:` pin → runs on the Sonnet floor) — 1 per story, parallel
 2. Each reports PASS/FAIL with line references
 3. Batch into ONE commit
 4. Any FAIL requiring code changes → create new stories or fix inline
@@ -823,7 +834,7 @@ Stories that are read-only verification (no code changes):
 6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail — **including every suite the wave touched, not just `gate.js test`'s single command** (run a separate E2E/Playwright suite explicitly; see Step 5, F25), **plus the E2E leg (`gate.js e2e`) on contract-change waves or whenever `--e2e` is passed** (R1). The gate fails closed on a zero-collected run. **Exception:** test-authoring epics where the deliverable *is* the test invert this — skip pre-writing, dispatch one-round, and gate on "are the assertions real?" (Step 2b, F26).
 7. **ZERO file overlap within a wave.** Overlapping files = stomped changes. This applies to BOTH paths. Enforcement is currently **instruction-level** — the `DO NOT TOUCH` list in each dev prompt, plus Main Agent's Step-4b check (failure mode #5: revert any file written outside ownership and log it). There is no tool-level write-guard scoping each agent to its owned paths (known limitation, F27 — same family as the instruction-enforced gates, F8). On the parallel path the whole risk is concurrent writes, so treat an out-of-lane edit as a hard misalignment, not a nit.
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
-9. **Every wave commit regenerates `docs/__handoff.md`.** Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.
+9. **Every wave commit regenerates the session handoff** (the run's single `$HANDOFF` file, captured once on wave 1). Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.
 10. **Always update TODO after completing a story. Always commit after updating TODO.** Before starting a story, check for pending commits.
 11. **Log every agent fuck-up to `docs/.output/agent-updates/{YYYY-MM-DD}.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
 12. **Log new decisions and implementations** that affect agent alignment. Keep agents current.

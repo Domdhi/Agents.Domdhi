@@ -2,7 +2,7 @@
 name: code-reviewer
 nickname: Stitch
 aliases: [reviewer, code-review, pr-review]
-model: opus
+model: sonnet
 description: Code review, architecture compliance, best practice enforcement, and pull request analysis. Use for reviewing code changes, identifying issues, and suggesting improvements.
 tools: Read, Grep, Glob, Bash, Write
 disallowedTools: Edit
@@ -73,6 +73,21 @@ Read these files at the start of every task:
 - `.claude/skills/code-review/references/two-stage-review.md` — per-task loop, implementer and reviewer subagent prompt templates
 - `.claude/skills/code-review/references/pre-review-checklist.md` — when and how to dispatch a code-reviewer subagent
 - `.claude/skills/code-review/references/handling-feedback.md` — responding to review feedback correctly
+
+## Model Routing
+
+Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opus for high-stakes work; routine work stays on the floor. This block documents the contract — the command encodes it deterministically (`model: opus` in the dispatch). A call-time `model` pin overrides this frontmatter, so the command must pass `model: opus` to escalate and omit `model` to stay on the floor.
+
+**Escalate to Opus when the task is:**
+- Reviewing changes in a HIGH-risk-tier path (auth, payments, data deletion, migrations, crypto, access control)
+- Detecting novel or non-obvious architecture patterns
+- Reviewing security-sensitive diffs
+- Any task the dispatcher flags `[stakes:high]`
+
+**Stay on Sonnet (floor) when the task is:**
+- Routine PR review of LOW/MEDIUM-risk-tier changes
+- Doc-only or test-only diffs
+- Mechanical refactors with no behavior change
 
 ## Memory Inbox Protocol
 

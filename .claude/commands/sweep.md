@@ -87,7 +87,7 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 
 1. Classify the in-scope PRs/commits into themes (e.g. auth, data, API, UI, infra/CI). **Skip pure-infra/CI and doc-only changes** unless `--review-scope all`.
 2. **Tell every reviewer to ignore generated/vendored code** (lockfiles, `dist/`, minified bundles, migration scaffolding/snapshots) — sanity-check intent only.
-3. Dispatch one `code-reviewer` agent per theme, in parallel (background OK). Omit the `model:` param so each inherits `review.default`. Each gets the merge commits, diffs via `git diff <hash>^1 <hash>` (fallback `^2`), and returns a CRITICAL/MAJOR/MINOR/NIT findings table. They auto-load the `code-review` skill — do not paste the rubric.
+3. Dispatch one `code-reviewer` agent per theme, in parallel (background OK). Omit the `model:` param so each runs on the **Sonnet floor** (code-reviewer's default — sweep is broad maintenance, not a high-stakes gate). Escalate a specific theme to `model: opus` only if it touches a HIGH-risk-tier path (security, auth, data-integrity, migrations). Each gets the merge commits, diffs via `git diff <hash>^1 <hash>` (fallback `^2`), and returns a CRITICAL/MAJOR/MINOR/NIT findings table. They auto-load the `code-review` skill — do not paste the rubric.
 4. Consolidate all findings into `docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`.
 5. Commit (unless `--single-commit`) per the convention below: `docs: /sweep p1 — code review, {N} findings ({C}C/{M}M/{m}m)`.
 6. Append the findings summary to the sweep plan's Phase Log — **the retro consumes this.**

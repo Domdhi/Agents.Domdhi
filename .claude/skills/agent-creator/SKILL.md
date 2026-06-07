@@ -38,7 +38,7 @@ memory: project
 | `name` | Yes | kebab-case, matches filename without `.md` |
 | `nickname` | Yes | Short name used in `# {Nickname} — {Role Title}` heading |
 | `aliases` | Yes | Inline YAML array `[...]`, 2-5 aliases for invocation |
-| `model` | Yes | `inherit` for planning agents (stay on Opus), `sonnet` for implementation, `haiku` for documentation |
+| `model` | Yes | `sonnet` is the floor for nearly every agent (dual-use ones escalate to Opus per-dispatch via a `## Model Routing` block); `opus` only for always-high-stakes agents that must never downgrade (e.g. `security-auditor`). See the Model Selection Guide. Avoid `inherit` (it just means "the main-session model") and `haiku` (fabricates). |
 | `description` | Yes | Concise, no quotes needed. Format: "{What it does}. Use for {when to use it}." |
 | `tools` | Yes | Unquoted comma-separated list. Common sets: `Read, Write, Edit, Bash, Grep, Glob` (implementation), `Read, Write, Edit, Grep, Glob, WebSearch, WebFetch` (research/strategy) |
 | `skills` | Yes | YAML list of skill names, or `[]` if none |
@@ -87,13 +87,17 @@ Write the thin default and stop. Don't over-engineer the identity for hypothetic
 
 ### Model Selection Guide
 
-| Role Type | Model | Reasoning |
+The policy is **Sonnet floor + Opus escalated per-dispatch** (see CLAUDE.md Model Policy). Pick the floor, then decide whether the agent is *dual-use* (needs an escalation path).
+
+| Role Type | Floor | Dual-use? (add `## Model Routing`) |
 |-----------|-------|-----------|
-| Planning, strategy, research, design | `inherit` | Stays on Opus for complex reasoning |
-| Code implementation, code review, testing | `sonnet` | Fast, capable, cost-effective for code |
-| Documentation, changelogs | `haiku` | Sufficient quality at lowest cost |
-| Security audit | `sonnet` | Needs thoroughness but not Opus cost |
-| Browser automation | `sonnet` | Needs reliability for DOM interaction |
+| Planning, strategy, research, design | `sonnet` | **Yes** — escalate to Opus for new ADRs / strategic briefs / greenfield design from scratch |
+| Code implementation | `sonnet` | **Yes** — escalate for multi-component refactors / data-integrity / migration logic |
+| Code review | `sonnet` | **Yes** — escalate for HIGH-risk-tier paths / novel patterns |
+| Testing, browser automation, documentation, ghostwriting | `sonnet` | No — always Sonnet, no escalation path |
+| Security audit | `opus` 🔒 | No — **pinned Opus**, never downgraded (a missed vuln costs more than the Opus call) |
+
+**Dual-use agents** carry a `## Model Routing` block (after `## Skills`, before `## Memory Inbox Protocol`) listing Escalate-to-Opus vs Stay-on-Sonnet criteria; the dispatching **command** enforces it by passing `model: opus` (escalate) or omitting `model` (floor). Never use `haiku` (it fabricates results) or `inherit` (it only means the main-session model — not a tier choice).
 
 ### Decision Gate: Agent or Skill?
 

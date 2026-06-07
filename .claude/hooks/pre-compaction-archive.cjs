@@ -57,10 +57,18 @@ function buildSnapshot(projectRoot, log, trigger) {
     const inProgress = log.findInProgressTodos();
     const decisions = log.findKeyDecisions();
 
-    // Read handoff context if available
+    // Read handoff context if available. Handoffs are per-session/per-branch
+    // files under docs/.output/handoffs/ — resolve the newest for this branch.
     let handoffContext = '';
-    const handoffPath = path.join(projectRoot, 'docs', '__handoff.md');
-    if (fs.existsSync(handoffPath)) {
+    let handoffPath = null;
+    try {
+        const { resolveLatest } = require('../core/handoff-path');
+        const rel = resolveLatest({ cwd: projectRoot });
+        if (rel) handoffPath = path.join(projectRoot, rel);
+    } catch {
+        // resolver unavailable → skip handoff context (best-effort snapshot)
+    }
+    if (handoffPath && fs.existsSync(handoffPath)) {
         try {
             const handoffContent = fs.readFileSync(handoffPath, 'utf8');
             const decisionsMatch = handoffContent.match(/## Decisions & Context\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/);

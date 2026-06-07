@@ -102,6 +102,11 @@ describe('buildDigest + render + summarize', () => {
         writeJsonl(`${TEL}/skill-usage.jsonl`, [
             { type: 'agent_dispatch', agent: 'general-purpose', skills: ['systematic-debugging'] },
         ]);
+        writeJsonl(`${TEL}/guardrail-events.jsonl`, [
+            { event: 'guardrail', decision: 'block', rule: 'git push --force', tier: null },
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf build', tier: null },
+            { event: 'guardrail', decision: 'block', rule: 'git push --force', tier: null },
+        ]);
         tmp.write(`${TEL}/_latest-summary.json`, JSON.stringify({ overall: true, mode: 'BUILD + TEST', stack: 'node', durationMs: 3963 }));
         tmp.write('docs/.output/memories/patterns/a.json', '{}');
         tmp.write('.claude/version.json', JSON.stringify({ version: '4.46.0' }));
@@ -111,17 +116,21 @@ describe('buildDigest + render + summarize', () => {
         expect(d.lastGate.overall).toBe(true);
         expect(d.commands.gates.lastDurationMs).toBe(3963);
         expect(d.hooks.rows).toBe(2);
+        expect(d.guardrail.total).toBe(3);
+        expect(d.guardrail.byDecision).toEqual({ block: 2, nudge: 1 });
         expect(d.agents.dispatches).toBe(1);
         expect(d.memoryStore.total).toBe(1);
 
         const md = renderMarkdown(d);
         expect(md).toContain('Telemetry Digest (automated)');
         expect(md).toContain('### Gate'); // gate section rendered
+        expect(md).toContain('### Guardrail hits'); // guardrail counter feeds the digest
         expect(md).toContain('self-instrumented');
 
         const s = summarize(d);
         expect(s.template_version).toBe('4.46.0');
         expect(s.gate_runs).toBe(1);
+        expect(s.guardrail_hits).toBe(3);
         expect(s.memories).toBe(1);
     });
 

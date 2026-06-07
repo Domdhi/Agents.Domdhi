@@ -35,7 +35,7 @@ IF INPUT is a task description → use as the brief
 IF INPUT is empty → infer from (first that yields a concrete target wins):
   1. Current conversation context
   2. Master index docs/TODO_{Project}.md → the next epic (see "Next-epic resolution" below)
-  3. docs/__handoff.md next actions
+  3. the latest session handoff's next actions (`node .claude/core/handoff-path.js latest`)
   4. Recent git log (what was just completed → what's next)
   5. Ask user only as last resort
 ```
@@ -402,9 +402,15 @@ Main Agent is the single author of the TODO — review agents advise, Main Agent
 
 ---
 
-## Phase 7: Regenerate `docs/__handoff.md` — session-handoff skill
+## Phase 7: Regenerate the session handoff — session-handoff skill
 
-After the report, refresh `docs/__handoff.md` using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Read that skill for the template, rules, and `/todo`-specific tailoring (Step 4 in the skill).
+After the report, refresh the session handoff using the **`session-handoff`** skill (`.claude/skills/session-handoff/SKILL.md`). Resolve this run's path once and reuse it for the `git add` in Phase 8:
+
+```bash
+HANDOFF=$(node .claude/core/handoff-path.js write todo)
+```
+
+Read that skill for the template, rules, and `/todo`-specific tailoring (Step 4 in the skill).
 
 **Why:** a newly-created TODO is "ready to execute." The handoff's Next Actions should point at `/run-todo {path}` as #1 so the next session's `/prime` immediately surfaces what to do next. The TODO path + research files go in Key Files.
 
@@ -421,7 +427,7 @@ docs: /todo — create TODO for {slug} ({N} stories)
 Then run:
 
 ```bash
-git add {TODO_PATH} docs/.output/work/{YYYY-MM-DD}/{slug}/ docs/__handoff.md
+git add {TODO_PATH} docs/.output/work/{YYYY-MM-DD}/{slug}/ "$HANDOFF"
 node .claude/core/commit.js
 ```
 
@@ -436,6 +442,6 @@ node .claude/core/commit.js
 5. **Wave plan is pre-computed** — `/run-todo` should not have to figure out parallelism.
 6. **The TODO is a contract** — `/run-todo` and `/do` trust it completely. If it's wrong, they fail.
 7. **No code blocks in stories** — file paths and descriptions only. Implementation is the dev agent's job.
-8. **Always regenerate `docs/__handoff.md` (Phase 7) and commit (Phase 8).** A newly-created TODO that isn't surfaced in the handoff won't be picked up by the next session's `/prime`. Use the `session-handoff` skill.
+8. **Always regenerate the session handoff (Phase 7) and commit (Phase 8).** A newly-created TODO that isn't surfaced in the handoff won't be picked up by the next session's `/prime`. Use the `session-handoff` skill (path via `handoff-path.js write todo`).
 9. **Per-agent file budget is a HARD CAP** — ≤5 files modified / ≤2 files created per dev agent. More small stories + more parallel agents beats fewer fat ones. No background agent should ever compact mid-implementation.
 10. **Reuse warm session agents when they already hold the context** — resume via SendMessage over cold-spawn; still persist findings to the research file.

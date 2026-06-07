@@ -26,7 +26,7 @@ node .claude/core/telemetry-log.js review:code-review
 INPUT: $ARGUMENTS
 
 **Flags:**
-- `--deep` — Run a cross-model second opinion: dispatches two review agents in parallel (Sonnet primary + Opus secondary), then compares findings for higher-confidence results. Without this flag, only Sonnet reviews (default behavior).
+- `--deep` — Run a cross-model second opinion: dispatches two review agents in parallel (primary tier determined by risk, backup is the opposite tier), then compares findings for higher-confidence results. Without this flag, only the risk-routed primary tier runs.
 - `--council` — Run a **council review** (the N-reviewer generalization of `--deep`): dispatch one `code-reviewer` per LENS (correctness / security / architecture / performance), then have each reviewer **anonymously cross-validate** the others' findings, and an Opus **chairman** synthesize the consensus. Higher cost (N reviewers + a cross-validation round); use on high-stakes changes. Aggregation is deterministic via `.claude/core/council.js`. See **Council Mode** below. (`--council` supersedes `--deep` when both are passed.)
 
 ## Workflow
@@ -93,13 +93,17 @@ Classify each changed file into a risk tier to determine review depth.
 
 Use the Task tool with `subagent_type: "code-reviewer"` to perform the review.
 
+**Determine the primary model from the risk tier (Step 2b):**
+- Overall tier is **HIGH** → dispatch `code-reviewer` with `model: opus`.
+- Overall tier is **MEDIUM or LOW** → omit `model:` so the agent runs on its Sonnet floor.
+
 **If `--deep` flag is set:** Dispatch TWO review agents in parallel:
-1. **Primary** — `subagent_type: "code-reviewer"` (no `model:` pin → inherits `review.default` from the agent frontmatter; see the **Model Policy** in CLAUDE.md)
-2. **Backup** — `subagent_type: "code-reviewer"`, `model: "{review.backup}"` (the backup tier named in the Model Policy — a different model gives cross-tier diversity, not just a re-run)
+1. **Primary** — `subagent_type: "code-reviewer"`, model determined by risk tier above.
+2. **Backup** — `subagent_type: "code-reviewer"`, model is **the opposite tier from the primary** (if primary ran Sonnet → `model: opus`; if primary ran Opus → `model: sonnet`). This gives cross-tier diversity, not a re-run.
 
 Both receive the same prompt. Results are compared in Step 4.
 
-**If no `--deep` flag:** Dispatch single agent as normal (Sonnet only).
+**If no `--deep` flag:** Dispatch single agent using the risk-tier model above.
 
 **Task prompt must include**:
 1. The diff or file contents to review
@@ -116,7 +120,7 @@ Both receive the same prompt. Results are compared in Step 4.
 
 When `--council` is set, **replace** the single/`--deep` dispatch in Step 3 with this three-stage flow (Karpathy's llm-council, adapted for a single-vendor panel — diversity comes from LENS, not vendor). Use a workspace dir: `docs/.output/reviews/council-{YYMMDD-HHMM}/`.
 
-**Stage 1 — independent reviews (parallel).** Get the lens set: `node .claude/core/council.js lenses`. Dispatch one `code-reviewer` agent **per lens, in parallel** (background OK). Omit the `model:` param so each inherits `review.default` (per the **Model Policy** in CLAUDE.md). Each agent gets the same diff + standards + risk table from Steps 1–2b, **plus a lens instruction**: "Review ONLY through the **{lens}** lens ({focus}). Report findings as a JSON array `[{file,line,title,severity,lens:'{lens}',detail}]`." Collect all findings into `findings.json` (concatenate the arrays; tag each with its `lens`).
+**Stage 1 — independent reviews (parallel).** Get the lens set: `node .claude/core/council.js lenses`. Dispatch one `code-reviewer` agent **per lens, in parallel** (background OK). Model is risk-routed, same as the primary dispatch: overall tier **HIGH** → pass `model: opus` per lens; overall tier **MEDIUM or LOW** → omit `model:` (Sonnet floor). The Opus chairman (Stage 3) is always Opus regardless of tier. Each agent gets the same diff + standards + risk table from Steps 1–2b, **plus a lens instruction**: "Review ONLY through the **{lens}** lens ({focus}). Report findings as a JSON array `[{file,line,title,severity,lens:'{lens}',detail}]`." Collect all findings into `findings.json` (concatenate the arrays; tag each with its `lens`).
 - Optional cross-vendor member: if the project has configured an external model (e.g. OpenRouter) AND opted in, add it as one more reviewer for true vendor diversity. Off by default — it breaks the zero-dependency drop-in property, so never enable it implicitly.
 
 **Stage 2 — anonymized cross-validation.** Dedupe + assign stable ids: `node .claude/core/council.js dedupe docs/.output/reviews/council-{YYMMDD-HHMM}/findings.json` → `deduped.json`. (Independent re-raises by multiple lenses auto-merge — that overlap is itself a confirmation signal.) Then dispatch each lens reviewer AGAIN, giving it the **anonymized** deduped findings (present them as "Reviewer A/B/…" via the `anonymization` map — do NOT tell a reviewer which findings are its own) with this instruction: "For each finding NOT your own, vote `confirm` / `refute` / `unsure` and a `severity_vote`. **Default to `refute` if you cannot independently substantiate it** — do not rubber-stamp; we reward independent confirmation, not agreement." Collect votes into `votes.json` as `[{finding_id,voter:'{lens}',verdict,severity_vote}]`.
@@ -184,7 +188,7 @@ Read the agent's output and present the final report, including the output file 
 
 ### Cross-Model Analysis (--deep only)
 
-**Models:** Sonnet (primary) + Opus (secondary)
+**Models:** {risk-tier model} (primary) + {opposite tier} (backup)
 **Agreement rate:** {N}%
 
 | Finding | Sonnet | Opus | Confidence |

@@ -169,8 +169,9 @@ describe('buildSnapshot', () => {
 
     it('buildSnapshot_readsHandoffWhenPresent', () => {
         const mockLog = makeMockLog();
-        // Create a handoff file
-        tmp.write('docs/__handoff.md', `# Handoff
+        // Create a handoff file at the new per-session/branch path (resolved by
+        // handoff-path.js — newest-overall fallback picks it regardless of branch).
+        tmp.write('docs/.output/handoffs/260607-1200-end-main.md', `# Handoff
 
 ## Decisions & Context
 Decision A was made for reason B.

@@ -32,12 +32,18 @@ TASK_DESCRIPTION: CONTEXT
 - Else run the **cold-start sequence**:
 
 ### Step 1: Read the handoff + git reality (parallel)
+
+Resolve the handoff path first — handoffs are per-session/per-branch files under `docs/.output/handoffs/`, and the resolver returns the newest one for the current branch (falling back to the newest overall):
 ```
-Read docs/__handoff.md
+HANDOFF=$(node .claude/core/handoff-path.js latest)
+```
+Then read it alongside git reality:
+```
+Read $HANDOFF        # the resolved handoff (skip if empty — none yet)
 git log --oneline -20
 git status --short
 ```
-The handoff has decisions, intent, blockers, and next actions from the previous session. Git is the source of truth — do NOT trust the handoff over git. If the handoff doesn't exist, scan `docs/todo/_backlog.md` instead.
+The handoff has decisions, intent, blockers, and next actions from the previous session. Git is the source of truth — do NOT trust the handoff over git. If `$HANDOFF` is empty (no handoff exists yet), scan `docs/todo/_backlog.md` instead.
 
 ### Step 2: Read the handoff's Key Files (parallel)
 
