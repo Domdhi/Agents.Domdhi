@@ -30,6 +30,13 @@ const { getJsonlPath } = require('./telemetry-paths');
 const HOOK_EVENTS_MAX_LINES = 1000;
 const HOOK_EVENTS_TAIL_KEEP = 500;
 
+// Guardrail hits are RARE (only an actual block/nudge/confirm appends — allows
+// do not), so guardrail-events.jsonl gets a far larger cap than hook-events:
+// this file IS the longitudinal hit counter consumed by guardrail-stats.js, so
+// it should retain many months of history rather than tail-rotate within a day.
+const GUARDRAIL_EVENTS_MAX_LINES = 5000;
+const GUARDRAIL_EVENTS_TAIL_KEEP = 4000;
+
 function getProjectRoot() {
     return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..', '..');
 }
@@ -66,9 +73,48 @@ function emitHookEvent(token, outcome) {
     });
 }
 
+/**
+ * Record a guardrail HIT (a block / nudge / confirm — never an allow). This is
+ * the counter the guardrail never had: it captures WHICH rule fired and WHAT it
+ * did, so guardrail-stats.js can report hit frequency by rule and decision.
+ *
+ * SECRET SAFETY: the raw command is deliberately NOT logged. Guardrail commands
+ * are precisely the ones likely to carry secrets (`rm -rf .env`, inline keys),
+ * and a telemetry file is read by post-read-scrubber. We log only the matched
+ * rule pattern, the decision, and the path tier (for path-tier blocks).
+ *
+ * Best-effort: never throws — a telemetry write must never break the guardrail
+ * (the guardrail's exit code is load-bearing for blocking dangerous commands).
+ *
+ * @param {{ decision: string, rule?: string|null, tier?: string|null }} hit
+ * @returns {object|null} The event written, or null on any failure.
+ */
+function emitGuardrailHit(hit) {
+    try {
+        if (!hit || !hit.decision) return null;
+        const entry = {
+            event: 'guardrail',
+            decision: hit.decision,            // 'block' | 'nudge' | 'confirm'
+            rule: hit.rule != null ? hit.rule : null,
+            tier: hit.tier != null ? hit.tier : null,
+            timestamp: new Date().toISOString(),
+        };
+        appendJsonl(getJsonlPath(getProjectRoot(), 'guardrail-events.jsonl'), entry, {
+            maxLines: GUARDRAIL_EVENTS_MAX_LINES,
+            tailKeep: GUARDRAIL_EVENTS_TAIL_KEEP,
+        });
+        return entry;
+    } catch {
+        return null;
+    }
+}
+
 module.exports = {
     startHookTiming,
     emitHookEvent,
+    emitGuardrailHit,
     HOOK_EVENTS_MAX_LINES,
     HOOK_EVENTS_TAIL_KEEP,
+    GUARDRAIL_EVENTS_MAX_LINES,
+    GUARDRAIL_EVENTS_TAIL_KEEP,
 };

@@ -12,6 +12,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "publish:public": "node tools/publish.js",
+    "fleet:status": "node tools/fleet.js status",
+    "fleet:sync": "node tools/fleet.js sync",
+    "fleet:release": "node tools/fleet.js release",
+    "guardrail:stats": "node .claude/core/guardrail-stats.js",
     "memory:eval": "node .claude/core/memory-eval.js",
     "memory:stability": "node .claude/core/memory-stability.js",
     "feedback:rollup": "node tools/feedback-aggregate.js"

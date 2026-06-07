@@ -125,3 +125,40 @@ describe('emitHookEvent', () => {
         expect(events.some(e => e.name === lastName)).toBe(true);
     });
 });
+
+describe('emitGuardrailHit', () => {
+    function readGuardrailEvents() {
+        const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'guardrail-events.jsonl');
+        if (!fs.existsSync(jsonlPath)) return [];
+        return fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+    }
+
+    it('writes a guardrail record with decision, rule, tier, timestamp', () => {
+        const { emitGuardrailHit } = require('../hook-telemetry');
+        const written = emitGuardrailHit({ decision: 'block', rule: 'rm -rf /', tier: null });
+
+        const events = readGuardrailEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({ event: 'guardrail', decision: 'block', rule: 'rm -rf /', tier: null });
+        expect(typeof events[0].timestamp).toBe('string');
+        expect(written.decision).toBe('block');
+    });
+
+    it('defaults missing rule/tier to null and preserves the tier when given', () => {
+        const { emitGuardrailHit } = require('../hook-telemetry');
+        emitGuardrailHit({ decision: 'block', rule: 'path-tier enforcement', tier: 'zeroAccess' });
+        emitGuardrailHit({ decision: 'nudge' });
+
+        const events = readGuardrailEvents();
+        expect(events[0].tier).toBe('zeroAccess');
+        expect(events[1].rule).toBeNull();
+        expect(events[1].tier).toBeNull();
+    });
+
+    it('never throws and returns null on a malformed hit (telemetry is best-effort)', () => {
+        const { emitGuardrailHit } = require('../hook-telemetry');
+        expect(emitGuardrailHit(null)).toBeNull();
+        expect(emitGuardrailHit({})).toBeNull();          // no decision
+        expect(readGuardrailEvents()).toHaveLength(0);
+    });
+});

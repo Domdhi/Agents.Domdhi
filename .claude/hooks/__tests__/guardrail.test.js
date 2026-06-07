@@ -497,6 +497,37 @@ confirm_patterns:
             // Assert — stripCommitMessages removes the -m content so no false positive
             expect(result).toBeNull();
         });
+
+        // ─── hit-counter telemetry metadata (emitted by runClaudeHook, carried on
+        //     the processEvent result so it can be asserted without side effects) ──
+
+        it('processEvent_block_carriesTelemetryMetadata', () => {
+            writeRules(STANDARD_RULES);
+            const result = processEvent({ tool_input: { command: 'rm -rf /tmp/foo' } });
+            expect(result.telemetry).toEqual({ decision: 'block', rule: 'rm -rf /', tier: null });
+        });
+
+        it('processEvent_confirm_carriesTelemetryMetadata', () => {
+            writeRules(STANDARD_RULES);
+            const result = processEvent({ tool_input: { command: 'git push --force main' } });
+            expect(result.telemetry).toEqual({ decision: 'confirm', rule: 'git push --force', tier: null });
+        });
+
+        it('processEvent_nudge_carriesTelemetryMetadata', () => {
+            writeRules(`
+nudge_patterns:
+  - "rm -rf build"
+`);
+            const result = processEvent({ tool_input: { command: 'rm -rf build' } });
+            expect(result.telemetry.decision).toBe('nudge');
+            expect(result.telemetry.rule).toBe('rm -rf build');
+        });
+
+        it('processEvent_allow_hasNoTelemetry', () => {
+            writeRules(STANDARD_RULES);
+            const result = processEvent({ tool_input: { command: 'ls -la' } });
+            expect(result).toBeNull();   // allows are never counted
+        });
     });
 
     // ─── loadRules (missing file) ─────────────────────────────────────────────
@@ -701,7 +732,7 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
     it('nudges recursive deletes of real project paths (then confirm on escalation)', () => {
         for (const cmd of [
             'rm -rf ./src',
-            'rm -rf /home/dom/code/Domdhi.Agents',
+            'rm -rf /home/user/code/my-project',
             'rm -rf ~/Documents',
             'sudo rm -fr /etc',
         ]) {

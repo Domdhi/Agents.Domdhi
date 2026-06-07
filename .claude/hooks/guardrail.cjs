@@ -22,6 +22,7 @@ const { readHookInput } = require('../core/_lib/hook-input');
 const { parseYaml, stripComment } = require('../core/_lib/yaml-parser');
 const { matchesPattern, evaluate, checkPathAccess } = require('../core/_lib/guardrail-rules');
 const { buildHookResponse, checkFreezeState } = require('../core/_lib/command-blocker');
+const { emitGuardrailHit } = require('../core/_lib/hook-telemetry');
 
 // ─── Path resolution ──────────────────────────────────────────────────────────
 
@@ -223,7 +224,7 @@ function processEvent(parsedJson) {
 
     if (decision.action === 'block') {
         const resp = buildHookResponse('block', { command, pattern: decision.pattern });
-        return { block: true, feedback: resp.stderr };
+        return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: decision.pattern, tier: null } };
     }
 
     // P2.5 — four-tier path check for delete-style bash ops.
@@ -242,7 +243,7 @@ function processEvent(parsedJson) {
         const freeze = checkFreezeState(absPath);
         if (freeze.blocked) {
             const resp = buildHookResponse('frozen', { command, frozenPath: freeze.frozenPath });
-            return { block: true, feedback: resp.stderr };
+            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: 'frozen-path', tier: 'frozen' } };
         }
 
         // Four-tier path check (A3)
@@ -253,7 +254,7 @@ function processEvent(parsedJson) {
                 pattern: access.reason || 'path-tier enforcement',
                 tier: access.tier,
             });
-            return { block: true, feedback: resp.stderr };
+            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: access.reason || 'path-tier enforcement', tier: access.tier || null } };
         }
     }
 
@@ -262,10 +263,10 @@ function processEvent(parsedJson) {
         // tries a reversible path first; if there is none, it re-runs with the
         // `# guardrail:confirm` marker, which evaluate() routes to a user confirm.
         const resp = buildHookResponse('nudge', { command, pattern: decision.pattern });
-        return { block: true, feedback: resp.stderr };
+        return { block: true, feedback: resp.stderr, telemetry: { decision: 'nudge', rule: decision.pattern, tier: null } };
     }
     if (decision.action === 'confirm') {
-        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}` };
+        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}`, telemetry: { decision: 'confirm', rule: decision.pattern, tier: null } };
     }
 
     return null;
@@ -282,6 +283,10 @@ async function runClaudeHook() {
 
     const result = processEvent(data);
     if (result === null) process.exit(0);
+
+    // Count the hit. Best-effort + side-effect-free in processEvent (emitted here
+    // at the entry point only) so unit tests of processEvent never write telemetry.
+    if (result.telemetry) emitGuardrailHit(result.telemetry);
 
     if (result.block) {
         process.stderr.write(result.feedback);
