@@ -37,7 +37,7 @@ CREATE is deliberately distinct from `/review:promote-memories` (which injects a
 
 ## Orchestration Rule
 
-> You (the main agent / Opus) own the reflective diagnosis and the SKILL.md authoring — that is the "why did it fail / what should the skill say" judgment. Dispatch `general-purpose` subagents only for the eval *runs* (with_skill / baseline) and grading. Follow the **`skill-creator`** skill for the loop mechanics and the **`skill-authoring`** skill for the doctrine; read them, don't paste them here.
+> You (the main agent / Opus) own the reflective diagnosis and the SKILL.md authoring — that is the "why did it fail / what should the skill say" judgment. Dispatch `general-purpose` subagents **on Sonnet** (pass `model: sonnet` on every such dispatch) only for the eval *runs* (with_skill / baseline) and grading — that work is mechanical execution (run the suite, grade against the rubric), not judgment, so it stays on the cheaper tier while Opus keeps the diagnosis + authoring. (`general-purpose` is a Sonnet-tier agent by frontmatter; the explicit `model: sonnet` makes the rule load-bearing so a future caller can't silently escalate the eval fleet to Opus.) Follow the **`skill-creator`** skill for the loop mechanics and the **`skill-authoring`** skill for the doctrine; read them, don't paste them here.
 
 ## Workflow
 
@@ -138,6 +138,7 @@ Under `--auto`, do NOT commit applied skill changes (nothing was applied) — th
 
 ## What NOT to Do
 
+- Do NOT run the eval/grading subagents on Opus — they are mechanical (execute the suite, grade against the rubric), so they MUST be dispatched as `general-purpose` with `model: sonnet`. Opus stays on the main-agent diagnosis + `SKILL.md` authoring only.
 - Do NOT apply a skill change whose differential `delta.pass_rate` is not positive — the eval is the whole point.
 - Do NOT propose an edit without empirical evidence of a gap (an agent-update misalignment, a gate failure, or a recurring memory cluster) — speculative polish is out of scope (`skill-authoring` doctrine).
 - Do NOT auto-apply skill-body changes under `--auto` — stage proposals; the human confirms.

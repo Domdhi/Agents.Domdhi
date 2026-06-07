@@ -212,6 +212,23 @@ describe('scanContent', () => {
         });
     });
 
+    describe('scanContent_jsonQuotedAssignment', () => {
+        // Regression: JSON config writes the key name in quotes ("api_key": "…"),
+        // which put a quote between the key and the `:` separator and slipped the
+        // Secret/Password assignment patterns — the most common place a key lives.
+        it('scanContent_jsonQuotedApiKey_detected', () => {
+            const content = '{ "api_key": "CG-abcd1234efgh5678" }';
+            const findings = scanContent(content, 'config.local.json');
+            expect(findings.map(f => f.name)).toContain('Secret Assignment');
+        });
+
+        it('scanContent_jsonQuotedPassword_detected', () => {
+            const content = '{ "password": "hunter2hunter2" }';
+            const findings = scanContent(content, 'config.local.json');
+            expect(findings.map(f => f.name)).toContain('Password Assignment');
+        });
+    });
+
     describe('scanContent_findings_structure', () => {
         it('scanContent_finding_hasRequiredFields', () => {
             const content = `key = "${fakeAwsKey()}"`;
