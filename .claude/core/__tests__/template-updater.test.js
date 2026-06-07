@@ -870,3 +870,94 @@ describe('runUpdate — CLAUDE.md handling', () => {
     expect(claudeMdMerges).toHaveLength(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Active root .gitignore — managed-block merge from templates/root/gitignore
+// (template-updater previously synced only the inert template copy, so v4.63's
+// "untrack docs/.output/memories/" rule never reached existing adopters.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('runUpdate — root .gitignore managed block', () => {
+  const START = '# === Domdhi.Agents managed block — do not edit between markers ===';
+  const END   = '# === End Domdhi.Agents managed block ===';
+  let originalProjectDir;
+
+  beforeEach(() => { originalProjectDir = process.env.CLAUDE_PROJECT_DIR; });
+  afterEach(() => {
+    if (originalProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = originalProjectDir;
+  });
+
+  const run = (opts) => {
+    process.env.CLAUDE_PROJECT_DIR = path.join(tmp.root, 'src');
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), opts || {});
+    spy.mockRestore();
+  };
+  const gi = () => path.join(tmp.root, 'target', '.gitignore');
+
+  it('appends a managed block when the target .gitignore has none', () => {
+    tmp.write('src/.claude/templates/root/gitignore', 'docs/.output/memories/\n');
+    tmp.mkdir('target/.claude');
+    tmp.write('target/.gitignore', 'node_modules/\nmy-custom-rule/\n');
+
+    run({});
+
+    const out = fs.readFileSync(gi(), 'utf8');
+    expect(out).toContain('my-custom-rule/');          // adopter's own rules preserved
+    expect(out).toContain(START);
+    expect(out).toContain('docs/.output/memories/');   // new rule propagated
+    expect(out).toContain(END);
+  });
+
+  it('replaces an existing managed block in place (idempotent refresh)', () => {
+    tmp.write('src/.claude/templates/root/gitignore', 'docs/.output/memories/\nnew-rule/\n');
+    tmp.mkdir('target/.claude');
+    tmp.write(
+      'target/.gitignore',
+      `keep-me/\n${START}\nold-stale-rule/\n${END}\nalso-keep/\n`,
+    );
+
+    run({});
+
+    const out = fs.readFileSync(gi(), 'utf8');
+    expect(out).toContain('keep-me/');         // content before the block preserved
+    expect(out).toContain('also-keep/');       // content after the block preserved
+    expect(out).not.toContain('old-stale-rule/'); // stale block content replaced
+    expect(out).toContain('new-rule/');        // refreshed with source content
+    // exactly one managed block
+    expect(out.split(START)).toHaveLength(2);
+  });
+
+  it('creates .gitignore when the target has none', () => {
+    tmp.write('src/.claude/templates/root/gitignore', 'docs/.output/memories/\n');
+    tmp.mkdir('target/.claude');
+
+    run({});
+
+    expect(fs.existsSync(gi())).toBe(true);
+    expect(fs.readFileSync(gi(), 'utf8')).toContain('docs/.output/memories/');
+  });
+
+  it('does NOT write the .gitignore under --dry-run', () => {
+    tmp.write('src/.claude/templates/root/gitignore', 'docs/.output/memories/\n');
+    tmp.mkdir('target/.claude');
+    tmp.write('target/.gitignore', 'node_modules/\n');
+
+    run({ dryRun: true });
+
+    // unchanged on disk — no managed block written
+    expect(fs.readFileSync(gi(), 'utf8')).toBe('node_modules/\n');
+  });
+
+  it('is a no-op when the source ships no gitignore template', () => {
+    // no src/.claude/templates/root/gitignore
+    tmp.mkdir('src/.claude');
+    tmp.mkdir('target/.claude');
+    tmp.write('target/.gitignore', 'node_modules/\n');
+
+    run({});
+
+    expect(fs.readFileSync(gi(), 'utf8')).toBe('node_modules/\n'); // untouched
+  });
+});

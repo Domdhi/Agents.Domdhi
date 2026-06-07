@@ -21,6 +21,7 @@ const {
     applySubstitutions,
     KNOWN_SCAFFOLD_VARS,
     SKILL_TEMPLATE_MANIFEST,
+    applyManagedBlock,
 } = require('../scaffold');
 const { createTmpDir } = require('./_helpers/tmp-dir');
 
@@ -882,6 +883,44 @@ describe('runScaffold — gitignore managed-block merge', () => {
         // Assert — surfaced as a warning rather than silently swallowed
         expect(results.warnings).toBeDefined();
         expect(results.warnings.join('\n')).toMatch(/gitignore/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// applyManagedBlock — { dryRun } previews the action without touching disk
+// (consumed by template-updater's --dry-run gitignore preview).
+// ---------------------------------------------------------------------------
+
+describe('applyManagedBlock — dryRun', () => {
+    it('returns "created" for a missing target without writing it', () => {
+        const target = path.join(tmp.root, '.gitignore');
+        const action = applyManagedBlock(target, 'rule/\n', { dryRun: true });
+        expect(action).toBe('created');
+        expect(fs.existsSync(target)).toBe(false);
+    });
+
+    it('returns "appended" without writing when no managed block exists', () => {
+        const target = path.join(tmp.root, '.gitignore');
+        fs.writeFileSync(target, 'node_modules/\n');
+        const action = applyManagedBlock(target, 'rule/\n', { dryRun: true });
+        expect(action).toBe('appended');
+        expect(fs.readFileSync(target, 'utf8')).toBe('node_modules/\n'); // untouched
+    });
+
+    it('returns "replaced" without writing when content differs', () => {
+        const target = path.join(tmp.root, '.gitignore');
+        const existing = `${MANAGED_START}\nold/\n# === End Domdhi.Agents managed block ===\n`;
+        fs.writeFileSync(target, existing);
+        const action = applyManagedBlock(target, 'new/\n', { dryRun: true });
+        expect(action).toBe('replaced');
+        expect(fs.readFileSync(target, 'utf8')).toBe(existing); // untouched
+    });
+
+    it('still writes when dryRun is not set (regression guard)', () => {
+        const target = path.join(tmp.root, '.gitignore');
+        const action = applyManagedBlock(target, 'rule/\n');
+        expect(action).toBe('created');
+        expect(fs.readFileSync(target, 'utf8')).toContain('rule/');
     });
 });
 

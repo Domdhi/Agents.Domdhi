@@ -72,11 +72,18 @@ function main(argv) {
     }
 
     const { benchmark, jsonPath, deltaPassRate } = result;
+    const warns = benchmark.warnings || [];
+    for (const w of warns) console.error(`[AGGREGATE-BENCHMARK] WARN: ${w}`);
     const sign = deltaPassRate >= 0 ? '+' : '';
     const deltaPts = `${sign}${round(deltaPassRate * 100, 1)} pts`;
     console.log(
         `[AGGREGATE-BENCHMARK] ${benchmark.skill_name} ${benchmark.iteration}: pass-rate Δ ${deltaPts} → ${jsonPath}`,
     );
+    if (warns.length) {
+        // Match skill-eval.js: exit 3 when the delta rests on incomplete data.
+        console.error(`[AGGREGATE-BENCHMARK] completed with ${warns.length} data-quality warning(s) — inspect benchmark.md before trusting the delta (exit 3).`);
+        process.exit(3);
+    }
     process.exit(0);
 }
 

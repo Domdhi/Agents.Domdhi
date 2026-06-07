@@ -534,6 +534,36 @@ describe('gate', () => {
       expect(config.test.command).toBe('npm test');
     });
 
+    it('loadConfig_e2eScript_detected_addsE2eLeg', () => {
+      // R1: an E2E suite behind its own script gets a first-class e2e gate leg.
+      tmp.write('package.json', JSON.stringify({ scripts: { test: 'vitest run', 'test:e2e': 'playwright test' } }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.e2e.command).toBe('npm run test:e2e');
+      expect(config.e2e.missing).toBeUndefined();
+    });
+
+    it('loadConfig_noE2eScript_e2eLegIsGracefulNoOp', () => {
+      // A project without an E2E suite must never fail the e2e gate.
+      tmp.write('package.json', JSON.stringify({ scripts: { test: 'vitest run' } }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.e2e.missing).toBe(true);
+    });
+
+    it('loadConfig_e2eScriptPrecedence_prefersTestE2eOverPlainE2e', () => {
+      tmp.write('package.json', JSON.stringify({ scripts: { 'test:e2e': 'a', e2e: 'b' } }));
+      const loadConfig = freshLoadConfig();
+
+      const config = loadConfig();
+
+      expect(config.e2e.command).toBe('npm run test:e2e');
+    });
+
     it('loadConfig_noBuildScript_plainJS_fallsBackToNoOp', () => {
       // F4: a plain-JS project (no build script, no tsconfig, no typescript dep)
       // must NOT run `tsc --noEmit` — it would fail the gate on a healthy repo.

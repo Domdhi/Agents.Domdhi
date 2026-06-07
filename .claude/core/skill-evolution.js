@@ -35,6 +35,7 @@ const ATTRIBUTE_MIN_SCORE = 2; // shared meaningful tokens to bind a signal to a
 const CLUSTER_MIN_SHARED = 2;  // shared tokens to put two memories in one cluster
 const CLUSTER_MIN_SIZE = 2;    // a CREATE candidate needs at least this many memories
 const NAME_WEIGHT = 2;         // a skill-NAME token match counts double
+const CAUGHT_WEIGHT = 0.5;     // down-rank a signal whose own text shows a safeguard WORKED
 
 const STOPWORDS = new Set(
     ('the a an and or but for nor so yet of to in on at by with from into onto upon as is are was were be been being ' +
@@ -43,16 +44,56 @@ const STOPWORDS = new Set(
         'should must never always when what which while because before after during about above below over under').split(/\s+/),
 );
 
+// Meta-vocabulary of the agent-updates format itself — words that appear in
+// nearly EVERY misalignment record because they name the artifact, not the
+// domain. Left in, they spuriously bind any signal to skills whose name/desc
+// contains them (the crypto bug: "agent" matched `agent-creator` 20× off
+// dev-agent misalignments that had nothing to do with authoring a subagent).
+// Stripped only when attributing an agent-update signal — NOT from skill-index
+// or memory tokens — so a genuine signal still attributes via its specific
+// domain tokens (frontmatter, persona, model-tier, …), just not via "agent".
+const SIGNAL_STOPWORDS = new Set(
+    ('agent agents subagent subagents skill skills command commands update updates misalignment misalignments ' +
+        'dispatch dispatched dispatches output outputs prompt prompts task tasks step steps').split(/\s+/),
+);
+
+// Skills owned by a reviewer/auditor/safeguard role. A signal that shows one of
+// these CAUGHT a defect is evidence the safeguard WORKED — the gap is upstream
+// in the dev-agent dispatch prompt, not in this skill. Extension point: add the
+// skill any new gatekeeper agent loads.
+const REVIEW_DOMAIN_SKILLS = new Set(['code-review', 'qa-engineer', 'verification-before-completion']);
+
+// Cue phrases for signal polarity. SLIPPED = something failed/escaped (genuine
+// gap). CAUGHT = a safeguard fired (worked as intended). Order matters in
+// classifyPolarity: a documented slip is the actionable gap, so it wins on tie —
+// EXCEPT for review-domain skills, where a caught-cue routes to dispatch (below).
+const SLIPPED_RE = /\b(slipped through|slipped past|went undetected|undetected|escaped|missed|did ?n['o]t catch|failed to|should have (caught|been|flagged)|not caught|regress(ion|ed)?|false (success|green|positive)|fabricat(ed|ion))\b/i;
+const CAUGHT_RE = /\b(caught by|caught the|caught a|flagged by|flagged the|flagged a|blocked by|blocked the|rejected by|rejected the|prevented by|reviewer (caught|flagged|found)|review caught|gate (caught|blocked)|guardrail (caught|blocked)|correctly (caught|flagged|rejected|identified))\b/i;
+
 // ── Tokenizing + attribution (pure) ─────────────────────────────────────────
 
-function tokenize(text) {
+function tokenize(text, extraStop = null) {
     return new Set(
         String(text || '')
             .toLowerCase()
             .replace(/[`*_>#|\[\]()]/g, ' ')
             .split(/[^a-z0-9]+/)
-            .filter((w) => w.length >= 4 && !STOPWORDS.has(w)),
+            .filter((w) => w.length >= 4 && !STOPWORDS.has(w) && !(extraStop && extraStop.has(w))),
     );
+}
+
+/**
+ * Polarity of an agent-update signal from its own prose.
+ *   'slipped' — a defect failed/escaped → genuine evidence of a gap.
+ *   'caught'  — a safeguard fired → the named thing WORKED.
+ *   'neutral' — no clear cue.
+ * A slip is the actionable gap, so it wins when both cues are present.
+ */
+function classifyPolarity(text) {
+    const s = String(text || '');
+    if (SLIPPED_RE.test(s)) return 'slipped';
+    if (CAUGHT_RE.test(s)) return 'caught';
+    return 'neutral';
 }
 
 function buildSkillIndex(skillsRoot) {
@@ -189,20 +230,44 @@ function intake({ projectDir, since = null } = {}) {
 
     const skillIndex = buildSkillIndex(skillsRoot);
 
-    // IMPROVE: attribute each agent-update section to a skill.
+    // IMPROVE: attribute each agent-update section to a skill — but read the
+    // signal's POLARITY first. The scorer matches by domain keyword; it cannot
+    // tell "this skill failed" (a gap to fix) from "this skill caught a defect"
+    // (it worked). Two facets, both confirmed downstream:
+    //   • caught + a review/safeguard skill ⇒ the safeguard fired; the real gap
+    //     is the dev-agent DISPATCH PROMPT, not the skill → route to dispatchGaps.
+    //   • caught (other) ⇒ down-rank (CAUGHT_WEIGHT) — working-as-intended is weak
+    //     evidence for a rewrite.
+    // Signal-vocabulary tokens ("agent", "skill", "dispatch", …) are stripped so
+    // a misalignment doesn't bind to a skill merely for naming the artifact.
     let agentUpdates = collectAgentUpdates(auDir);
     if (since) agentUpdates = agentUpdates.filter((u) => u.date >= since);
     const improveBySkill = {};
     const unattributed = [];
+    const dispatchGaps = [];
     for (const u of agentUpdates) {
-        const hit = attributeSignal(tokenize(u.text), skillIndex);
-        if (hit) {
-            (improveBySkill[hit.skill] ||= { skill: hit.skill, score: 0, evidence: [] });
-            improveBySkill[hit.skill].score += hit.score;
-            improveBySkill[hit.skill].evidence.push({ source: u.source, date: u.date, context: u.context });
-        } else {
+        const hit = attributeSignal(tokenize(u.text, SIGNAL_STOPWORDS), skillIndex);
+        if (!hit) {
             unattributed.push({ type: 'agent-update', date: u.date, context: u.context });
+            continue;
         }
+        const polarity = classifyPolarity(u.text);
+        if (REVIEW_DOMAIN_SKILLS.has(hit.skill) && CAUGHT_RE.test(u.text)) {
+            // The review/safeguard skill did its job — don't seed a Δ=0 skill-body
+            // eval. The actionable gap is upstream in the dispatch prompt.
+            dispatchGaps.push({
+                skill: hit.skill,
+                source: u.source,
+                date: u.date,
+                context: u.context,
+                reason: 'review/safeguard skill but the signal shows it CAUGHT the defect — likely a dev-agent dispatch-prompt gap, not a gap in this skill',
+            });
+            continue;
+        }
+        const weight = polarity === 'caught' ? CAUGHT_WEIGHT : 1;
+        (improveBySkill[hit.skill] ||= { skill: hit.skill, score: 0, evidence: [] });
+        improveBySkill[hit.skill].score = round(improveBySkill[hit.skill].score + hit.score * weight);
+        improveBySkill[hit.skill].evidence.push({ source: u.source, date: u.date, context: u.context, polarity });
     }
     const improve = Object.values(improveBySkill).sort((a, b) => b.score - a.score);
 
@@ -235,6 +300,7 @@ function intake({ projectDir, since = null } = {}) {
         signals: { agentUpdates: agentUpdates.length, memories: memories.length, clusters: clusters.length },
         improve,
         create,
+        dispatchGaps,
         unattributed,
     };
 }
@@ -259,7 +325,15 @@ function renderIntakeMd(report, date) {
     if (!report.improve.length) L.push('_None — no agent-update misalignments attributed to a skill._');
     for (const c of report.improve) {
         L.push(`### \`${c.skill}\` (signal score ${c.score})`);
-        for (const e of c.evidence) L.push(`- ${e.date} — ${e.context}`);
+        for (const e of c.evidence) L.push(`- ${e.date} — ${e.context}${e.polarity && e.polarity !== 'neutral' ? ` _(${e.polarity})_` : ''}`);
+        L.push('');
+    }
+    if (report.dispatchGaps && report.dispatchGaps.length) {
+        L.push('## Dispatch-prompt gaps (reviewer caught — NOT a skill gap)');
+        L.push('');
+        L.push('_These signals attributed to a review/safeguard skill, but their text shows the safeguard **caught** the defect. The fix belongs in the dev-agent dispatch prompt (e.g. `/run-todo`), not in a skill-body eval that would read Δ=0._');
+        L.push('');
+        for (const d of report.dispatchGaps) L.push(`- ${d.date} — ${d.context} → caught by \`${d.skill}\``);
         L.push('');
     }
     L.push('## CREATE candidates (clustered memories → new skill)');
@@ -316,7 +390,7 @@ function main(argv) {
         fs.mkdirSync(outDir, { recursive: true });
         fs.writeFileSync(path.join(outDir, 'intake.json'), JSON.stringify(report, null, 2));
         fs.writeFileSync(path.join(outDir, 'intake.md'), renderIntakeMd(report, date));
-        console.log(`[SKILL-EVOLUTION] ${report.improve.length} IMPROVE · ${report.create.length} CREATE → ${path.join(outDir, 'intake.md')}`);
+        console.log(`[SKILL-EVOLUTION] ${report.improve.length} IMPROVE · ${report.create.length} CREATE · ${report.dispatchGaps.length} dispatch-gap → ${path.join(outDir, 'intake.md')}`);
         return;
     }
 
@@ -361,7 +435,10 @@ module.exports = {
     ATTRIBUTE_MIN_SCORE,
     CLUSTER_MIN_SHARED,
     CLUSTER_MIN_SIZE,
+    SIGNAL_STOPWORDS,
+    REVIEW_DOMAIN_SKILLS,
     tokenize,
+    classifyPolarity,
     buildSkillIndex,
     scoreOverlap,
     attributeSignal,

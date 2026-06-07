@@ -223,6 +223,96 @@ describe('scoreOverlap + attributeSignal', () => {
     });
 });
 
+// ── classifyPolarity + signal-stopword attribution (caught vs slipped) ────────
+
+describe('classifyPolarity', () => {
+    it('classifies a slip / escape as slipped', () => {
+        expect(m.classifyPolarity('The bug slipped through review.')).toBe('slipped');
+        expect(m.classifyPolarity('The agent failed to apply the gate.')).toBe('slipped');
+        expect(m.classifyPolarity('A regression went undetected.')).toBe('slipped');
+    });
+
+    it('classifies a safeguard firing as caught', () => {
+        expect(m.classifyPolarity('The defect was caught by the reviewer.')).toBe('caught');
+        expect(m.classifyPolarity('Correctly flagged the missing escaping.')).toBe('caught');
+    });
+
+    it('returns neutral when no cue is present', () => {
+        expect(m.classifyPolarity('Updated the wording of a heading.')).toBe('neutral');
+    });
+
+    it('a slip wins when both cues appear (the slip is the actionable gap)', () => {
+        expect(m.classifyPolarity('The reviewer caught a bug the dev agent should have caught.')).toBe('slipped');
+    });
+});
+
+describe('tokenize with signal-stopwords', () => {
+    it('strips signal-vocabulary tokens so a signal does not bind on "agent" alone', () => {
+        const t = m.tokenize('the agent dispatch produced wrong output', m.SIGNAL_STOPWORDS);
+        expect(t.has('agent')).toBe(false);
+        expect(t.has('dispatch')).toBe(false);
+        expect(t.has('output')).toBe(false);
+        // genuine domain token survives
+        expect(t.has('wrong')).toBe(true);
+    });
+
+    it('without the extra set, signal tokens are kept (default behavior unchanged)', () => {
+        const t = m.tokenize('the agent dispatch');
+        expect(t.has('agent')).toBe(true);
+        expect(t.has('dispatch')).toBe(true);
+    });
+});
+
+describe('intake routing: caught review-domain signal → dispatchGaps, not IMPROVE', () => {
+    let projectDir;
+
+    beforeAll(() => {
+        projectDir = path.join(tmpDir, 'dispatch-gap-project');
+        // A real review-domain skill (code-review) so REVIEW_DOMAIN_SKILLS matches.
+        const skillDir = path.join(projectDir, '.claude', 'skills', 'code-review');
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(skillDir, 'SKILL.md'),
+            [
+                '---',
+                'name: code-review',
+                'description: "Use WHEN reviewing code changes for correctness and architecture compliance. Triggers: review, correctness, severity."',
+                '---',
+                '',
+                '# Code Review',
+                'Content about reviewing code changes for correctness.',
+            ].join('\n'),
+        );
+
+        const auDir = path.join(projectDir, 'docs', '.output', 'agent-updates');
+        fs.mkdirSync(auDir, { recursive: true });
+        // A reviewer-CAUGHT defect: the review skill worked → dispatch gap, not skill gap.
+        fs.writeFileSync(
+            path.join(auDir, '2026-06-06.md'),
+            [
+                '## Reviewer caught a correctness defect',
+                'The code review correctly caught a correctness bug in the changes; ' +
+                'severity was assessed correctly. The defect was authored upstream.',
+            ].join('\n'),
+        );
+    });
+
+    it('routes the caught review-domain signal to dispatchGaps and out of improve', () => {
+        const result = m.intake({ projectDir });
+        expect(result.dispatchGaps.length).toBe(1);
+        expect(result.dispatchGaps[0].skill).toBe('code-review');
+        // It must NOT also seed an IMPROVE candidate for code-review.
+        expect(result.improve.find((i) => i.skill === 'code-review')).toBeUndefined();
+    });
+
+    it('intake still exposes the dispatchGaps array on a plain (empty) project', () => {
+        const emptyDir = path.join(tmpDir, 'empty-project-dg');
+        fs.mkdirSync(emptyDir, { recursive: true });
+        const result = m.intake({ projectDir: emptyDir });
+        expect(result.dispatchGaps).toEqual([]);
+    });
+});
+
 // ── clusterMemories ───────────────────────────────────────────────────────────
 
 describe('clusterMemories', () => {

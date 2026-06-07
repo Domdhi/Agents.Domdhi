@@ -234,17 +234,24 @@ const MANAGED_END = '# === End Domdhi.Agents managed block ===';
  *   - target exists, markers found         → replace the block content in place
  *   - target exists, markers, no change    → no-op
  *
+ * With `{ dryRun: true }` the action is computed and returned WITHOUT touching
+ * the filesystem — used by template-updater's --dry-run to preview the merge.
+ *
  * @param {string} targetPath
  * @param {string} templateContent — raw contents of the template source file
+ * @param {{ dryRun?: boolean }} [opts]
  * @returns {'created' | 'appended' | 'replaced' | 'unchanged'}
  */
-function applyManagedBlock(targetPath, templateContent) {
+function applyManagedBlock(targetPath, templateContent, opts) {
+    const dryRun = !!(opts && opts.dryRun);
     const trimmed = templateContent.replace(/\s+$/u, '');
     const block = `${MANAGED_START}\n${trimmed}\n${MANAGED_END}`;
 
     if (!fs.existsSync(targetPath)) {
-        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-        fs.writeFileSync(targetPath, block + '\n');
+        if (!dryRun) {
+            fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+            fs.writeFileSync(targetPath, block + '\n');
+        }
         return 'created';
     }
 
@@ -255,7 +262,7 @@ function applyManagedBlock(targetPath, templateContent) {
     if (startIdx === -1) {
         const sep = existing.length === 0 || existing.endsWith('\n') ? '' : '\n';
         const gap = existing.length === 0 ? '' : (existing.endsWith('\n\n') ? '' : '\n');
-        fs.writeFileSync(targetPath, existing + sep + gap + block + '\n');
+        if (!dryRun) fs.writeFileSync(targetPath, existing + sep + gap + block + '\n');
         return 'appended';
     }
 
@@ -270,7 +277,7 @@ function applyManagedBlock(targetPath, templateContent) {
     const newContent = before + block + after;
 
     if (newContent === existing) return 'unchanged';
-    fs.writeFileSync(targetPath, newContent);
+    if (!dryRun) fs.writeFileSync(targetPath, newContent);
     return 'replaced';
 }
 

@@ -1,6 +1,6 @@
 ---
 description: Execute an entire TODO end-to-end using wave-based parallel agents with AC gates and auto-commits
-argument-hint: [path to TODO file, or leave blank to auto-discover]
+argument-hint: "[path to TODO file] [--e2e] [--no-delegate]"
 ---
 
 # /run-todo — Full Checklist Execution
@@ -17,7 +17,11 @@ node .claude/core/telemetry-log.js run-todo
 
 ## Variables
 
-TODO_PATH: $ARGUMENTS
+TODO_PATH: $ARGUMENTS (the first non-flag argument; blank → auto-discover)
+
+**Flags** (parsed from `$ARGUMENTS`):
+- `--e2e` — run the E2E gate leg (`gate.js e2e`) on **every** wave's gate, not just contract-change waves. Pass it when the run will touch contract/interface surfaces (API shapes, shared types/schemas, public signatures, DB migrations, IPC/config contracts). See Step 5.
+- `--no-delegate` — force Main Agent-direct for all stories (sequential; no Sonnet fan-out).
 
 ---
 
@@ -447,7 +451,19 @@ npm run e2e   # or whatever script the wave's new/changed suite runs under
 
 (If you want the gate itself to cover all suites for this project, chain them in `gate.config.json`'s `test.command` — e.g. `"npm test && npm run e2e"`. Don't do this when the extra suite is slow/flaky or environment-bound, e.g. a headed-only Chromium E2E run under WSL — gate it per-wave here instead so `/do` and other callers aren't forced through it.)
 
-- **Pass** (every suite the wave touched is green, and `gate.js test` did not report `zeroCollected`) → proceed to Step 6
+**E2E gate leg — `gate.js e2e` (R1).** F25 covers suites the wave *authored or modified*. But the more common miss is a wave that changes a **contract** an untouched E2E suite *covers* — an API route/response shape, a shared type or schema, a public function signature, a DB migration, an IPC/message format, a config/env contract. Unit tests + static checks pass, the wave touched no test file, so F25 never fires — and the behavior regression only surfaces later in manual/E2E testing (the Epic-7 class of failure). The E2E leg is a first-class gate that closes this:
+
+```bash
+node .claude/core/gate.js e2e   # runs the detected E2E/integration script; gracefully SKIPS (PASS) if the project has none
+```
+
+It applies the same zero-collected false-green teeth as the unit leg and writes `_latest-e2e.json`. **When to run it:**
+- **`--e2e` flag passed** → run it on **every** wave, unconditionally. This is the explicit, no-judgment switch — use it for any run you know will move contracts.
+- **No flag (default)** → run it on any wave whose diff touched a **contract/interface surface** (the list above). This heuristic is the safety net so a contract-moving wave is never gated on unit tests alone; when in doubt, run it (a no-contract project just SKIPs to PASS).
+
+If the project's E2E suite is slow/flaky or environment-bound (e.g. headed Chromium under WSL) and you cannot run it in this session, do **not** silently skip — flag it in the wave handoff as **E2E-unverified** with the specific contract that changed, so the gap is visible rather than green-by-omission.
+
+- **Pass** (every suite the wave touched is green, the E2E leg passed or was legitimately skipped on a no-contract-change wave, and `gate.js test` did not report `zeroCollected`) → proceed to Step 6
 - **Fail** → diagnose, fix directly (Main Agent), re-run gate
 - **3 consecutive failures** → stop, report what's broken, ask user
 - **NEVER proceed past a failed gate.** Note the gate now **fails closed on a zero-collected test run** (a real runner that exits 0 having collected 0 tests is a FAIL, not a pass) — if you hit that, the suite isn't actually running; fix the runner, don't wave it through. (Requires the upstream `testPassed`/`isZeroCollected` fix; an adopter on an older template may still false-green here — verify with `npm test` directly until it's synced.)
@@ -798,7 +814,7 @@ Stories that are read-only verification (no code changes):
 3. **Main Agent implements small waves directly. Delegate for parallelism.** Single-story waves and all-XS waves: Main Agent writes code directly — no delegation overhead. Multi-story waves with S+ stories: delegate to Sonnet for parallel execution. `--no-delegate` forces Main Agent-direct for everything.
 4. **Context assembly matters for delegation.** When delegating (Path B), reading files and pasting code into agent prompts prevents hallucination. Never send just file paths. When Main Agent implements directly (Path A), the context from Step 2 is sufficient.
 5. **Send variable names to dev agents.** Identical signatures, types, test IDs across all agents in a wave. This is the #1 misalignment source. Only applies to Path B.
-6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail — **including every suite the wave touched, not just `gate.js test`'s single command** (run a separate E2E/Playwright suite explicitly; see Step 5, F25). The gate fails closed on a zero-collected run. **Exception:** test-authoring epics where the deliverable *is* the test invert this — skip pre-writing, dispatch one-round, and gate on "are the assertions real?" (Step 2b, F26).
+6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail — **including every suite the wave touched, not just `gate.js test`'s single command** (run a separate E2E/Playwright suite explicitly; see Step 5, F25), **plus the E2E leg (`gate.js e2e`) on contract-change waves or whenever `--e2e` is passed** (R1). The gate fails closed on a zero-collected run. **Exception:** test-authoring epics where the deliverable *is* the test invert this — skip pre-writing, dispatch one-round, and gate on "are the assertions real?" (Step 2b, F26).
 7. **ZERO file overlap within a wave.** Overlapping files = stomped changes. This applies to BOTH paths. Enforcement is currently **instruction-level** — the `DO NOT TOUCH` list in each dev prompt, plus Main Agent's Step-4b check (failure mode #5: revert any file written outside ownership and log it). There is no tool-level write-guard scoping each agent to its owned paths (known limitation, F27 — same family as the instruction-enforced gates, F8). On the parallel path the whole risk is concurrent writes, so treat an out-of-lane edit as a hard misalignment, not a nit.
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
 9. **Every wave commit regenerates `docs/__handoff.md`.** Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.

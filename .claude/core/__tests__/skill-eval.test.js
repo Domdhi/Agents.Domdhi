@@ -621,6 +621,104 @@ describe('loadIteration + aggregateIteration', () => {
     });
 });
 
+// ── loud-failure on missing / malformed / empty data (regression: two-project
+//    silent-degradation bug — aggregate reported a confident delta on dropped data)
+describe('loud failure on bad eval data', () => {
+    function writeGrading(dir, expectations) {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'grading.json'), JSON.stringify({ expectations }));
+    }
+    function writeTiming(dir, tokens, duration) {
+        fs.writeFileSync(path.join(dir, 'timing.json'), JSON.stringify({ total_tokens: tokens, duration_ms: duration }));
+    }
+
+    it('loadRun: genuinely-absent grading.json returns null WITHOUT a warning', () => {
+        const dir = path.join(tmpDir, 'absent-grading');
+        fs.mkdirSync(dir, { recursive: true });
+        const warnings = [];
+        expect(m.loadRun(dir, warnings)).toBeNull();
+        expect(warnings).toEqual([]);
+    });
+
+    it('loadRun: present-but-malformed grading.json returns null AND pushes a warning', () => {
+        const dir = path.join(tmpDir, 'malformed-grading');
+        fs.mkdirSync(dir, { recursive: true });
+        // The crypto failure mode: an unescaped quote mid-string in evidence.
+        fs.writeFileSync(path.join(dir, 'grading.json'), '{"expectations":[{"text":"x","passed":true,"evidence":"framed as DRY only"}]'); // truncated / invalid
+        const warnings = [];
+        expect(m.loadRun(dir, warnings)).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toMatch(/failed to parse/i);
+        expect(warnings[0]).toContain('grading.json');
+    });
+
+    it('loadRun: malformed timing.json keeps the run but warns and drops tokens/duration', () => {
+        const dir = path.join(tmpDir, 'malformed-timing');
+        writeGrading(dir, [{ text: 'x', passed: true }]);
+        fs.writeFileSync(path.join(dir, 'timing.json'), 'NOT JSON {{{');
+        const warnings = [];
+        const run = m.loadRun(dir, warnings);
+        expect(run).not.toBeNull();
+        expect(run.total_tokens).toBeUndefined();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toMatch(/timing\.json/);
+    });
+
+    it('aggregateIteration: zero loaded records → benchmark.warnings flags an empty load', () => {
+        const emptyIter = path.join(tmpDir, 'empty-iteration');
+        fs.mkdirSync(emptyIter, { recursive: true });
+        const b = m.aggregateIteration(emptyIter, { skillName: 'nada' });
+        expect(b.summary.n_evals).toBe(0);
+        expect(b.warnings.some((w) => /no eval records loaded/i.test(w))).toBe(true);
+    });
+
+    it('aggregateIteration: a malformed baseline grading.json warns AND flags the eval as baseline-less', () => {
+        const iter = path.join(tmpDir, 'dropped-baseline-iteration');
+        const evalDir = path.join(iter, 'eval-0-foo');
+        fs.mkdirSync(evalDir, { recursive: true });
+        fs.writeFileSync(path.join(evalDir, 'eval_metadata.json'), JSON.stringify({ eval_id: '0', eval_name: 'foo' }));
+        // with_skill is fine...
+        const withDir = path.join(evalDir, 'with_skill');
+        writeGrading(withDir, [{ text: 'a', passed: true }]);
+        writeTiming(withDir, 100, 400);
+        // ...but the baseline grading.json is corrupt (present, unparseable).
+        const baseDir = path.join(evalDir, 'without_skill');
+        fs.mkdirSync(baseDir, { recursive: true });
+        fs.writeFileSync(path.join(baseDir, 'grading.json'), '{ broken json with a stray " quote }');
+
+        const b = m.aggregateIteration(iter, { skillName: 'foo-skill' });
+        // The corrupt baseline must NOT be silently treated as absent.
+        expect(b.warnings.some((w) => /failed to parse/i.test(w))).toBe(true);
+        expect(b.warnings.some((w) => /NO baseline run/i.test(w))).toBe(true);
+    });
+
+    it('renderBenchmarkMd: surfaces a data-quality warnings block when warnings exist', () => {
+        const emptyIter = path.join(tmpDir, 'empty-iteration-2');
+        fs.mkdirSync(emptyIter, { recursive: true });
+        const b = m.aggregateIteration(emptyIter, { skillName: 'nada', iteration: 'it-1', date: '2026-06-06' });
+        const md = m.renderBenchmarkMd(b);
+        expect(md).toMatch(/DATA-QUALITY WARNINGS/);
+    });
+
+    it('renderBenchmarkMd: no warnings block for a clean benchmark (warnings undefined)', () => {
+        const records = [
+            {
+                eval_id: 'e1',
+                eval_name: 'clean',
+                prompt: 'p',
+                baselineConfig: 'without_skill',
+                configs: {
+                    with_skill: [{ expectations: [{ text: 'a', passed: true }], total_tokens: 1, duration_ms: 1 }],
+                    without_skill: [{ expectations: [{ text: 'a', passed: false }], total_tokens: 1, duration_ms: 1 }],
+                },
+            },
+        ];
+        const b = m.aggregateBenchmark(records, { skillName: 'clean-skill' }); // no .warnings field
+        const md = m.renderBenchmarkMd(b);
+        expect(md).not.toMatch(/DATA-QUALITY WARNINGS/);
+    });
+});
+
 // ── parseArgs ─────────────────────────────────────────────────────────────────
 
 describe('parseArgs', () => {

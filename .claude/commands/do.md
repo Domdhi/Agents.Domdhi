@@ -1,6 +1,6 @@
 ---
 description: Execute a single task — from conversation context, a TODO story, or ad-hoc request
-argument-hint: [story ID, task description, or blank to infer from conversation]
+argument-hint: "[story ID | task description] [--e2e] [--delegate]"
 ---
 
 # /do — Single Task Execution
@@ -17,7 +17,11 @@ node .claude/core/telemetry-log.js do
 
 ## Variables
 
-INPUT: $ARGUMENTS
+INPUT: $ARGUMENTS (the task; flags below are stripped from it)
+
+**Flags** (parsed from `$ARGUMENTS`):
+- `--e2e` — run the E2E gate leg (`gate.js e2e`) in Step 7, not just `build`+`test`. Pass it when the task touches a contract/interface surface (API shapes, shared types/schemas, public signatures, DB migrations, IPC/config contracts). See Step 7.
+- `--delegate` — force delegation to a Sonnet subagent even for small/medium tasks.
 
 ## Task Status Markers (in TODO files)
 
@@ -459,7 +463,15 @@ node .claude/core/gate.js test
 
 **If gate.js doesn't exist or project has no build system:** Skip gracefully. Log "No build gate configured" in the report.
 
-- **Pass** → proceed to Step 8
+**E2E leg on contract changes (R1).** `gate.js test` runs only the unit/static subset. A task that changes a **contract** an untouched E2E suite covers — an API route/response shape, a shared type or schema, a public signature, a DB migration, an IPC/config contract — passes the unit gate green while the behavior regression only surfaces in manual/E2E testing. Run the E2E leg when `--e2e` is passed (always) or when this task's diff touched any such surface (default safety net):
+
+```bash
+node .claude/core/gate.js e2e   # runs the detected E2E/integration script; gracefully SKIPS (PASS) if the project has none
+```
+
+It applies the same zero-collected false-green teeth as the unit leg. If the E2E suite is environment-bound and cannot run this session, do **not** silently skip — note it in the report as **E2E-unverified** with the contract that changed.
+
+- **Pass** (build + test green, and the E2E leg passed or was legitimately skipped) → proceed to Step 8
 - **Fail** → diagnose the error, fix it directly (Main Agent fixes, not a subagent), re-run gate
 - **3 consecutive failures** → stop, report what's broken, suggest `/investigate {error}` for structured root cause analysis, ask user
 - **NEVER skip a failed gate**

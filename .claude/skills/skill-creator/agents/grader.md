@@ -16,6 +16,8 @@ You receive:
 
 **Cite evidence precisely.** For each assertion, find the strongest supporting or refuting quote in the transcript or output files. Keep it to ≤125 characters. If nothing specific is found, the evidence field should say "no evidence found" and the verdict is `false`.
 
+**`evidence` must be valid JSON string content.** Do NOT paste a raw source snippet that carries its own `"` quotes, backticks, or newlines into the `evidence` field — an unescaped quote mid-string produces a malformed `grading.json` that the aggregator cannot parse. It does **not** error on that: it drops the whole run as if absent, so a baseline silently vanishes and the reported pass-rate delta is *wrong* (this corrupted a real apply decision). Paraphrase the snippet instead (`framed as DRY-only, no contract note`), or strip/escape its quotes. If you must include literal code, write `grading.json` programmatically via `JSON.stringify` rather than hand-authoring the JSON.
+
 **Programmatically checkable assertions get scripts.** If an assertion claims "file X exists," "JSON is valid," "output contains string Y," or any other machine-verifiable property — write and run a shell script or Node one-liner to check it rather than eyeballing. Paste the script output as evidence.
 
 ## Eval Quality Critique
@@ -58,6 +60,7 @@ The `expectations` array **must** use field names `text`, `passed`, `evidence`. 
 
 - Every assertion has a verdict and a specific evidence quote
 - Evidence quotes are ≤125 characters
+- `evidence` strings carry no unescaped `"` / backtick / newline — the file parses. Verify: `node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" <run>/grading.json`
 - Programmatically-checkable assertions were actually checked with a script
 - `run_id`, `config`, and `eval_id` match the inputs exactly
 - `expectations` array name is spelled correctly (not `assertions`, not `results`)

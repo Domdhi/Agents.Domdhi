@@ -29,6 +29,11 @@
  * Usage:
  *   node .claude/core/skill-eval.js aggregate <iterationDir> --skill-name <name> [--date YYYY-MM-DD]
  *
+ * Exit codes: 0 = clean · 1 = could not run (dir missing) · 2 = bad usage ·
+ *   3 = aggregated, but with data-quality warnings (a grading.json was present
+ *       but unparseable, or an eval lost its baseline, or zero records loaded) —
+ *       the benchmark is written, but its delta may be built on incomplete data.
+ *
  * Mirrors the CJS + `require.main === module` shape of skill-conformance.js.
  */
 
@@ -230,6 +235,12 @@ function renderBenchmarkMd(b) {
     L.push('');
     L.push(`**Iteration:** ${b.iteration || '—'}  ·  **Generated:** ${b.generated || '—'}  ·  **Evals:** ${b.summary.n_evals}`);
     L.push('');
+    const warns = b.warnings || [];
+    if (warns.length) {
+        L.push('> ⚠ **DATA-QUALITY WARNINGS — the numbers below may be built on incomplete data. Resolve these before trusting the delta:**');
+        for (const w of warns) L.push(`> - ${w}`);
+        L.push('');
+    }
     L.push('## Summary');
     L.push('');
     L.push('| Metric | with_skill | ' + base + ' | Δ |');
@@ -288,11 +299,34 @@ function readJsonSafe(file) {
     }
 }
 
-/** A run = its grading.json merged with its timing.json. */
-function loadRun(runDir) {
-    const grading = readJsonSafe(path.join(runDir, 'grading.json'));
-    if (!grading) return null;
-    const timing = readJsonSafe(path.join(runDir, 'timing.json')) || {};
+/**
+ * A run = its grading.json merged with its timing.json.
+ *
+ * Distinguishes a genuinely-ABSENT grading.json (returns null silently — e.g. a
+ * config dir that holds run-N subdirs rather than a top-level run) from one that
+ * is PRESENT but unparseable (pushes a warning, then returns null). The latter
+ * is a malformed grader output, and treating it as "no data" is the bug that bit
+ * two downstream projects: a corrupt baseline grading.json was silently dropped,
+ * so `aggregate` reported a confident pass-rate delta built on a missing config.
+ * Warnings collected here bubble up to `main`, which prints them and exits 3.
+ */
+function loadRun(runDir, warnings = []) {
+    const gradingPath = path.join(runDir, 'grading.json');
+    if (!fs.existsSync(gradingPath)) return null; // genuinely absent — normal, not a warning
+    const grading = readJsonSafe(gradingPath);
+    if (!grading) {
+        warnings.push(`grading.json exists but failed to parse — excluded from aggregation: ${gradingPath}`);
+        return null;
+    }
+    const timingPath = path.join(runDir, 'timing.json');
+    let timing = {};
+    if (fs.existsSync(timingPath)) {
+        timing = readJsonSafe(timingPath);
+        if (!timing) {
+            warnings.push(`timing.json exists but failed to parse — tokens/duration dropped for this run: ${timingPath}`);
+            timing = {};
+        }
+    }
     return {
         expectations: grading.expectations || [],
         total_tokens: timing.total_tokens,
@@ -301,20 +335,20 @@ function loadRun(runDir) {
 }
 
 /** A config dir holds either a single run (grading.json) or run-N subdirs. */
-function loadConfigRuns(configDir) {
+function loadConfigRuns(configDir, warnings = []) {
     if (!fs.existsSync(configDir)) return null;
-    const single = loadRun(configDir);
+    const single = loadRun(configDir, warnings);
     if (single) return [single];
     const runs = fs
         .readdirSync(configDir, { withFileTypes: true })
         .filter((d) => d.isDirectory() && /^run-/.test(d.name))
-        .map((d) => loadRun(path.join(configDir, d.name)))
+        .map((d) => loadRun(path.join(configDir, d.name), warnings))
         .filter(Boolean);
     return runs.length ? runs : null;
 }
 
 /** Read every eval-* dir under an iteration into eval records for aggregation. */
-function loadIteration(iterationDir) {
+function loadIteration(iterationDir, warnings = []) {
     const records = [];
     if (!fs.existsSync(iterationDir)) return records;
     const evalDirs = fs
@@ -327,11 +361,11 @@ function loadIteration(iterationDir) {
         const dir = path.join(iterationDir, name);
         const meta = readJsonSafe(path.join(dir, 'eval_metadata.json')) || {};
         const configs = {};
-        const withRuns = loadConfigRuns(path.join(dir, TREATMENT));
+        const withRuns = loadConfigRuns(path.join(dir, TREATMENT), warnings);
         if (withRuns) configs[TREATMENT] = withRuns;
         let baselineConfig = null;
         for (const bd of BASELINE_DIRS) {
-            const runs = loadConfigRuns(path.join(dir, bd));
+            const runs = loadConfigRuns(path.join(dir, bd), warnings);
             if (runs) {
                 configs[bd] = runs;
                 baselineConfig = bd;
@@ -352,9 +386,31 @@ function loadIteration(iterationDir) {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 function aggregateIteration(iterationDir, opts = {}) {
-    const records = loadIteration(iterationDir);
+    const warnings = [];
+    const records = loadIteration(iterationDir, warnings);
+    if (records.length === 0) {
+        warnings.push(
+            `no eval records loaded from ${iterationDir} — the benchmark is empty (all-zero, Δ +0). ` +
+            `Expected eval-*/ subdirs, each with a ${TREATMENT}/ run and a baseline (${BASELINE_DIRS.join('|')}/), ` +
+            `every run holding a parseable grading.json.`,
+        );
+    }
+    // A delta is only meaningful when an eval has BOTH the treatment and its
+    // baseline. A half-present eval (the crypto failure: baseline silently
+    // dropped) contributes nothing to the summary — say so, don't hide it.
+    for (const r of records) {
+        const hasTreatment = !!r.configs[TREATMENT];
+        const hasBaseline = !!(r.baselineConfig && r.configs[r.baselineConfig]);
+        if (hasTreatment && !hasBaseline) {
+            warnings.push(`eval-${r.eval_id}: has ${TREATMENT} but NO baseline run — its delta is omitted from the summary.`);
+        } else if (!hasTreatment && hasBaseline) {
+            warnings.push(`eval-${r.eval_id}: has a baseline but NO ${TREATMENT} run — its delta is omitted from the summary.`);
+        }
+    }
     const iteration = opts.iteration || path.basename(iterationDir);
-    return aggregateBenchmark(records, { ...opts, iteration });
+    const benchmark = aggregateBenchmark(records, { ...opts, iteration });
+    benchmark.warnings = warnings;
+    return benchmark;
 }
 
 function parseArgs(argv) {
@@ -393,8 +449,17 @@ function main(argv) {
     const mdPath = path.join(iterationDir, 'benchmark.md');
     fs.writeFileSync(jsonPath, JSON.stringify(benchmark, null, 2));
     fs.writeFileSync(mdPath, renderBenchmarkMd(benchmark));
+    const warns = benchmark.warnings || [];
+    for (const w of warns) console.error(`[SKILL-EVAL] WARN: ${w}`);
     const d = benchmark.summary.delta.pass_rate;
     console.log(`[SKILL-EVAL] ${benchmark.skill_name} ${benchmark.iteration}: pass-rate Δ ${signedPct(d)} → ${jsonPath}`);
+    if (warns.length) {
+        // Exit 3 (distinct from 1 = "couldn't run" / 2 = "bad usage"): the run
+        // produced a benchmark, but on incomplete data — the delta may be wrong.
+        // A non-zero exit makes the caller (and /review:evolve-skills) stop and look.
+        console.error(`[SKILL-EVAL] completed with ${warns.length} data-quality warning(s) — inspect benchmark.md before trusting the delta (exit 3).`);
+        process.exit(3);
+    }
     process.exit(0);
 }
 

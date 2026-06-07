@@ -49,8 +49,14 @@ const CONFIG_FILE = path.join(PROJECT_ROOT, '.claude', 'gate.config.json');
 const args = process.argv.slice(2);
 const skipBuild = args.includes('--no-build');
 const changedOnly = args.includes('--changed');
+// e2e mode: a focused behavior/contract gate that runs the project's separate
+// E2E/integration suite. The build+unit gate (`gate.js test`) runs only the
+// unit subset, so a wave that changes a CONTRACT an E2E suite covers — without
+// touching that suite — passes green and the regression only surfaces in manual
+// testing (the R1 class of failure). `/run-todo` runs this on contract changes.
+const runE2e = args.includes('--e2e') || args.includes('e2e');
 // --no-build implies --test (build-skip without testing is meaningless)
-const runTests = skipBuild || args.includes('--test') || args.includes('test');
+const runTests = !runE2e && (skipBuild || args.includes('--test') || args.includes('test'));
 
 // ── Lock ────────────────────────────────────────────────────────────
 
@@ -119,9 +125,17 @@ function loadConfig() {
         if (scripts.build) buildCommand = 'npm run build';
         else if (isTypeScript) buildCommand = 'npx tsc --noEmit';
         else buildCommand = 'echo "No build step (plain JS — no build script)"';
+        // E2E/integration suites live behind their own script, NOT `npm test`.
+        // First matching name wins; absent ⇒ a graceful no-op (missing:true) so
+        // projects without an E2E suite never fail the e2e gate.
+        const e2eScript = ['test:e2e', 'e2e', 'test:integration', 'integration', 'e2e:ci']
+            .find(n => scripts[n]);
         return {
             build: { command: buildCommand, timeout: 300000 },
             test: { command: scripts.test ? 'npm test' : 'echo "No test script"', timeout: 600000 },
+            e2e: e2eScript
+                ? { command: `npm run ${e2eScript}`, timeout: 1200000 }
+                : { command: 'echo "No e2e script"', timeout: 60000, missing: true },
             stack: 'node'
         };
     }
@@ -490,6 +504,46 @@ async function main() {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const logPath = path.join(LOG_DIR, `gate-${timestamp}.log`);
+
+    // ── E2E mode: focused behavior/contract gate (run after build+test pass) ──
+    if (runE2e) {
+        const e2e = config.e2e || { command: 'echo "No e2e gate configured"', timeout: 60000, missing: true };
+        if (e2e.missing) {
+            console.log(`[GATE] E2E: SKIPPED (no e2e/integration script detected for stack ${config.stack || 'configured'})`);
+            writeSummary(PROJECT_ROOT, {
+                timestamp: new Date().toISOString(), mode: 'E2E', stack: config.stack || 'configured',
+                overall: true, durationMs: Date.now() - startedAt, e2e: { succeeded: true, skipped: true },
+            });
+            console.log('[GATE] Overall: PASSED');
+            process.exit(0);
+        }
+        console.log(`[GATE] E2E... (${e2e.command})`);
+        let e2eLog = `E2E gate started at ${new Date().toISOString()}\nStack: ${config.stack || 'configured'}\n${'='.repeat(60)}\n--- E2E ---\n`;
+        const e2eResult = runCommand(e2e.command, PROJECT_ROOT, e2e.timeout);
+        e2eLog += e2eResult.output + '\n' + e2eResult.stderr + '\n';
+        const parsed = parseTestOutput(e2eResult.output + '\n' + e2eResult.stderr, e2eResult.exitCode);
+        // Same false-green teeth as the unit leg: a runner that exits 0 having
+        // collected 0 e2e tests is a FAIL, not a silent pass (C11/F1).
+        const zeroCollected = isZeroCollected(e2e.command, e2eResult.exitCode, parsed.total);
+        const succeeded = testPassed({ succeeded: parsed.succeeded, total: parsed.total, exitCode: e2eResult.exitCode }, e2e.command);
+        fs.writeFileSync(
+            path.join(GATE_DIR, '_latest-e2e.json'),
+            JSON.stringify({ ...parsed, exitCode: e2eResult.exitCode, command: e2e.command, timestamp: new Date().toISOString(), zeroCollected, succeeded }, null, 2),
+        );
+        const e2eStatus = succeeded ? 'PASSED' : (zeroCollected ? 'FAILED (0 tests collected)' : 'FAILED');
+        console.log(`[GATE] E2E: ${e2eStatus} (${parsed.passed} passed, ${parsed.failed} failed, ${parsed.skipped} skipped)`);
+        e2eLog += `\n${'='.repeat(60)}\nE2E gate completed at ${new Date().toISOString()}\nOverall: ${succeeded ? 'PASSED' : 'FAILED'}\n`;
+        fs.writeFileSync(logPath, e2eLog);
+        writeSummary(PROJECT_ROOT, {
+            timestamp: new Date().toISOString(), mode: 'E2E', stack: config.stack || 'configured',
+            overall: succeeded, durationMs: Date.now() - startedAt,
+            e2e: { succeeded, passed: parsed.passed, failed: parsed.failed, skipped: parsed.skipped, total: parsed.total, zeroCollected },
+        });
+        console.log(`[GATE] Log: ${logPath}`);
+        console.log(`[GATE] Overall: ${succeeded ? 'PASSED' : 'FAILED'}`);
+        process.exit(succeeded ? 0 : 1);
+    }
+
     const mode = skipBuild
         ? (changedOnly ? 'TEST (changed only)' : 'TEST ONLY')
         : (runTests ? 'BUILD + TEST' : 'BUILD');

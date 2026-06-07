@@ -23,6 +23,7 @@ const zoneClassifier = require('./_lib/zone-classifier');
 const { walkDir }    = require('./_lib/file-walker');
 const agentMerger    = require('./_lib/agent-merger');
 const { copyWithZoneEnforcement } = require('./_lib/zone-copy');
+const { applyManagedBlock }       = require('./scaffold');
 
 const { classifyClaudeFile } = zoneClassifier;
 const { mergeAgentFile }     = agentMerger;
@@ -242,6 +243,29 @@ function runUpdate(targetPath, options) {
         }
     }
 
+    // ── Root .gitignore managed block ─────────────────────────────────────────
+    // The .claude walk above syncs the INERT .claude/templates/root/gitignore,
+    // but the ACTIVE root .gitignore is a separate file scaffold.js seeds once at
+    // setup time. Without this step, ignore-rule changes (e.g. v4.63 untracking
+    // docs/.output/memories/) never reach existing adopters on sync. Merge the
+    // managed block here — idempotent: replaces an existing block in place,
+    // appends one if absent, and leaves the adopter's own rules untouched.
+    const gitignoreSrc = path.join(sourceClaudeDir, 'templates', 'root', 'gitignore');
+    if (fs.existsSync(gitignoreSrc)) {
+        const gitignoreDest = path.join(targetPath, '.gitignore');
+        tryAction('.gitignore (managed block)', () => {
+            const content = fs.readFileSync(gitignoreSrc, 'utf8');
+            const action  = applyManagedBlock(gitignoreDest, content, { dryRun: options.dryRun });
+            if (action === 'unchanged') {
+                console.log('  SKIP     .gitignore (managed block — unchanged)');
+                stats.skipped++;
+            } else {
+                console.log(`  MERGE    .gitignore (managed block — ${action})`);
+                stats.merged++;
+            }
+        }, stats);
+    }
+
     // ── version.json — last (sync-complete marker) ────────────────────────────
 
     const versionSrc  = path.join(sourceClaudeDir, 'version.json');
@@ -300,6 +324,9 @@ Zone behavior:
                     ("skillExclude": [...]) are never copied, so a project can
                     permanently drop template skills it doesn't use (e.g. Tailwind).
   Doc redirect    — Source CLAUDE.md → target .claude/README.md
+  .gitignore      — Active root .gitignore: managed-block merge from
+                    .claude/templates/root/gitignore (idempotent; the adopter's
+                    own rules outside the managed block are preserved).
 
 Flags:
   --merge         Section-aware merge for agents/*.md (preserves Soul Zone, Project Context,

@@ -31,8 +31,8 @@ CREATE is deliberately distinct from `/review:promote-memories` (which injects a
 ## Variables
 
 - `--improve-only` / `--create-only` — run just one path (default: both).
-- `--auto` — **sweep mode**: propose-only. Run intake + draft candidates + gate them, but do NOT apply or run the full benchmark; surface staged proposals for human review. Used by `/sweep` Phase 5b. (Skill *bodies* are the system's brain — never mutate them unattended; there is no safe auto-threshold for a rewrite, unlike memory promotion.)
-- `--apply <skill-name>` — apply a previously-staged proposal for that skill (re-validates conformance + gate before committing).
+- `--auto` — **sweep mode**: propose-only. Run intake + draft candidates + **the differential eval that gates them** (against a **workspace copy** — the live skill in `.claude/skills/` is never touched), but do NOT apply, commit, or iterate. Surface staged proposals for human review. Used by `/sweep` Phase 5b. (Skill *bodies* are the system's brain — never mutate them unattended; there is no safe auto-threshold for a rewrite, unlike memory promotion.) The differential always runs — it is the falsifier — `--auto` only withholds *applying* the result. "Propose-only" ≠ "skip the eval"; a proposal with no Δ is not a proposal.
+- `--apply <skill-name>` — apply a previously-staged proposal for that skill: **runs the differential eval (the real gate)**, then re-validates conformance + the build/test gate, then commits. A non-positive `summary.delta.pass_rate` **blocks** the apply (see *What NOT to Do*) — conformance + build passing is necessary but not sufficient.
 - `--since YYYY-MM-DD` — only consider agent-updates on/after this date (default: all day-rotated files).
 
 ## Orchestration Rule
@@ -47,7 +47,9 @@ CREATE is deliberately distinct from `/review:promote-memories` (which injects a
 node .claude/core/skill-evolution.js intake --since <date-or-omit> --date <YYYY-MM-DD>
 ```
 
-This writes `docs/.output/skill-evolution/{date}/intake.{json,md}` with ranked **IMPROVE** candidates (per-skill, with the agent-update evidence) and **CREATE** candidates (memory clusters with member IDs + keywords). Read `intake.json`. If both lists are empty → report "no skill-evolution signal" and stop.
+This writes `docs/.output/skill-evolution/{date}/intake.{json,md}` with ranked **IMPROVE** candidates (per-skill, with the agent-update evidence + per-signal `polarity`), **CREATE** candidates (memory clusters with member IDs + keywords), and a **`dispatchGaps`** list. Read `intake.json`. If `improve` and `create` are both empty → report "no skill-evolution signal" and stop.
+
+> **`dispatchGaps` are NOT skill-evolution candidates.** Each is a signal that attributed to a review/safeguard skill but whose text shows the safeguard *caught* the defect — so the gap is in the **dev-agent dispatch prompt** (e.g. `/run-todo`'s implementation prompt), not in the review skill. Do **not** open a skill eval for these (it would read Δ=0, exactly the wasted cycle two projects reported). Surface them in the Report under "Dispatch-prompt gaps" for the human to route; the scorer attributes by domain keyword and cannot tell *caught* from *slipped*, so it pre-separates them here. Likewise, an IMPROVE evidence line tagged `(caught)` is weaker evidence (a safeguard fired) than one tagged `(slipped)` — weight the diagnosis accordingly.
 
 ### Step 2 — Triage with the user (skip under `--auto`)
 
@@ -79,7 +81,18 @@ Follow `skill-creator` Steps 1–4: dispatch with_skill + baseline runs in the s
 node .claude/core/skill-eval.js aggregate <workspace>/iteration-1 --skill-name <name> --date <YYYY-MM-DD>
 ```
 
-Read `benchmark.json`. The candidate is only legitimate if **`summary.delta.pass_rate > 0`** (with_skill beats baseline). A zero/negative delta means the edit didn't help — iterate or drop it; do NOT apply a skill change that the differential doesn't justify. Run the analyst pass (`agents/analyzer.md`) and generate the viewer (`eval-viewer/generate-review.js --static`) for the human.
+**Replicates & fixtures (esp. IMPROVE):** run **≥2 replicates per config** (`with_skill/run-1/`, `run-2/`, … and the same for the baseline) — a single sample per cell is too noisy to justify a skill-body rewrite. Include **at least one fixture where the targeted gap is the *only* thing that discriminates**, and do **not** telegraph the planted defect (no `# raises KeyError here` comments next to the bug): a fixture that signposts the issue saturates detection in *both* configs, so the delta collapses to framing and measures nothing.
+
+**Expected layout** (the aggregator globs exactly this — wrong names load 0 records):
+```
+<workspace>/iteration-1/
+  eval-<id>-<name>/
+    eval_metadata.json
+    with_skill/    grading.json (+ timing.json)   |  with_skill/run-<k>/grading.json …
+    without_skill/ | old_skill/   (same shape — the baseline)
+```
+
+Read `benchmark.json`. **Check `benchmark.warnings` first** (and watch for a non-zero exit / `WARN:` lines): a present-but-malformed `grading.json` or a dropped baseline makes the harness exit **3** and flag the eval — the delta is then built on incomplete data and is **not** trustworthy until you fix the named file and re-aggregate. The candidate is only legitimate if **`summary.delta.pass_rate > 0`** with **no warnings** (with_skill beats baseline). A zero/negative delta means the edit didn't help — iterate or drop it; do NOT apply a skill change that the differential doesn't justify. Run the analyst pass (`agents/analyzer.md`) and generate the viewer (`eval-viewer/generate-review.js --static`) for the human.
 
 ### Step 6 — Gate + apply
 
