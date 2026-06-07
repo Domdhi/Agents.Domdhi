@@ -76,6 +76,8 @@ Use the Task tool with `subagent_type: "security-auditor"` to perform the audit.
 11. Instruction to classify findings by severity: CRITICAL > HIGH > MEDIUM > LOW
 12. Instruction to include for each finding: severity, OWASP category, proof conditions, attack scenario, remediation
 
+> **MANDATORY — redact secrets in the report.** When a finding quotes a discovered credential, NEVER write the full value into the audit file. Redact to a non-recoverable, non-matching form: show at most a short identifying prefix then mask the rest, e.g. `CG-abc…[REDACTED]` or `sk-ant-…[REDACTED]`. Report the **location** (`file:line`) precisely so it can be found and rotated — the location, not the value, is what makes the finding actionable. This is both why the report stays safe to commit and why the commit-time secret scan won't block it. (A non-redacted full key written into `docs/.output/reviews/` is exactly how a live key once leaked — the output dir is no longer a scanner blind spot.)
+
 ### 4. Persist Output (main agent)
 
 Write the full audit to disk before reporting:
@@ -149,7 +151,7 @@ Read the agent's output and present the final report, including the output file 
 {Any combinations of lower-severity findings that create higher-severity paths}
 
 ### Secret Scan
-{Results of secret/credential scan — CLEAN or list of exposures}
+{Results of secret/credential scan — CLEAN, or list of exposures with REDACTED values (`CG-abc…[REDACTED]`) + precise `file:line` locations to rotate. Never the full secret.}
 
 ### Recommended Actions
 {Prioritized list of remediations — CRITICAL first, then HIGH, etc.}

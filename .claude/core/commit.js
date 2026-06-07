@@ -85,6 +85,28 @@ if (stageAll) {
   console.log('[commit] staged all changes (git add -A)');
 }
 
+// --- Secret-scan gate (the pre-commit hook, living in our own flow) ---
+// A plain .git/hooks/pre-commit was retired (fossil-prone across the fleet), and
+// the PreToolUse:Write/Edit scanner only sees Claude's Write/Edit tool — NOT files
+// that reach the index via Bash, scripts, or a human's terminal. commit.js IS the
+// project's commit path, so the staged-content scan lives here: it runs
+// secret-scanner.cjs over the staged set and aborts the commit on a finding.
+// Bypass (rare — e.g. a deliberately-redacted example that still matches a
+// pattern): --no-scan, or CLAUDE_COMMIT_NO_SCAN=1.
+const noScan = has('--no-scan') || process.env.CLAUDE_COMMIT_NO_SCAN === '1';
+if (!noScan) {
+  const scanner = path.join(__dirname, '..', 'hooks', 'secret-scanner.cjs');
+  if (fs.existsSync(scanner)) {
+    const scan = spawnSync(process.execPath, [scanner, '--git-precommit'], { stdio: 'inherit' });
+    if (scan.status !== 0) {
+      console.error('[commit] secret scan blocked the commit. Remove the secret, or override with --no-scan / CLAUDE_COMMIT_NO_SCAN=1 (NOT recommended).');
+      process.exit(scan.status || 1);
+    }
+  } else {
+    console.warn(`[commit] WARNING: secret scanner not found at ${scanner} — committing WITHOUT a secret scan.`);
+  }
+}
+
 const commitArgs = ['commit', '-F', msgFile];
 if (amend) commitArgs.push('--amend');
 

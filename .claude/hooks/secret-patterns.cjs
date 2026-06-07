@@ -55,6 +55,7 @@ const PATTERNS = [
     { name: 'Square Access Token', regex: /sq0atp-[A-Za-z0-9_-]{22,}/g },
     { name: 'Square OAuth Secret', regex: /sq0csp-[A-Za-z0-9_-]{43,}/g },
     { name: 'Shopify Token', regex: /shp(?:at|ca|pa|ss)_[a-fA-F0-9]{32,}/g },
+    { name: 'CoinGecko API Key', regex: /\bCG-[A-Za-z0-9]{20,}\b/g },
 
     // --- CI/CD & DevOps ---
     { name: 'npm Token', regex: /npm_[A-Za-z0-9]{36}/g },
@@ -161,7 +162,14 @@ const SKIP_PATHS = [
     /\.claude\/templates\//,
     /node_modules\//,
     /\.git\//,
-    /docs\/\.output\//,
+    // NOTE: docs/.output/ is deliberately NOT skipped. It holds generated
+    // reviews/digests/handoffs that routinely quote config — the single most
+    // likely place to echo a real secret (a /review:security report writing
+    // into docs/.output/reviews/ is exactly how a live CoinGecko key once
+    // leaked past this scanner). Hook-internal writes (telemetry, memories)
+    // go through fs, not the Write tool, so they bypass the PreToolUse scan
+    // regardless; only Claude-authored Write/Edit + staged-commit content is
+    // scanned here, which is precisely what we want covered.
     /package-lock\.json$/,
     /yarn\.lock$/,
     /pnpm-lock\.yaml$/,

@@ -229,6 +229,23 @@ describe('scanContent', () => {
         });
     });
 
+    describe('scanContent_coinGeckoKey', () => {
+        // Regression: a bare CG-… token in prose (e.g. inside a security report)
+        // slipped every pattern — only the "api_key": "…" assignment forms caught
+        // it. A live CoinGecko key leaked this exact way.
+        it('scanContent_coinGeckoBareToken_detected', () => {
+            const content = 'leaked key CG-' + 'abcDEF123456ghiJKL789mn' + ' in config';
+            const findings = scanContent(content, 'docs/.output/reviews/audit.md');
+            expect(findings.map(f => f.name)).toContain('CoinGecko API Key');
+        });
+
+        it('scanContent_coinGeckoShortRef_noDetection', () => {
+            // A changelog reference like "CG-1" must not false-positive.
+            const findings = scanContent('see CG-1 in the changelog', 'CHANGELOG.md');
+            expect(findings.filter(f => f.name === 'CoinGecko API Key')).toHaveLength(0);
+        });
+    });
+
     describe('scanContent_findings_structure', () => {
         it('scanContent_finding_hasRequiredFields', () => {
             const content = `key = "${fakeAwsKey()}"`;
@@ -308,9 +325,13 @@ describe('shouldSkipPath', () => {
         expect(shouldSkipPath('/project/node_modules/lodash/index.js')).toBe(true);
     });
 
-    it('shouldSkipPath_docsOutput_returnsTrue', () => {
-        expect(shouldSkipPath('/project/docs/.output/plans/my-plan.md')).toBe(true);
-        expect(shouldSkipPath('/project/docs/.output/telemetry/log.jsonl')).toBe(true);
+    it('shouldSkipPath_docsOutput_returnsFalse', () => {
+        // docs/.output/ is deliberately NOT skipped — its generated reviews/
+        // digests routinely quote config and are the most likely place to echo
+        // a real secret (a /review:security report once leaked a live key here).
+        expect(shouldSkipPath('/project/docs/.output/reviews/x-security-audit.md')).toBe(false);
+        expect(shouldSkipPath('/project/docs/.output/handoffs/x-end-main.md')).toBe(false);
+        expect(shouldSkipPath('/project/docs/.output/plans/my-plan.md')).toBe(false);
     });
 
     it('shouldSkipPath_secretScannerItself_returnsTrue', () => {
