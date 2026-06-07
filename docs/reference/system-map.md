@@ -28,12 +28,12 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Command | Agent | Skill | What it does |
 |---------|-------|-------|-------------|
-| `/prime` | — (main) | — | Load context from `__handoff.md` + git log. Chat output only. |
+| `/prime` | — (main) | — | Load context from the latest per-branch handoff (handoff-path.js) + git log. Chat output only. |
 | `/todo` | Explore + project-planner + code-reviewer | — | Research codebase, assemble execution-ready checklist with AC |
 | `/do` | Explore + domain agent | — | Execute one task from a TODO. Plan → implement → verify → commit. |
 | `/run-todo` | Explore + domain agents + code-reviewer | — | Execute entire TODO checklist. Parallel waves, dev+QA pairs, auto-commit per wave. |
 | `/run-tests` | playwright + general-purpose | — | Execute manual/E2E testing checklist with screenshots and verification |
-| `/end` | — (main) | — | Write `__handoff.md` for next session |
+| `/end` | — (main) | — | Write this session's handoff (docs/.output/handoffs/…) for next session |
 
 ### Supporting Commands (as needed)
 
@@ -239,6 +239,9 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `decision-viz.js` | Decision log visualization — 6 data source parsers → vis.js Timeline + Network HTML |
 | `metrics.js` | Workflow metrics from telemetry + git + TODOs |
 | `template-updater.js` | Zone-aware template sync to downstream projects (`--merge`, `--dry-run`) |
+| `guardrail-stats.js` | Guardrail hit-counter reporter — aggregates `guardrail-events.jsonl` (block/nudge/confirm) by decision + rule (`npm run guardrail:stats`, `--json`/`--since`/`--top`) |
+| `_lib/hook-telemetry.js` | Hook telemetry emitters — `emitHookEvent` (timing) + `emitGuardrailHit` (guardrail hit counter, secret-safe: rule/decision/tier, never the raw command) |
+| `tools/fleet.js` | Fleet orchestrator (workshop-only, not shipped) — roster-driven (`tools/fleet.json`) `status`/`sync`/`release` wrapping template-updater + publish + gate into one pass with a rollup (`npm run fleet:status\|sync\|release`) |
 | `status.js` | TODO progress + metrics → text + HTML dashboard |
 | `memory-health-check.js` | Headless memory health check — lint + decay report for `/review:memory-health` |
 | `cleanup-logs.js` | Prune old gate logs |

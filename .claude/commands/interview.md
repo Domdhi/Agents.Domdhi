@@ -85,7 +85,7 @@ Default to skip for:
 For each qualifying decision, invoke:
 
 ```bash
-node .claude/core/memory-manager-cli.js create <category> <kebab-slug> '<json-payload>'
+node .claude/core/memory-manager.js create <category> <kebab-slug> '<json-payload>'
 ```
 
 Confidence calibration for interview-sourced memories: **0.6–0.7**. These are made under interactive pressure with limited surrounding code context — they're not retro-validated or field-tested at write time. The decay model will boost confidence later if the decision proves out across sessions.

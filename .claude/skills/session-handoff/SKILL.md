@@ -119,6 +119,8 @@ You (the main agent) have the session context. Resolve this run's path once — 
 
 **Key Files mechanics (read this before populating).** `/prime` Step 2 reads every listed file IN FULL — line-range annotations like `:47-89` are ignored by spec. The list directly controls cold-start token cost. Two repos' worth of audit data shows a single bad Key File entry can spike `/prime` from ~60k to ~100k tokens. The hard rules in **Key Files lifecycle** (between Steps 4 and 5) are mandatory, not advisory.
 
+**Whole-set ceiling (aggregate budget).** Beyond the per-file rules, the entire Key Files list must read in **≤15k tokens total** (~60kb of files combined) — the per-file discipline caps each entry, this caps the set. The `max 5` count is an upper bound, not a target: prefer **2–3 files** the next session reads first. If satisfying step 1 of Next Actions genuinely needs more than ~15k tokens of files, that's the signal to split a heavy file (live + archive) or move a path from Key Files to a plain mention in Decisions & Context (a mention costs ~30 tokens; a Key File costs the whole file). When the set would blow the budget, cut to the files needed for *step 1 only* — later steps' files can be read on demand.
+
 ## Step 4: Command-specific tailoring
 
 Different callers have different information to emphasize. Fill the template with these adjustments:
@@ -195,7 +197,7 @@ Sub-agents may have flagged drafts to `docs/.output/memories/_inbox/` during the
 Run the listing:
 
 ```bash
-node .claude/core/memory-manager-cli.js inbox-list
+node .claude/core/memory-manager.js inbox-list
 ```
 
 For each entry, decide promote (`inbox-promote <id>`) or discard (`inbox-discard <id>`) using the same qualification rules described below. The inbox is for transient capture; do not leave drafts lingering across sessions. If the inbox is empty, this step is a no-op — proceed to Step 6b.

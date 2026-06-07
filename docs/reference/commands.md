@@ -641,7 +641,7 @@ Six commands used dozens of times per session. Every session starts with `/prime
 
 ## /prime
 
-Cold-start a session. Reads `docs/__handoff.md`, `git log --oneline -20`, and `git status --short` in parallel; compares handoff against git reality; reports recent work + next actions. No commit.
+Cold-start a session. Resolves the latest per-branch handoff via `handoff-path.js latest` (under `docs/.output/handoffs/`), reads it alongside `git log --oneline -20` and `git status --short` in parallel; compares handoff against git reality; reports recent work + next actions. No commit.
 
 ```mermaid
 flowchart TD
@@ -653,7 +653,7 @@ flowchart TD
     CTX -->|No| COLD["Cold-Start Sequence"]
 
     COLD --> PAR["Steps 1-2 (parallel):"]
-    PAR --> S1["Step 1: Read\ndocs/__handoff.md\n(if exists)"]
+    PAR --> S1["Step 1: Resolve+read latest handoff\n(handoff-path.js latest)"]
     PAR --> S2["Step 2: Check git\ngit log --oneline -20\ngit status --short"]
 
     S1 --> S3
@@ -732,7 +732,7 @@ flowchart TD
 
 ## /do
 
-Execute one task end-to-end: plan-first → TDD → size-aware implementation (Main Agent direct or Sonnet delegate) → build/test gate → AC verification → commit → handoff regeneration. Every `/do` updates `docs/__handoff.md` so sessions are resumable mid-task. Writes plan file to `docs/.output/plans/{YYYY-MM-DD}-do-{slug}.md`.
+Execute one task end-to-end: plan-first → TDD → size-aware implementation (Main Agent direct or Sonnet delegate) → build/test gate → AC verification → commit → handoff regeneration. Every `/do` writes a per-session handoff under `docs/.output/handoffs/` (resolved via `handoff-path.js`) so sessions are resumable mid-task. Writes plan file to `docs/.output/plans/{YYYY-MM-DD}-do-{slug}.md`.
 
 ```mermaid
 flowchart TD
@@ -879,7 +879,7 @@ flowchart TD
 
 ## /end
 
-Save session context for the next conversation. Reads plans for unfinished items, runs `organize.cjs`, refreshes `_project-timeline.md` if stale, gathers live git state, rewrites `docs/__handoff.md` using the `session-handoff` skill, and commits the handoff.
+Save session context for the next conversation. Reads plans for unfinished items, runs `organize.cjs`, refreshes `_project-timeline.md` if stale, gathers live git state, writes this session's handoff (`docs/.output/handoffs/{stamp}-{caller}-{branch}.md`, via the session-handoff skill), and commits the handoff.
 
 ```mermaid
 flowchart TD
@@ -896,10 +896,10 @@ flowchart TD
 
     GATHER["Gather live state:\ngit status --short\ngit log --oneline -5"]
 
-    GATHER --> WRITE["Write docs/__handoff.md\n(overwrite completely):\n\nDecisions & Context\n  - Things NOT in git\n  - Unfinished plans noted\nCurrent State\n  - Branch, Build, Deployed\nNext Actions\n  - File paths, search terms\nBlockers (if any)\nKey Files"]
+    GATHER --> WRITE["Write the run's handoff\n(docs/.output/handoffs/…):\n\nDecisions & Context\n  - Things NOT in git\n  - Unfinished plans noted\nCurrent State\n  - Branch, Build, Deployed\nNext Actions\n  - File paths, search terms\nBlockers (if any)\nKey Files"]
 
     WRITE --> SHOW["Show handoff to user\nfor review"]
-    SHOW --> COMMIT["Commit:\ndocs/__handoff.md"]
+    SHOW --> COMMIT["Commit:\nthe run's handoff (+ prune old)"]
     COMMIT --> DONE(["Done"])
 
     style START fill:#4a9eff,color:#fff

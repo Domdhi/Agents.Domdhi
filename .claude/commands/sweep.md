@@ -156,7 +156,7 @@ Reuses `/review:evolve-skills --auto`. Runs *after* Phase 5 (so it sees freshly-
 
 Reuses `/review:memory-defrag` in **auto-approve** mode — now operating on the GROWN store (new memories from Phases 2–3 included).
 
-1. **Process the inbox first**: `node .claude/core/memory-manager-cli.js inbox-list`. For each staged item, decide its final category and `inbox-promote <id> [--category <cat>]`. If a target category is at cap, that item is resolved by the merges below.
+1. **Process the inbox first**: `node .claude/core/memory-manager.js inbox-list`. For each staged item, decide its final category and `inbox-promote <id> [--category <cat>]`. If a target category is at cap, that item is resolved by the merges below.
 2. Dispatch a `general-purpose` analysis agent (read-only) to produce MERGE / SPLIT / CROSS-REF proposals over `docs/.output/memories/{decisions,patterns,constraints,workflows,rejected-approaches}/`. Prioritize MERGEs within near-cap categories. **If a prior defrag-analysis from this session already exists, reuse it** rather than re-dispatching.
 3. **Auto-apply every proposal** that preserves all evidence anchors (story IDs, commit hashes, file paths). Skip + log any merge that would drop an anchor.
    - MERGE → `memory-manager.js update` primary (fold in duplicate's load-bearing fields) + `memory-manager.js delete <cat> <duplicate_id>`.

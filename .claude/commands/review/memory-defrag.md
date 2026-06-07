@@ -27,7 +27,7 @@ node .claude/core/telemetry-log.js review:memory-defrag
 #### 0a. Memory count threshold
 
 ```bash
-node .claude/core/memory-manager-cli.js report | grep -E '"total_memories"|"count"'
+node .claude/core/memory-manager.js report | grep -E '"total_memories"|"count"'
 ```
 
 Read `summary.total_memories`. If `< 30`, abort with:
@@ -173,7 +173,7 @@ For each accepted proposal:
    ```
 4. Delete duplicate:
    ```bash
-   node .claude/core/memory-manager-cli.js delete {duplicate_category} {duplicate_id}
+   node .claude/core/memory-manager.js delete {duplicate_category} {duplicate_id}
    ```
 5. Append to the plan file's `## Review log`: `- [x] Proposal N MERGE — {primary_id} ← {duplicate_id} (commit pending)`
 
@@ -182,8 +182,8 @@ For each accepted proposal:
 2. Construct content for each split target.
 3. Create new memories:
    ```bash
-   node .claude/core/memory-manager-cli.js create {new_category_a} {new_id_a} '<content_a_json>'
-   node .claude/core/memory-manager-cli.js create {new_category_b} {new_id_b} '<content_b_json>'
+   node .claude/core/memory-manager.js create {new_category_a} {new_id_a} '<content_a_json>'
+   node .claude/core/memory-manager.js create {new_category_b} {new_id_b} '<content_b_json>'
    ```
 4. Either reduce source memory's content (if keeping the source) OR delete it (if retiring):
    - Reduce: `updateMemory` with the leftover content
@@ -201,7 +201,7 @@ For each accepted proposal:
 Before SPLIT or CROSS-REF that would create a new memory, check the target category's count:
 
 ```bash
-node .claude/core/memory-manager-cli.js list {category} | grep -c '"id"'
+node .claude/core/memory-manager.js list {category} | grep -c '"id"'
 ```
 
 If the category is at 49 (one below the hard cap of 50), warn the user and suggest pruning before proceeding. Do NOT silently fail at the cap.

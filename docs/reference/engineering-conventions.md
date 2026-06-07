@@ -53,3 +53,17 @@ Notes:
 - Close any DB handle the reloaded instance opened before tmp cleanup.
 
 *Why:* the full suite stayed green afterward, proving the reload didn't leak `cap=2` into other describe blocks (MP-2.1, 2026-06-03).
+
+## Publishing & fleet-sync conventions
+
+### `publish.js` ships `__tests__/`; `template-updater.js` skips them — a one-way trapdoor
+
+The two propagation paths have **asymmetric coverage of test sources**:
+- **First publish** (`publish:public` / `tools/publish.js`) is a full copy and **ships test files** (so adopters can run `npm test`).
+- **Incremental sync** (`template-updater.js update --merge`) **excludes `__tests__/` and `_helpers/`** (`ALWAYS_SKIP_DIRS`) to protect adopter customizations.
+
+Consequence: anything hardcoded in a `__tests__/` file — an absolute path, a username, a secret, a machine-specific value — **leaks into every first-published adopter and is never overwritten by later syncs.** It persists until hand-fixed in each adopter.
+
+*Rules:* never put a personal/absolute path, real secret, or machine-specific value in a test fixture — use `/home/user/...`, `~/...`, tmp dirs, or env. When you fix such a leak in the workshop, remember a plain `template-updater` sync will **not** carry the fix to adopters that already have the stale test; fix those by hand. (Field-proven 2026-06-07: `guardrail.test.js` carried `/home/<user>/...` into two adopters.)
+
+*Why:* surfaced during the v4.71/v4.72 fleet work — the strip-personal-paths fix reached the storefront via publish but not the already-synced adopters via `template-updater`.

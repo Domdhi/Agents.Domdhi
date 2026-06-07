@@ -424,17 +424,17 @@ Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their w
 
 1. List the inbox:
    ```bash
-   node .claude/core/memory-manager-cli.js inbox-list
+   node .claude/core/memory-manager.js inbox-list
    ```
 2. For each entry, read the draft and decide:
    - **Promote** if reusable across stories or projects:
      ```bash
-     node .claude/core/memory-manager-cli.js inbox-promote <id>
+     node .claude/core/memory-manager.js inbox-promote <id>
      ```
      Use `--category <override>` if the agent picked the wrong category.
    - **Discard** if project-state, story-specific, or duplicates an existing memory:
      ```bash
-     node .claude/core/memory-manager-cli.js inbox-discard <id>
+     node .claude/core/memory-manager.js inbox-discard <id>
      ```
 3. Curation is mandatory before the wave commit. Drafts left in `_inbox/` will be flagged by `session-handoff` Step 6 at the wave handoff write.
 4. List promoted memory IDs in the wave summary so the user can spot over-promotion.
