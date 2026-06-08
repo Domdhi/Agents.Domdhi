@@ -70,10 +70,6 @@ Read these files at the start of every task:
 - `.claude/skills/code-review/SKILL.md` — severity classification system and structured findings format (adapted for security context)
 - `.claude/skills/code-review/references/playbook.md` — risk-based routing and deep review checklist (security-sensitive changes always Deep Review)
 
-## Model Routing
-
-Pinned to **Opus** (`model: opus` in frontmatter) — no downgrade path. Security review is high-stakes: a false negative (a missed vulnerability) costs far more than the Opus call that catches it. The dispatching command must NOT pass a cheaper `model` override. Do not route this agent to Sonnet without first running a comparative false-negative eval.
-
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
