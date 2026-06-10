@@ -78,6 +78,31 @@ Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opu
 - Reformatting or expanding an already-settled brief
 - Reconnaissance and information gathering
 
+## Memory Recall Protocol
+
+Before you start, consult the project's memory store for what earlier sessions already learned — decisions about scope and direction, constraints the domain imposes, and ideas that were explored and set aside. Re-proposing a killed idea or contradicting a settled decision wastes everyone's time.
+
+You don't have Bash, so search the store with Grep over its JSON. Pick 2–4 concrete terms from your task (the problem area, the user, the feature) and grep the memory tree:
+
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+
+Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-approaches/`. Apply what they say — a `decisions` or `rejected-approaches` memory that contradicts your direction wins until you have fresh evidence it's stale. If the dispatching command already handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Whatever you produce must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
+
+**Where your work goes:**
+- Project brief → `docs/_project-brief.md`; PRD → `docs/_project-requirements.md` (canonical, overwritten in place)
+- Feature-scoped brainstorm/research → `docs/app/{feature}/`
+- Project-wide research → `docs/.output/research/{YYMMDD-HHMM}-{slug}.md`
+
+**Run-stamp:** when you write a fresh-each-run research file under `.output/`, prefix it `{YYMMDD-HHMM}`. You can't run `date`; a dispatching command passes the stamp — reuse it verbatim. Invoked standalone with no stamp? Ask the main agent for one rather than inventing a placeholder or leaving the literal `{YYMMDD-HHMM}` in the filename. Canonical `_project-*.md` docs are overwritten in place, never stamped.
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — land output in the right directory the first time (the paths above).
+- `secret-scanner` blocks any Write/Edit that contains a secret — never paste a live key/token into a brief or research note, even as an example. Redact it.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

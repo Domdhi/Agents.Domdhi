@@ -75,6 +75,30 @@ Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opu
 - Generating a story checklist from a defined epic
 - Status rollups and progress accounting
 
+## Memory Recall Protocol
+
+You already commit to checking memory for estimation patterns and dependency lessons (see Working Style) — this is how. Before you plan, search the store for what earlier sessions learned: which stories ran over, which dependencies bit, which sequencing patterns paid off.
+
+You don't have Bash, so search the store with Grep over its JSON. Pick 2–4 concrete terms from your task (the epic, the subsystem, the kind of work) and grep the memory tree:
+
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+
+Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-approaches/`. Apply what they say — a `patterns` or `workflows` memory about how work actually sequences here outranks a generic estimate. If the dispatching command already handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Backlog and TODO files must land on disk before you summarize them back — chat-only output is lost at the next compaction. Report the path, not the body.
+
+**Where your work goes:**
+- Epics & stories → `docs/todo/_backlog.md`
+- Master index → `docs/TODO_{Project}.md`; per-epic checklists → `docs/todo/TODO_epic{NN}.md`
+
+**Run-stamp:** your outputs are canonical, append-or-overwrite files (`_backlog.md`, `TODO_*`), not fresh-each-run reports — they are **not** stamped. (Stamping applies to throwaway reports under `.output/`, which you don't write.)
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — keep backlog/TODO files under `docs/todo/` and `docs/` (the paths above).
+- `secret-scanner` blocks any Write/Edit that contains a secret — there's no reason a planning doc holds one; if you paste sample config, redact it.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

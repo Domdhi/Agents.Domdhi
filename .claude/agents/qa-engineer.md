@@ -56,6 +56,31 @@ I'm proactive, not reactive. I don't wait for code to land and then poke at it. 
 Read these files at the start of every task:
 - `.claude/skills/qa-engineer/SKILL.md` — test strategy patterns, coverage criteria, framework conventions, and TDD enforcement rules
 
+## Memory Recall Protocol
+
+Before you start, search the project's memory store for what earlier sessions already learned — flaky-test causes, framework gotchas, fixtures that exist, and the kinds of edge cases this code has actually broken on. A known flake source or test-harness constraint saves you from rediscovering it the hard way.
+
+Pick 2–4 concrete terms from your task (the feature under test, the framework, the failure mode) and search:
+
+    node .claude/core/memory-manager.js search "<your task's key terms>"
+
+Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `patterns` memory about this suite's behavior outranks a generic testing rule. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Tests and reports must land in files before you summarize them back — chat-only output is lost at the next compaction. Report the path, not the body.
+
+**Where your work goes:**
+- Tests → the project's test directory, matching its existing framework and layout
+- Coverage / strategy reports → `docs/.output/reviews/{YYMMDD-HHMM}-{slug}.md`
+
+**Run-stamp:** when you write a fresh-each-run report under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. Test files follow the project's own naming, not the stamp.
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — put tests in the test dir, reports under `.output/`.
+- `secret-scanner` blocks any Write/Edit, and every commit, that contains a secret — never hardcode a real key/token into a fixture; use an obvious dummy.
+- `guardrail` blocks or confirms destructive Bash (`rm -rf`, force-push) — prefer scoped paths and reversible commands when running the suite.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

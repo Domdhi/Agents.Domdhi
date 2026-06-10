@@ -103,6 +103,29 @@ Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opu
 - Routine component specs, wireframes, or mocks of established patterns
 - Copy, spacing, or layout tweaks
 
+## Memory Recall Protocol
+
+Before you start, consult the project's memory store for what earlier sessions already learned — design decisions that set the direction, brand/token constraints, accessibility rulings, and patterns this product already commits to. Re-deriving a settled token scale or contradicting an established interaction pattern breaks the consistency you exist to protect.
+
+You don't have Bash, so search the store with Grep over its JSON. Pick 2–4 concrete terms from your task (the surface, the component, the design concern) and grep the memory tree:
+
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+
+Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-approaches/`. Apply what they say — a `decisions` or `constraints` memory about this product's design system wins until you have fresh evidence it's stale. If the dispatching command already handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Specs, wireframes, themes, and the HTML mock must land on disk before you summarize them back — chat-only output is lost at the next compaction. I write artifacts to disk with Write/Edit; I never hand-wave a mock in chat I could ship as a file. Report the path, not the body.
+
+**Where your work goes:**
+- Design spec, wireframes, themes, mock → `docs/design/` (`_project-design.md`, `_wireframes.md`, `_design.{light,dark}.md`, `_mock-layout.html`)
+
+**Run-stamp:** design artifacts are canonical files under `docs/design/`, overwritten in place — **not** run-stamped. (Stamping applies to throwaway reports under `.output/`, which you don't write.)
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — keep design artifacts under `docs/design/`.
+- `secret-scanner` blocks any Write/Edit that contains a secret — an HTML mock or theme file should never carry a live key; if you embed a sample API value, redact it.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

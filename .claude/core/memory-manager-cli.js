@@ -15,6 +15,27 @@
 const MemoryManager = require('./memory-manager');
 const { MEMORY_DECAY } = require('./constants');
 
+/**
+ * The create/update CLI takes the content object FLAT, e.g.
+ * '{"description":"…","importance":3}'. A frequent mistake is wrapping it in a
+ * redundant { "content": {…} } envelope — the STORED memory shape and the agent
+ * inbox draft shape both nest under a `content` key, so it's an easy slip.
+ * Unchecked, createMemory stores it as content.content (and updateMemory merges
+ * a `content` key INTO content), so the memory's description lives one level too
+ * deep, reads as empty, and injects as "(no summary)" at SessionStart. Detect the
+ * envelope — a lone `content` object with none of the real content fields present
+ * at the top level — and unwrap one level with a warning.
+ */
+function unwrapContentEnvelope(obj) {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)
+        && obj.content && typeof obj.content === 'object' && !Array.isArray(obj.content)
+        && obj.description === undefined && obj.pattern === undefined && obj.evidence === undefined) {
+        console.warn('⚠️  content JSON was wrapped in a redundant { "content": … } envelope — unwrapping one level. Pass the content object directly, e.g. \'{"description":"…","importance":3}\'.');
+        return obj.content;
+    }
+    return obj;
+}
+
 async function main() {
     const manager = new MemoryManager();
     const [, , command, ...args] = process.argv;
@@ -22,7 +43,7 @@ async function main() {
     switch (command) {
         case 'create': {
             const [category, id] = args;
-            const content = JSON.parse(args[2] || '{}');
+            const content = unwrapContentEnvelope(JSON.parse(args[2] || '{}'));
             await manager.createMemory(category, id, content);
             break;
         }
@@ -60,7 +81,7 @@ async function main() {
             }
             let content;
             try {
-                content = JSON.parse(args[2]);
+                content = unwrapContentEnvelope(JSON.parse(args[2]));
             } catch (e) {
                 console.error(`Error: content must be valid JSON — ${e.message}`);
                 process.exit(1);
@@ -410,4 +431,4 @@ if (require.main === module) {
     main().catch(err => { console.error(err.message); process.exit(1); });
 }
 
-module.exports = { main };
+module.exports = { main, unwrapContentEnvelope };

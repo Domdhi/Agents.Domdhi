@@ -442,6 +442,28 @@ describe('memory-manager', () => {
       expect(buildFtsQuery(null)).toBe(null);
     });
 
+    it('buildFtsQuery_hyphenatedMultiWord_splitsToOr', () => {
+      // Regression: "-" is an FTS5 operator. Pre-fix, "walk-forward folds" became
+      // "walk-forward OR folds" → MATCH threw "no such column: forward" → fell to
+      // the JSON substring scan → []. Hyphens must split like any separator.
+      expect(buildFtsQuery('walk-forward folds')).toBe('walk OR forward OR folds');
+      expect(buildFtsQuery('cache-anchored replay')).toBe('cache OR anchored OR replay');
+    });
+
+    it('buildFtsQuery_loneHyphenatedToken_splitsToOr', () => {
+      // A single kebab term must not pass through verbatim (it would hit the
+      // operator-hyphen and throw). It splits into OR-joined parts.
+      expect(buildFtsQuery('look-ahead')).toBe('look OR ahead');
+      expect(buildFtsQuery('rejected-approaches')).toBe('rejected OR approaches');
+    });
+
+    it('buildFtsQuery_degenerateHyphen_returnsHyphenFree', () => {
+      // "x-ray": the 1-char "x" is dropped (min-length-2 rule), leaving "ray".
+      expect(buildFtsQuery('x-ray')).toBe('ray');
+      // "a-b": both parts dropped → 0 tokens → hyphen-stripped original, never raw.
+      expect(buildFtsQuery('a-b')).toBe('a b');
+    });
+
     it.skipIf(!hasSqlite)('buildFtsQuery_orDefaultRetrievesMultiWordHits', async () => {
       // End-to-end: a query whose terms span multiple memories should hit
       // BOTH (one per term). Pre-fix this returned [] under FTS5 AND-default

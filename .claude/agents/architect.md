@@ -76,6 +76,31 @@ Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opu
 - Answering questions about the current architecture or summarizing existing ADRs
 - Producing a tech-stack inventory or reconnaissance
 
+## Memory Recall Protocol
+
+Before you start, search the project's memory store for what earlier sessions already learned about this kind of work — design decisions that held up, constraints the spec won't mention, and approaches that were tried and rejected. Reading them first is far cheaper than re-deriving them — or re-proposing a rejected approach.
+
+Pick 2–4 concrete terms from your task (subsystem names, technologies, the decision at hand) and search:
+
+    node .claude/core/memory-manager.js search "<your task's key terms>"
+
+Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any that look directly on-point. Apply what they say — a `decisions` or `rejected-approaches` memory that contradicts your plan wins until you have fresh evidence it's stale. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Whatever you produce must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
+
+**Where your work goes:**
+- Architecture document → `docs/_project-architecture.md` (canonical, overwritten in place)
+- ADRs → `docs/.output/reviews/{YYMMDD-HHMM}-adr-{slug}.md`
+
+**Run-stamp:** when you write a fresh-each-run ADR or review under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. The canonical `_project-architecture.md` is overwritten in place, never stamped.
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — land output in the right directory the first time (the paths above).
+- `secret-scanner` blocks any Write/Edit, and every commit, that contains a secret — never write a live key/token, even into an example config. Redact it.
+- `guardrail` blocks or confirms destructive Bash (`rm -rf`, force-push, history rewrites) — prefer `git rm`, scoped paths, and reversible commands.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

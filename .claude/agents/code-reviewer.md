@@ -89,6 +89,29 @@ Floor: `sonnet` (frontmatter). The dispatching command escalates per-call to Opu
 - Doc-only or test-only diffs
 - Mechanical refactors with no behavior change
 
+## Memory Recall Protocol
+
+Before you start, search the project's memory store for what earlier sessions already learned — recurring bug patterns, architecture constraints, and conventions this codebase enforces. A finding that past sessions already flagged (or already dismissed) saves you from re-litigating it.
+
+Pick 2–4 concrete terms from the diff (module names, the subsystem, the kind of change) and search:
+
+    node .claude/core/memory-manager.js search "<your task's key terms>"
+
+Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `patterns` memory about this codebase outranks a generic best practice. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+
+## Output, Paths & Guardrails
+
+**Write before you report.** Your review must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
+
+**Where your work goes:** review reports → `docs/.output/reviews/{YYMMDD-HHMM}-{slug}.md` (governed by **Write scope (strict)** above — review artifacts only; with no `Edit` tool you never touch the code under review).
+
+**Run-stamp:** prefix each fresh review `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run.
+
+**Guardrails will block a bad attempt — work with them, not against them:**
+- `path-guardrail` rejects any Write outside the four-tier path schema — land the report in `docs/.output/reviews/`, not beside the code.
+- `secret-scanner` blocks any Write, and every commit, that contains a secret — if you quote a config in a finding, redact the secret first (the review gets committed).
+- `guardrail` blocks or confirms destructive Bash — keep your `git`/`grep` read-only; you have no reason to mutate the tree.
+
 ## Memory Inbox Protocol
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.

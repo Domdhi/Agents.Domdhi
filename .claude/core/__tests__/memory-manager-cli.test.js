@@ -50,3 +50,40 @@ describe('memory-manager CLI entry point', () => {
         expect(parsed).toHaveProperty('total_memories');
     });
 });
+
+// Regression: create/update silently double-nested when the content JSON was
+// wrapped in a redundant { "content": {…} } envelope — the memory's description
+// ended up at content.content.description, read as empty, and injected as
+// "(no summary)" at SessionStart. 6 stored memories were corrupted this way
+// before the guard existed (caught 2026-06-09 during a /sweep defrag).
+describe('unwrapContentEnvelope (create/update content guard)', () => {
+    const { unwrapContentEnvelope } = require('../memory-manager-cli');
+
+    it('unwraps a redundant { content: {…} } envelope', () => {
+        const got = unwrapContentEnvelope({ content: { description: 'X', importance: 3 } });
+        expect(got).toEqual({ description: 'X', importance: 3 });
+    });
+
+    it('leaves a correct flat content object untouched', () => {
+        const flat = { description: 'X', evidence: 'Y', importance: 4 };
+        expect(unwrapContentEnvelope(flat)).toBe(flat);
+    });
+
+    it('does NOT unwrap when real content fields sit beside a content key', () => {
+        // A legitimate memory could carry both — never strip the top-level fields.
+        const obj = { description: 'real', content: { nested: 'no' } };
+        expect(unwrapContentEnvelope(obj)).toBe(obj);
+    });
+
+    it('does not unwrap a pattern-style flat object (uses `pattern`, not `description`)', () => {
+        const flat = { pattern: 'do X when Y', importance: 3 };
+        expect(unwrapContentEnvelope(flat)).toBe(flat);
+    });
+
+    it('ignores non-object / array inputs', () => {
+        expect(unwrapContentEnvelope(null)).toBe(null);
+        expect(unwrapContentEnvelope('str')).toBe('str');
+        const arr = [{ content: {} }];
+        expect(unwrapContentEnvelope(arr)).toBe(arr);
+    });
+});

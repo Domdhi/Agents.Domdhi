@@ -62,18 +62,30 @@ function clampImportance(v) {
  * force phrase/AND/NEAR by writing FTS5 syntax explicitly.
  *
  * Pass-through cases (caller knows what they want):
- *   - Contains FTS5 operators (OR, AND, NOT, NEAR)
+ *   - Contains FTS5 operators (OR, AND, NOT, NEAR — incl. the NEAR/N distance form)
  *   - Contains quote/colon/caret/star/paren — explicit FTS5 syntax
  *
  * Otherwise: tokenize on non-word chars, drop tokens shorter than 2, OR-join.
- * If 0-1 tokens survive, return the original string unchanged.
+ *
+ * HYPHENS are token SEPARATORS here, not intra-token chars. FTS5 treats a bare
+ * `-` as a query operator, so passing a kebab term like "walk-forward" straight
+ * to MATCH throws ("no such column: forward") — the FTS path then errors out to
+ * the weak full-string JSON substring scan, and a multi-word query silently
+ * returns []. The indexed content is tokenized on hyphens too (porter/unicode61
+ * splits them), so "walk-forward" → "walk OR forward" both parses cleanly AND
+ * matches the index. `_` stays intra-token (FTS5 keeps it; barewords like
+ * PATH_REMAPS must survive).
+ *
+ * Degenerate inputs (0-1 usable tokens) return a hyphen-free string so a lone
+ * "x-ray"/"a-b" can never reach MATCH with an operator-hyphen intact.
  */
 function buildFtsQuery(searchTerm) {
     if (!searchTerm || typeof searchTerm !== 'string') return searchTerm;
     if (/[":^*()]/.test(searchTerm)) return searchTerm;
     if (/\b(OR|AND|NOT|NEAR)\b/.test(searchTerm)) return searchTerm;
-    const tokens = searchTerm.split(/[^a-zA-Z0-9_-]+/).filter(t => t.length > 1);
-    if (tokens.length <= 1) return searchTerm;
+    const tokens = searchTerm.split(/[^a-zA-Z0-9_]+/).filter(t => t.length > 1);
+    if (tokens.length === 0) return searchTerm.replace(/-+/g, ' ').trim() || searchTerm;
+    if (tokens.length === 1) return tokens[0];
     return tokens.join(' OR ');
 }
 
