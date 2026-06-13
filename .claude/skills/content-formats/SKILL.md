@@ -17,10 +17,10 @@ Format templates for platform-specific content. Load the relevant file for the t
 
 | File | Platform | When to Use |
 |------|----------|-------------|
-| `linkedin-post.md` | LinkedIn | Professional audience updates, thought leadership, career milestones, product announcements targeting a B2B or industry audience |
-| `newsletter.md` | Email newsletter | Long-form subscriber content, weekly/monthly digests, curated roundups, deep dives sent directly to an owned audience |
-| `twitter-thread.md` | Twitter/X | Rapid-fire idea chains, real-time commentary, technical breakdowns, opinion threads designed for retweet and reply engagement |
-| `youtube-script.md` | YouTube | Spoken video scripts — tutorials, vlogs, explainers — with hook, sections, and call-to-action structured for on-camera delivery |
+| `references/linkedin-post.md` | LinkedIn | Professional audience updates, thought leadership, career milestones, product announcements targeting a B2B or industry audience |
+| `references/newsletter.md` | Email newsletter | Long-form subscriber content, weekly/monthly digests, curated roundups, deep dives sent directly to an owned audience |
+| `references/twitter-thread.md` | Twitter/X | Rapid-fire idea chains, real-time commentary, technical breakdowns, opinion threads designed for retweet and reply engagement |
+| `references/youtube-script.md` | YouTube | Spoken video scripts — tutorials, vlogs, explainers — with hook, sections, and call-to-action structured for on-camera delivery |
 
 ## Usage
 

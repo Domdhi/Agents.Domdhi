@@ -1,9 +1,8 @@
----
-name: twitter-thread
-description: "Use WHEN writing a Twitter/X thread — load BEFORE drafting; teaches hook tweet discipline, atomic idea escalation, optimal thread length, and CTA tweet structure that drive saves and shares over likes"
----
-
 # Twitter Thread Writing
+
+**Load this when:** writing a Twitter/X thread, BEFORE drafting — hook tweet discipline, atomic idea escalation, optimal thread length, and CTA tweet structure that drive saves and shares over likes.
+
+---
 
 ## What This Format Is
 

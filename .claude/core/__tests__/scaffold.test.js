@@ -723,8 +723,8 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
 
         runScaffold(tmp.root, { silent: true });
 
-        // Design suite lands in docs/design/ (NOT docs root)
-        const designOut = path.join(tmp.root, 'docs', 'design', '_project-design.md');
+        // Design system spec lands at docs root (alongside other _project-*.md)
+        const designOut = path.join(tmp.root, 'docs', '_project-design.md');
         const archOut = path.join(tmp.root, 'docs', '_project-architecture.md');
         const backlogOut = path.join(tmp.root, 'docs', 'todo', '_backlog.md');
 
@@ -809,7 +809,7 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
 
         runScaffold(tmp.root, { substitutions: { project_name: 'Acme' }, silent: true });
 
-        const out = path.join(tmp.root, 'docs', 'design', '_project-design.md');
+        const out = path.join(tmp.root, 'docs', '_project-design.md');
         const written = fs.readFileSync(out, 'utf8');
         expect(written).toContain('# Design Acme');
         expect(written).not.toContain('{Project Name}');

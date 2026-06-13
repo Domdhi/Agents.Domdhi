@@ -68,7 +68,7 @@ Read the first line of `docs/_project-requirements.md`. Check that it exists AND
 
 The full output suite (spec + wireframes + light/dark themes + mock HTML + personas) is right for an app with real surface area. For a **small UI** — a browser-extension popup, a single options page, a CLI, a one-screen tool — it massively over-produces. Before generating, gauge the surface from the PRD/architecture/asset inventory and, if it's small, **ask the user** which scope they want:
 
-- **Lightweight** (recommended for small UIs): a single `docs/design/_project-design.md` capturing layout, sizing, color/typography tokens, and component notes — skip separate wireframes/theme files/mock HTML/personas.
+- **Lightweight** (recommended for small UIs): a single `docs/_project-design.md` capturing layout, sizing, color/typography tokens, and component notes — skip separate wireframes/theme files/mock HTML/personas.
 - **Full suite**: all output files below.
 
 Do not default a 300px popup into the full persona-and-mock pipeline. When in doubt for anything larger than a few screens, full suite is fine.

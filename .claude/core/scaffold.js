@@ -23,10 +23,10 @@
  *   ├── _project-requirements.md
  *   ├── _project-architecture.md
  *   ├── _project-context.md
+ *   ├── _project-design.md
  *   ├── CLAUDE.md                  (doc structure guide)
  *   ├── app/                       (module docs — mirrors codebase)
  *   ├── design/
- *   │   ├── _project-design.md
  *   │   ├── _wireframes.md
  *   │   ├── _design.light.md
  *   │   ├── _design.dark.md
@@ -78,7 +78,7 @@ const TEMPLATE_RENAMES = {
 // (CLAUDE.md docs-guide, root/ configs) stay in .claude/templates/.
 
 const SKILL_TEMPLATE_MANIFEST = [
-    { from: '.claude/skills/ux-design/assets/_project-design.md', to: 'design/_project-design.md' },
+    { from: '.claude/skills/ux-design/assets/_project-design.md', to: '_project-design.md' },
     { from: '.claude/skills/ux-design/assets/_wireframes.md', to: 'design/_wireframes.md' },
     { from: '.claude/skills/ux-design/assets/_design.light.md', to: 'design/_design.light.md' },
     { from: '.claude/skills/ux-design/assets/_design.dark.md', to: 'design/_design.dark.md' },

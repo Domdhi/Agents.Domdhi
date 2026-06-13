@@ -1,9 +1,8 @@
----
-name: linkedin-post
-description: "Use WHEN writing a LinkedIn post — load BEFORE drafting; teaches hook line discipline (the truncation problem), 3-5 paragraph structure, and algorithm-aware engagement tactics without cringe signaling"
----
-
 # LinkedIn Post Writing
+
+**Load this when:** writing a LinkedIn post, BEFORE drafting — hook line discipline (the truncation problem), 3-5 paragraph structure, and algorithm-aware engagement tactics without cringe signaling.
+
+---
 
 ## What This Format Is
 

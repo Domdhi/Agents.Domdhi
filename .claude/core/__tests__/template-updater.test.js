@@ -179,12 +179,12 @@ describe('classifyClaudeFile', () => {
     expect(classifyClaudeFile('skills/playwright-cli/references/tracing.md')).toBe('template');
   });
 
-  it('classifyClaudeFile_skillsSiblingTs_isTemplate', () => {
-    expect(classifyClaudeFile('skills/systematic-debugging/condition-based-waiting-example.ts')).toBe('template');
+  it('classifyClaudeFile_skillsReferenceTs_isTemplate', () => {
+    expect(classifyClaudeFile('skills/systematic-debugging/references/condition-based-waiting-example.ts')).toBe('template');
   });
 
-  it('classifyClaudeFile_skillsSiblingShellScript_isTemplate', () => {
-    expect(classifyClaudeFile('skills/systematic-debugging/find-polluter.sh')).toBe('template');
+  it('classifyClaudeFile_skillsScriptsShellScript_isTemplate', () => {
+    expect(classifyClaudeFile('skills/systematic-debugging/scripts/find-polluter.sh')).toBe('template');
   });
 
   it('classifyClaudeFile_agentMd_isMixed', () => {

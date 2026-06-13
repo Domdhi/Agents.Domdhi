@@ -1,9 +1,8 @@
----
-name: youtube-script
-description: "Use WHEN writing a YouTube video script — load BEFORE drafting; teaches 0-30s hook architecture, retention structure, and pacing markers that the algorithm rewards, distinct from article or podcast writing"
----
-
 # YouTube Script Writing
+
+**Load this when:** writing a YouTube video script, BEFORE drafting — 0-30s hook architecture, retention structure, and pacing markers that the algorithm rewards, distinct from article or podcast writing.
+
+---
 
 ## What This Format Is
 

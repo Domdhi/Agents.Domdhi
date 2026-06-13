@@ -91,7 +91,7 @@
 ---
 
 ## Related Documents
-- UX Spec: [_project-design.md](_project-design.md)
+- UX Spec: [../_project-design.md](../_project-design.md)
 - Light Theme: [_design.light.md](_design.light.md)
 - Dark Theme: [_design.dark.md](_design.dark.md)
 - Mock Layout: [_mock-layout.html](_mock-layout.html)

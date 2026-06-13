@@ -118,7 +118,8 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-a
 **Write before you report.** Specs, wireframes, themes, and the HTML mock must land on disk before you summarize them back — chat-only output is lost at the next compaction. I write artifacts to disk with Write/Edit; I never hand-wave a mock in chat I could ship as a file. Report the path, not the body.
 
 **Where your work goes:**
-- Design spec, wireframes, themes, mock → `docs/design/` (`_project-design.md`, `_wireframes.md`, `_design.{light,dark}.md`, `_mock-layout.html`)
+- Design system spec → `docs/_project-design.md` (root, alongside the other `_project-*.md` planning docs)
+- Wireframes, themes, mock → `docs/design/` (`_wireframes.md`, `_design.{light,dark}.md`, `_mock-layout.html`)
 
 **Run-stamp:** design artifacts are canonical files under `docs/design/`, overwritten in place — **not** run-stamped. (Stamping applies to throwaway reports under `.output/`, which you don't write.)
 

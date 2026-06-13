@@ -73,7 +73,7 @@ Most skills are template content. One exception:
 | Skill | Zone | Notes |
 |-------|------|-------|
 | `brand-guidelines/**` (whole tree) | **Project** | Customized per-project with brand colors, typography, visual identity, logo assets, palette files. Whole subtree preserved on update — any sub-docs added in the target stay project-owned. |
-| All others (including `references/`, `examples/`, sibling `.md`/`.ts`/`.dot`/`.sh`) | Template | Overwrite on update. SKILL.md **and** its sibling support files (anthropic-best-practices, graphviz-conventions, references/*, etc.) propagate together — they're authored as a unit in the template, so partial propagation leaves SKILL.md pointing at missing references. |
+| All others (including `references/`, `assets/`, `scripts/`, `examples/`) | Template | Overwrite on update. SKILL.md **and** its support files (`references/*`, `scripts/*`, `assets/*`, etc.) propagate together — they're authored as a unit in the template, so partial propagation leaves SKILL.md pointing at missing references. |
 
 ### Opting out of template skills
 

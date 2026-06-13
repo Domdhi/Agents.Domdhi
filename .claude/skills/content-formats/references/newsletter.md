@@ -1,9 +1,8 @@
----
-name: newsletter
-description: "Use WHEN writing a newsletter issue — load BEFORE drafting, NOT after; teaches subject line discipline, hook structure, section rhythm, and CTA placement that maximize open rates and reader retention"
----
-
 # Newsletter Writing
+
+**Load this when:** writing a newsletter issue, BEFORE drafting — subject line discipline, hook structure, section rhythm, and CTA placement that maximize open rates and reader retention.
+
+---
 
 ## What This Format Is
 

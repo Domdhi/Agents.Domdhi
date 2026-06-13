@@ -15,7 +15,7 @@
 |----------|------|--------|
 | Project Brief | [_project-brief.md](_project-brief.md) | {status} |
 | PRD | [_project-requirements.md](_project-requirements.md) | {status} |
-| UX Spec | [design/_project-design.md](design/_project-design.md) | {status} |
+| UX Spec | [_project-design.md](_project-design.md) | {status} |
 | Wireframes | [design/_wireframes.md](design/_wireframes.md) | {status} |
 | Light Theme | [design/_design.light.md](design/_design.light.md) | {status} |
 | Dark Theme | [design/_design.dark.md](design/_design.dark.md) | {status} |

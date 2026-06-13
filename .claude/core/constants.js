@@ -183,7 +183,7 @@ module.exports = {
     // Artifacts produced by each phase
     PHASE_ARTIFACTS: {
         1: ['_brainstorm.md', '_research.md', '_project-brief.md'],
-        2: ['_project-requirements.md', 'design/_project-design.md'],
+        2: ['_project-requirements.md', '_project-design.md'],
         3: ['_project-architecture.md', 'todo/_backlog.md'],
         4: ['source code', 'tests'],
     },
@@ -193,8 +193,8 @@ module.exports = {
         '_brainstorm.md': { feeds: ['_project-brief.md'] },
         '_research.md': { feeds: ['_project-brief.md', '_project-requirements.md'] },
         '_project-brief.md': { feeds: ['_project-requirements.md'] },
-        '_project-requirements.md': { feeds: ['_project-architecture.md', 'design/_project-design.md', 'todo/_backlog.md'] },
-        'design/_project-design.md': { feeds: ['_project-architecture.md'] },
+        '_project-requirements.md': { feeds: ['_project-architecture.md', '_project-design.md', 'todo/_backlog.md'] },
+        '_project-design.md': { feeds: ['_project-architecture.md'] },
         '_project-architecture.md': { feeds: ['todo/_backlog.md'] },
         'todo/_backlog.md': { feeds: ['implementation'] },
     },

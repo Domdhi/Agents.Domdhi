@@ -1,6 +1,6 @@
 ---
 name: skill-authoring
-description: "Use WHEN creating a new SKILL.md, editing an existing skill, or verifying a skill works before deployment — applies TDD to process documentation: write a failing baseline test before writing the skill"
+description: "Use WHEN creating a new SKILL.md, editing an existing skill, or verifying one before deployment — this toolkit's skill doctrine and conventions: structure, the CSO description rules, progressive disclosure, archetypes, and the evidence-driven authoring standard. Triggers: create skill, new skill, edit skill, skill conventions, skill structure, SKILL.md, progressive disclosure"
 metadata:
   version: 1.0.0
   author: Domdhi.Agents
@@ -23,7 +23,7 @@ A skill — new or edited — is justified by **evidence of a real gap first, an
 
 **REQUIRED OPERATIONAL SKILL:** For the actual create→eval→improve→benchmark loop, the eval harness, the differential workspace layout, and description optimization, use **`skill-creator`**. This skill (`skill-authoring`) owns the *doctrine and conventions*; `skill-creator` owns the *mechanics*. The autonomous driver that mines this repo's signals into skill work is `/review:evolve-skills`.
 
-**Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md.
+**Official guidance:** For Anthropic's official skill authoring best practices, see references/anthropic-best-practices.md.
 
 ## What is a Skill?
 
@@ -327,12 +327,12 @@ digraph when_flowchart {
 - Linear instructions → Numbered lists
 - Labels without semantic meaning (step1, helper2)
 
-See `.claude/skills/skill-authoring/graphviz-conventions.dot` for graphviz style rules.
+See `.claude/skills/skill-authoring/references/graphviz-conventions.dot` for graphviz style rules.
 
-**Visualizing for your human partner:** Use `render-graphs.js` in this directory to render a skill's flowcharts to SVG:
+**Visualizing for your human partner:** Use `scripts/render-graphs.js` (in the skill directory) to render a skill's flowcharts to SVG:
 ```bash
-./render-graphs.js ../some-skill           # Each diagram separately
-./render-graphs.js ../some-skill --combine # All diagrams in one SVG
+./scripts/render-graphs.js ../some-skill           # Each diagram separately
+./scripts/render-graphs.js ../some-skill --combine # All diagrams in one SVG
 ```
 
 ## Code Examples

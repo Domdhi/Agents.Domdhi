@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: "Use when reviewing code changes, pull requests, or architecture compliance — two-stage review process (spec compliance then code quality), risk-tiered findings (CRITICAL/MAJOR/MINOR), reviewer identity (diagnose don't rewrite), pre-review checklist, handling feedback. Covers: code review, review, pull request, PR review, risk routing, review depth, review playbook, severity."
+description: "Use when reviewing code changes, pull requests, or architecture compliance — covers review depth and risk routing, severity tiers (CRITICAL/MAJOR/MINOR), reviewer identity (diagnose don't rewrite), the pre-review checklist, and handling feedback. Covers: code review, review, pull request, PR review, risk routing, review depth, review playbook, severity."
 metadata:
   version: 1.0.0
   author: Domdhi.Agents

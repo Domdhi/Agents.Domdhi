@@ -104,4 +104,4 @@
 ## Related Documents
 - PRD: [../_project-requirements.md](../_project-requirements.md)
 - Architecture: [../_project-architecture.md](../_project-architecture.md)
-- UX Spec: [../design/_project-design.md](../design/_project-design.md)
+- UX Spec: [../_project-design.md](../_project-design.md)
