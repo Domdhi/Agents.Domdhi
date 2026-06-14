@@ -443,10 +443,12 @@ describe('status', () => {
             }
         });
 
-        it('regenerateMasterIndex_epicWithMissingChecklist_leavesRowUnchanged', () => {
-            // Master references epic 2's checklist but the file does not exist.
-            // Epic 2's row + its phase contribution must be left as-is (not zeroed),
-            // while epic 1 (resolvable, fully done) still flips.
+        it('regenerateMasterIndex_partialPhase_refreshesDoneFromResolvedEpics', () => {
+            // Phase 0 holds epics 1+2; epic 2's checklist does not exist yet
+            // (unscaffolded — the greenfield norm). The phase must still refresh its
+            // Done from the RESOLVED epic 1 (done=2) instead of going stale, while
+            // epic 2's own Epic-Index row is left unchanged. This is the Markets
+            // case: Epic 6 done while 7–9 aren't created — the phase shows progress.
             const root = makeProject({ master: MASTER, epic01: EPIC01_ALL_DONE, backlog: BACKLOG });
             // intentionally do NOT write epic02
             try {
@@ -455,8 +457,31 @@ describe('status', () => {
                 const out = fs.readFileSync(path.join(root, 'docs', 'TODO_MyProj.md'), 'utf8');
                 // Epic 1 resolved + done → [x].
                 expect(out).toMatch(/\| 1 \| Alpha \| 2 \| 5\.5h \| \[x\] \|/);
-                // Epic 2 checklist missing → row unchanged, still [ ].
+                // Epic 2 checklist missing → Epic-Index row unchanged, still [ ].
                 expect(out).toMatch(/\| 2 \| Beta \| 3 \| 12h \| \[ \] \|/);
+                // Phase 0 row refreshes from resolved epic 1 (was Done 0 PENDING).
+                expect(out).toMatch(/\| 0 \| Foundation \| set up \| 2 \| 5 \| 2 \| IN PROGRESS \|/);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('regenerateMasterIndex_partialPhase_neverLowersExistingDone', () => {
+            // M1 guard: a phase with an unresolved epic must NOT drop a higher prior
+            // Done (the unresolved epic may carry real, un-recomputable progress).
+            // Prior Done 9 > recomputed 2 → keep 9; only the Total recomputes.
+            const masterHighPrior = MASTER.replace(
+                '| 0 | Foundation | set up | 2 | 5 | 0 | PENDING |',
+                '| 0 | Foundation | set up | 2 | 5 | 9 | IN PROGRESS |',
+            );
+            const root = makeProject({ master: masterHighPrior, epic01: EPIC01_ALL_DONE, backlog: BACKLOG });
+            // intentionally do NOT write epic02 (unresolved)
+            try {
+                const { regenerateMasterIndex } = loadStatusWithRoot(root);
+                regenerateMasterIndex(root, { today: '2026-06-13' });
+                const out = fs.readFileSync(path.join(root, 'docs', 'TODO_MyProj.md'), 'utf8');
+                // Phase 0 Done stays 9 (not lowered to 2) — never drop a contribution.
+                expect(out).toMatch(/\| 0 \| Foundation \| set up \| 2 \| 5 \| 9 \| IN PROGRESS \|/);
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }

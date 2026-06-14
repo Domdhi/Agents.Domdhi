@@ -561,14 +561,22 @@ function regenerateMasterIndex(projectRoot, opts = {}) {
           if (s.done > 0) anyDone = true;
           if (!(s.total > 0 && s.done >= s.total)) allResolvedDone = false;
         }
-        // If any epic in this phase has no resolvable checklist, we can't compute a
-        // trustworthy Done — leave the whole phase row unchanged rather than silently
-        // dropping the missing epic's prior Done contribution (M1).
-        if (anyUnresolved) return line;
-        cells[5] = String(doneSum);
+        // Refresh Done from this phase's resolved epics. Unscaffolded epics (no
+        // checklist yet) contribute 0 — the greenfield norm (epics are scaffolded
+        // as you reach them), so a phase with real progress in its STARTED epics
+        // (e.g. Epic 6 done while Epics 7–9 aren't created) still refreshes instead
+        // of going stale. But while a phase has unresolved epics we NEVER LOWER its
+        // Done: an unresolved epic might carry a real prior contribution regen can't
+        // recompute, so Done only moves FORWARD here (M1 — never silently drop it).
+        const priorDone = parseInt(String(cells[5]).replace(/\D/g, ''), 10) || 0;
+        const newDone = anyUnresolved ? Math.max(doneSum, priorDone) : doneSum;
+        cells[5] = String(newDone);
         // Status casing matches the file's existing PENDING/IN PROGRESS/COMPLETE.
+        // COMPLETE only when every epic in the phase is resolved AND done (an
+        // unresolved epic forces allResolvedDone=false, so a partial phase with
+        // real work shows IN PROGRESS, never a premature COMPLETE).
         if (anyResolved && allResolvedDone && epicsInPhase.size > 0) cells[6] = 'COMPLETE';
-        else if (anyDone) cells[6] = 'IN PROGRESS';
+        else if (newDone > 0) cells[6] = 'IN PROGRESS';
         else cells[6] = 'PENDING';
         return joinRow(cells);
       }
