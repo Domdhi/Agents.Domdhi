@@ -12,7 +12,7 @@
 //   - exits non-zero on an empty message or a missing file
 //   - -m "message" inline flag (S-PI.8): skips file read, commits via -m args array
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -285,5 +285,316 @@ describe('commit.js inline -m flag', () => {
     // Confirm .commit-msg was NOT created in the repo root
     const msgFilePath = path.join(repo.repoPath, 'docs', '.output', '.commit-msg');
     expect(fs.existsSync(msgFilePath)).toBe(false);
+  });
+});
+
+// ─── In-process unit tests for the extracted functions (testability refactor) ────
+// commit.js now wraps its imperative body in named functions gated behind
+// `if (require.main === module) { main(); }`. Requiring the module no longer
+// auto-runs anything, so we can import the REAL functions and exercise the
+// arg-parsing, message-read, scan-invocation, and co-author-append paths in-process
+// with mocked git/fs seams. Every assertion calls the real function from
+// require('../commit') — never a re-creation (R6 honesty).
+
+const commit = require('../commit');
+
+describe('commit.js — module exports (in-process)', () => {
+  it('exports the extracted functions and the trailer constant', () => {
+    expect(typeof commit.parseArgs).toBe('function');
+    expect(typeof commit.readMessage).toBe('function');
+    expect(typeof commit.appendCoAuthor).toBe('function');
+    expect(typeof commit.runScan).toBe('function');
+    expect(typeof commit.main).toBe('function');
+    expect(typeof commit.TRAILER).toBe('string');
+    // Default trailer is the model-agnostic one (env override is read at load time;
+    // under the test runner CLAUDE_COMMIT_TRAILER is unset, so the default holds).
+    expect(commit.TRAILER).toContain('Co-Authored-By: Claude');
+  });
+});
+
+describe('commit.js parseArgs (in-process)', () => {
+  let prevNoScanEnv;
+  beforeEach(() => { prevNoScanEnv = process.env.CLAUDE_COMMIT_NO_SCAN; });
+  afterEach(() => {
+    if (prevNoScanEnv === undefined) delete process.env.CLAUDE_COMMIT_NO_SCAN;
+    else process.env.CLAUDE_COMMIT_NO_SCAN = prevNoScanEnv;
+  });
+
+  it('defaults: no flags → file-based path to docs/.output/.commit-msg', () => {
+    delete process.env.CLAUDE_COMMIT_NO_SCAN;
+    const r = commit.parseArgs([]);
+    expect(r.stageAll).toBe(false);
+    expect(r.amend).toBe(false);
+    expect(r.dryRun).toBe(false);
+    expect(r.inlineMsg).toBe(null);
+    expect(r.fileIdx).toBe(-1);
+    expect(r.noScan).toBe(false);
+    expect(r.msgFile).toBe(path.join('docs', '.output', '.commit-msg'));
+  });
+
+  it('parses --all / -a, --amend, and --dry-run / -n', () => {
+    expect(commit.parseArgs(['--all']).stageAll).toBe(true);
+    expect(commit.parseArgs(['-a']).stageAll).toBe(true);
+    expect(commit.parseArgs(['--amend']).amend).toBe(true);
+    expect(commit.parseArgs(['--dry-run']).dryRun).toBe(true);
+    expect(commit.parseArgs(['-n']).dryRun).toBe(true);
+  });
+
+  it('parses --file <path> into msgFile and records fileIdx', () => {
+    const r = commit.parseArgs(['--file', '/tmp/custom-msg']);
+    expect(r.fileIdx).toBe(0);
+    expect(r.msgFile).toBe('/tmp/custom-msg');
+    expect(r.inlineMsg).toBe(null);
+  });
+
+  it('parses -m <message> into inlineMsg', () => {
+    const r = commit.parseArgs(['-m', 'feat: thing']);
+    expect(r.inlineMsg).toBe('feat: thing');
+  });
+
+  it('--no-scan flag sets noScan true', () => {
+    delete process.env.CLAUDE_COMMIT_NO_SCAN;
+    expect(commit.parseArgs(['--no-scan']).noScan).toBe(true);
+  });
+
+  it('CLAUDE_COMMIT_NO_SCAN=1 env var sets noScan true', () => {
+    process.env.CLAUDE_COMMIT_NO_SCAN = '1';
+    expect(commit.parseArgs([]).noScan).toBe(true);
+  });
+});
+
+describe('commit.js appendCoAuthor (in-process)', () => {
+  it('appends the trailer exactly once when absent', () => {
+    const out = commit.appendCoAuthor(['feat: thing', '', 'body']);
+    const matches = out.match(/Co-Authored-By: Claude <noreply@anthropic\.com>/g) || [];
+    expect(matches).toHaveLength(1);
+    expect(out.endsWith('\n')).toBe(true);
+  });
+
+  it('is idempotent when the trailer is already present', () => {
+    const lines = ['feat: thing', '', 'body', '', commit.TRAILER];
+    const out = commit.appendCoAuthor(lines);
+    const matches = out.match(/Co-Authored-By: Claude <noreply@anthropic\.com>/g) || [];
+    expect(matches).toHaveLength(1);
+    // Idempotent path keeps the body and just ensures a single trailing newline.
+    expect(out).toBe(`${lines.join('\n').replace(/\s+$/, '')}\n`);
+  });
+
+  it('separates the trailer from the body with a blank line', () => {
+    const out = commit.appendCoAuthor(['feat: x']);
+    expect(out).toBe(`feat: x\n\n${commit.TRAILER}\n`);
+  });
+});
+
+describe('commit.js readMessage (in-process)', () => {
+  let tmp;
+  let exitSpy;
+  let errSpy;
+  beforeEach(() => {
+    tmp = createTmpDir({ prefix: 'commit-readmsg-' });
+    // Mock process.exit to throw so we can assert on the exit path without
+    // killing the test runner (process-argv-injection pattern).
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+    errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    exitSpy.mockRestore();
+    errSpy.mockRestore();
+    tmp.cleanup();
+  });
+
+  it('reads a file message, normalizes CRLF, and trims trailing junk lines', () => {
+    const f = tmp.write('MSG', 'feat: thing\r\n\r\nbody\r\n@\r\n`\r\n\r\n');
+    const lines = commit.readMessage(null, f);
+    // CRLF normalized to LF, stray @ / backtick / blank trailing lines popped.
+    expect(lines).toEqual(['feat: thing', '', 'body']);
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the inline message directly and never touches the file', () => {
+    const lines = commit.readMessage('feat: inline\n\nbody', '/nonexistent/path');
+    expect(lines).toEqual(['feat: inline', '', 'body']);
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('exits non-zero when the message file is missing (no inline msg)', () => {
+    const missing = path.join(tmp.root, 'does-not-exist');
+    expect(() => commit.readMessage(null, missing)).toThrow(/process\.exit\(1\)/);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('exits non-zero when the message is empty after trimming', () => {
+    const f = tmp.write('MSG', '\n\n  \n');
+    expect(() => commit.readMessage(null, f)).toThrow(/process\.exit\(1\)/);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('commit.js runScan (in-process)', () => {
+  let exitSpy;
+  beforeEach(() => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+  });
+  afterEach(() => exitSpy.mockRestore());
+
+  it('is a no-op when noScan is true (never spawns the scanner)', () => {
+    // With noScan true the function returns immediately; process.exit untouched.
+    expect(() => commit.runScan(true)).not.toThrow();
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  // commit.js destructures { spawnSync } from node:child_process at LOAD time, so a
+  // post-load spy won't bind. We spy on the shared child_process export FIRST, then
+  // loadFreshCommit() re-requires commit.js so it re-destructures the spied seam.
+  // This asserts the OBSERVABLE side-effect (the scanner was spawned with the right
+  // args) instead of merely "it didn't throw" — a stub that early-returns would fail
+  // toHaveBeenCalled, closing the invocation-path false-green.
+  it('spawns secret-scanner.cjs with --git-precommit when noScan is false', () => {
+    const cp = require('node:child_process');
+    const spawnSpy = vi.spyOn(cp, 'spawnSync').mockReturnValue({ status: 0 });
+    try {
+      const fresh = loadFreshCommit();
+      fresh.runScan(false);
+      expect(spawnSpy).toHaveBeenCalledTimes(1);
+      const [bin, args] = spawnSpy.mock.calls[0];
+      expect(bin).toBe(process.execPath);
+      expect(args[0]).toMatch(/secret-scanner\.cjs$/);
+      expect(args[1]).toBe('--git-precommit');
+      expect(exitSpy).not.toHaveBeenCalled(); // status 0 → clean scan, no abort
+    } finally {
+      spawnSpy.mockRestore();
+      loadFreshCommit(); // restore a commit instance bound to the real seam for later tests
+    }
+  });
+
+  it('aborts the commit via process.exit(status) when the scanner returns non-zero', () => {
+    const cp = require('node:child_process');
+    const spawnSpy = vi.spyOn(cp, 'spawnSync').mockReturnValue({ status: 3 });
+    try {
+      const fresh = loadFreshCommit();
+      // mocked process.exit throws, so the non-zero abort path surfaces as a throw
+      expect(() => fresh.runScan(false)).toThrow(/process\.exit\(3\)/);
+      expect(spawnSpy).toHaveBeenCalledTimes(1);
+      expect(exitSpy).toHaveBeenCalledWith(3);
+    } finally {
+      spawnSpy.mockRestore();
+      loadFreshCommit();
+    }
+  });
+});
+
+// ─── In-process main() orchestration (process-argv-injection pattern) ────────────
+// main() reads process.argv at call time, so we set process.argv BEFORE calling the
+// freshly-required main(), mock process.exit to throw (so exit paths don't kill the
+// runner), and silence console. We bust the CJS require cache so each load is fresh
+// (the documented load-time-env-capture pattern). These cover the dry-run branch and
+// — against a real isolated tmp repo (chdir) — the full git/commit/cleanup branch.
+
+function loadFreshCommit() {
+  delete require.cache[require.resolve('../commit')];
+  return require('../commit');
+}
+
+describe('commit.js main() — dry-run (in-process)', () => {
+  let tmp, exitSpy, logSpy, errSpy, writeSpy, prevArgv;
+  beforeEach(() => {
+    tmp = createTmpDir({ prefix: 'commit-main-dry-' });
+    prevArgv = process.argv;
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  });
+  afterEach(() => {
+    process.argv = prevArgv;
+    exitSpy.mockRestore();
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+    writeSpy.mockRestore();
+    tmp.cleanup();
+  });
+
+  it('file-based --dry-run: rewrites the file with the trailer and exits 0', () => {
+    const f = tmp.write('MSG', 'feat: thing\n\nbody\n');
+    process.argv = ['node', 'commit.js', '--dry-run', '--file', f];
+    const fresh = loadFreshCommit();
+    expect(() => fresh.main()).toThrow(/process\.exit\(0\)/);
+    // writeFileSync ran in the file-based path: the file now carries the trailer once.
+    const rewritten = fs.readFileSync(f, 'utf8');
+    const matches = rewritten.match(/Co-Authored-By: Claude <noreply@anthropic\.com>/g) || [];
+    expect(matches).toHaveLength(1);
+    // The dry-run "would run: ... -F" line was logged (file-based variant).
+    const logged = logSpy.mock.calls.flat().join('\n');
+    expect(logged).toMatch(/would run:.*commit -F/);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('inline -m --dry-run: never writes a file and logs the -m would-run variant', () => {
+    process.argv = ['node', 'commit.js', '--dry-run', '-m', 'feat: inline'];
+    const fresh = loadFreshCommit();
+    expect(() => fresh.main()).toThrow(/process\.exit\(0\)/);
+    const logged = logSpy.mock.calls.flat().join('\n');
+    expect(logged).toMatch(/would run:.*commit -m/);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+});
+
+describe('commit.js main() — full commit against an isolated tmp repo (in-process)', () => {
+  let tmp, exitSpy, logSpy, errSpy, prevArgv, prevCwd;
+  beforeEach(() => {
+    tmp = createTmpDir({ prefix: 'commit-main-full-' });
+    prevArgv = process.argv;
+    prevCwd = process.cwd();
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    process.chdir(prevCwd);
+    process.argv = prevArgv;
+    exitSpy.mockRestore();
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+    tmp.cleanup();
+  });
+
+  it.skipIf(!gitAvailable())('--all --no-scan: stages, commits, cleans up the msg file, logs done', () => {
+    const repo = createGitRepo({ root: tmp.root });
+    // Write a working-tree change and the default message file inside the repo.
+    fs.writeFileSync(path.join(repo.repoPath, 'app.js'), 'const x = 1;\n');
+    const defaultMsg = path.join(repo.repoPath, 'docs', '.output', '.commit-msg');
+    fs.mkdirSync(path.dirname(defaultMsg), { recursive: true });
+    fs.writeFileSync(defaultMsg, 'feat: in-process main commit\n');
+
+    const before = commitCount(repo.repoPath);
+    process.chdir(repo.repoPath);
+    // No --file → default docs/.output/.commit-msg path → exercises stageAll, scan
+    // bypass, the -F commit branch, AND the default-path msg-file cleanup (fileIdx<0).
+    process.argv = ['node', 'commit.js', '--all', '--no-scan'];
+    const fresh = loadFreshCommit();
+
+    // main() runs to the end (no process.exit on the happy path).
+    fresh.main();
+
+    expect(commitCount(repo.repoPath)).toBe(before + 1);
+    // The default msg file was deleted after the successful commit (cleanup branch).
+    expect(fs.existsSync(defaultMsg)).toBe(false);
+    // The subject made it into the commit, with the trailer appended.
+    const full = execFileSync('git', ['log', '-1', '--format=%s%n%b'], {
+      cwd: repo.repoPath, encoding: 'utf8',
+    });
+    expect(full).toContain('feat: in-process main commit');
+    expect(full).toContain('Co-Authored-By: Claude');
+    // The "[commit] done:" line was logged.
+    const logged = logSpy.mock.calls.flat().join('\n');
+    expect(logged).toMatch(/\[commit\] done:/);
   });
 });

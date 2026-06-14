@@ -19,6 +19,7 @@ const {
     createActiveDaysResolver,
 } = require('./_lib/memory-decay');
 const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
+const { resolveProjectRoot } = require('./_lib/project-root');
 const { lintMemories: lintMemoriesLib } = require('./_lib/memory-lint');
 const {
     ingestAgentMemory: ingestAgentMemoryLib,
@@ -147,7 +148,10 @@ try {
 
 class MemoryManager {
     constructor() {
-        const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
+        // Anchor the store to the MAIN worktree so every git worktree shares
+        // one memory store (see _lib/project-root.js — the worktree memory-loss
+        // fix). CLAUDE_PROJECT_DIR still overrides.
+        const projectRoot = resolveProjectRoot(path.resolve(__dirname, '..', '..'));
         this.projectRoot = projectRoot;
         this.memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
         this.dbPath = path.join(this.memoriesDir, 'memories.db');

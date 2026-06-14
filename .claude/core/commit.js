@@ -35,72 +35,63 @@ const path = require('node:path');
 const TRAILER =
   process.env.CLAUDE_COMMIT_TRAILER || 'Co-Authored-By: Claude <noreply@anthropic.com>';
 
-const args = process.argv.slice(2);
-const has = (...flags) => flags.some((f) => args.includes(f));
-const stageAll = has('--all', '-a');
-const amend = has('--amend');
-const dryRun = has('--dry-run', '-n');
+// Parse argv into the flags/options the rest of the flow consumes. Pure: takes the
+// already-sliced argv array (process.argv.slice(2)) so it can be tested directly.
+function parseArgs(args) {
+  const has = (...flags) => flags.some((f) => args.includes(f));
+  const stageAll = has('--all', '-a');
+  const amend = has('--amend');
+  const dryRun = has('--dry-run', '-n');
 
-const fileIdx = args.indexOf('--file');
-const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
+  const fileIdx = args.indexOf('--file');
+  const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
 
-const mIdx = args.indexOf('-m');
-const inlineMsg = mIdx >= 0 ? args[mIdx + 1] : null;
+  const mIdx = args.indexOf('-m');
+  const inlineMsg = mIdx >= 0 ? args[mIdx + 1] : null;
+
+  const noScan = has('--no-scan') || process.env.CLAUDE_COMMIT_NO_SCAN === '1';
+
+  return { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan };
+}
 
 function git(...a) {
   return execFileSync('git', a, { encoding: 'utf8' });
 }
 
-// When -m is provided, skip the file existence check and file read entirely.
-if (!inlineMsg && !fs.existsSync(msgFile)) {
-  console.error(`[commit] message file not found: ${msgFile}`);
-  console.error('[commit] Write your subject + body there first (Write tool), then re-run.');
-  process.exit(1);
-}
-
-// Read, normalize line endings, and trim trailing junk lines.
-// When -m is used, take the inline string directly (never touch the file).
-let lines = inlineMsg
-  ? inlineMsg.replace(/\r\n/g, '\n').split('\n')
-  : fs.readFileSync(msgFile, 'utf8').replace(/\r\n/g, '\n').split('\n');
-while (lines.length && /^[\s@'"`]*$/.test(lines[lines.length - 1])) lines.pop();
-
-if (!lines.join('\n').trim()) {
-  console.error('[commit] message is empty after trimming. Aborting.');
-  process.exit(1);
-}
-
-// Ensure exactly one Co-Authored-By trailer.
-const body = lines.join('\n').replace(/\s+$/, '');
-const finalMsg = body.includes(TRAILER) ? `${body}\n` : `${body}\n\n${TRAILER}\n`;
-// Only write finalMsg back to the file when using the file-based path.
-// When -m is used we never create a file (that's the whole point).
-if (!inlineMsg) {
-  fs.writeFileSync(msgFile, finalMsg, 'utf8');
-}
-
-if (dryRun) {
-  console.log('[commit] --dry-run — final message below, nothing committed:\n');
-  console.log('────────────────────────────────────────');
-  process.stdout.write(finalMsg);
-  console.log('────────────────────────────────────────');
-  if (inlineMsg) {
-    console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -m <msg>${amend ? ' --amend' : ''}`);
-  } else {
-    console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
+// Read + normalize the raw message text. With an inline -m string, use it directly
+// (never touch the file). Otherwise require the file to exist, then read it.
+// Exits the process (code 1) on a missing file — same as the original top-level body.
+function readMessage(inlineMsg, msgFile) {
+  // When -m is provided, skip the file existence check and file read entirely.
+  if (!inlineMsg && !fs.existsSync(msgFile)) {
+    console.error(`[commit] message file not found: ${msgFile}`);
+    console.error('[commit] Write your subject + body there first (Write tool), then re-run.');
+    process.exit(1);
   }
-  process.exit(0);
+
+  // Read, normalize line endings, and trim trailing junk lines.
+  // When -m is used, take the inline string directly (never touch the file).
+  let lines = inlineMsg
+    ? inlineMsg.replace(/\r\n/g, '\n').split('\n')
+    : fs.readFileSync(msgFile, 'utf8').replace(/\r\n/g, '\n').split('\n');
+  while (lines.length && /^[\s@'"`]*$/.test(lines[lines.length - 1])) lines.pop();
+
+  if (!lines.join('\n').trim()) {
+    console.error('[commit] message is empty after trimming. Aborting.');
+    process.exit(1);
+  }
+
+  return lines;
 }
 
-const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
-console.log(`[commit] branch: ${branch}`);
-
-if (stageAll) {
-  git('add', '-A');
-  console.log('[commit] staged all changes (git add -A)');
+// Append the Co-Authored-By trailer exactly once (idempotent). Pure.
+function appendCoAuthor(lines) {
+  // Ensure exactly one Co-Authored-By trailer.
+  const body = lines.join('\n').replace(/\s+$/, '');
+  return body.includes(TRAILER) ? `${body}\n` : `${body}\n\n${TRAILER}\n`;
 }
 
-// --- Secret-scan gate (the pre-commit hook, living in our own flow) ---
+// Run the secret-scan gate (the pre-commit hook, living in our own flow).
 // A plain .git/hooks/pre-commit was retired (fossil-prone across the fleet), and
 // the PreToolUse:Write/Edit scanner only sees Claude's Write/Edit tool — NOT files
 // that reach the index via Bash, scripts, or a human's terminal. commit.js IS the
@@ -108,8 +99,8 @@ if (stageAll) {
 // secret-scanner.cjs over the staged set and aborts the commit on a finding.
 // Bypass (rare — e.g. a deliberately-redacted example that still matches a
 // pattern): --no-scan, or CLAUDE_COMMIT_NO_SCAN=1.
-const noScan = has('--no-scan') || process.env.CLAUDE_COMMIT_NO_SCAN === '1';
-if (!noScan) {
+function runScan(noScan) {
+  if (noScan) return;
   const scanner = path.join(__dirname, '..', 'hooks', 'secret-scanner.cjs');
   if (fs.existsSync(scanner)) {
     const scan = spawnSync(process.execPath, [scanner, '--git-precommit'], { stdio: 'inherit' });
@@ -122,29 +113,77 @@ if (!noScan) {
   }
 }
 
-// When -m is used, pass the final message directly via args array (safe — spawnSync
-// does NOT go through a shell, so no quoting risk). Otherwise use -F for file-based.
-const commitArgs = inlineMsg
-  ? ['commit', '-m', finalMsg, ...(amend ? ['--amend'] : [])]
-  : ['commit', '-F', msgFile, ...(amend ? ['--amend'] : [])];
+function main() {
+  const args = process.argv.slice(2);
+  const { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan } = parseArgs(args);
 
-// Use spawnSync with inherited stdio so hook output streams through live.
-const res = spawnSync('git', commitArgs, { stdio: 'inherit' });
-if (res.status !== 0) {
-  console.error(`[commit] git commit failed (exit ${res.status}).`);
-  process.exit(res.status || 1);
-}
+  const lines = readMessage(inlineMsg, msgFile);
+  const finalMsg = appendCoAuthor(lines);
 
-// Clean up the default message file after a successful commit so the next commit
-// starts from a blank slate — and so the Write tool never has to read-before-write
-// a stale leftover. Custom --file paths are deliberately left untouched.
-// When -m is used, no file was written so there is nothing to delete.
-if (fileIdx < 0 && !inlineMsg) {
-  try {
-    fs.rmSync(msgFile);
-  } catch {
-    /* best-effort — a leftover msg file is harmless, it's overwritten next commit */
+  // Only write finalMsg back to the file when using the file-based path.
+  // When -m is used we never create a file (that's the whole point).
+  // NOTE: this write happens BEFORE the dry-run bail below, on purpose — a
+  // --dry-run with a file-based message still normalizes the .commit-msg file
+  // (trailer appended) so the caller can inspect the exact final message on
+  // disk. Do NOT move this below the `if (dryRun)` check: that would silently
+  // change dry-run to leave the file un-normalized.
+  if (!inlineMsg) {
+    fs.writeFileSync(msgFile, finalMsg, 'utf8');
   }
+
+  if (dryRun) {
+    console.log('[commit] --dry-run — final message below, nothing committed:\n');
+    console.log('────────────────────────────────────────');
+    process.stdout.write(finalMsg);
+    console.log('────────────────────────────────────────');
+    if (inlineMsg) {
+      console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -m <msg>${amend ? ' --amend' : ''}`);
+    } else {
+      console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
+    }
+    process.exit(0);
+  }
+
+  const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+  console.log(`[commit] branch: ${branch}`);
+
+  if (stageAll) {
+    git('add', '-A');
+    console.log('[commit] staged all changes (git add -A)');
+  }
+
+  runScan(noScan);
+
+  // When -m is used, pass the final message directly via args array (safe — spawnSync
+  // does NOT go through a shell, so no quoting risk). Otherwise use -F for file-based.
+  const commitArgs = inlineMsg
+    ? ['commit', '-m', finalMsg, ...(amend ? ['--amend'] : [])]
+    : ['commit', '-F', msgFile, ...(amend ? ['--amend'] : [])];
+
+  // Use spawnSync with inherited stdio so hook output streams through live.
+  const res = spawnSync('git', commitArgs, { stdio: 'inherit' });
+  if (res.status !== 0) {
+    console.error(`[commit] git commit failed (exit ${res.status}).`);
+    process.exit(res.status || 1);
+  }
+
+  // Clean up the default message file after a successful commit so the next commit
+  // starts from a blank slate — and so the Write tool never has to read-before-write
+  // a stale leftover. Custom --file paths are deliberately left untouched.
+  // When -m is used, no file was written so there is nothing to delete.
+  if (fileIdx < 0 && !inlineMsg) {
+    try {
+      fs.rmSync(msgFile);
+    } catch {
+      /* best-effort — a leftover msg file is harmless, it's overwritten next commit */
+    }
+  }
+
+  console.log(`[commit] done: ${git('log', '-1', '--format=%h %s').trim()}`);
 }
 
-console.log(`[commit] done: ${git('log', '-1', '--format=%h %s').trim()}`);
+if (require.main === module) {
+  main();
+}
+
+module.exports = { parseArgs, readMessage, appendCoAuthor, runScan, main, TRAILER };

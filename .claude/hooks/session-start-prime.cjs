@@ -42,6 +42,7 @@ const fs = require('fs');
 const path = require('path');
 const { isAtLeast } = require('../core/profile');
 const CONSTANTS = require('../core/constants');
+const { resolveProjectRoot } = require('../core/_lib/project-root');
 const { appendJsonl } = require('../core/_lib/jsonl-writer');
 const { halveUsageCount } = require('../core/_lib/memory-decay');
 
@@ -185,8 +186,9 @@ function processEvent(_parsedJson) {
         return { output: null };
     }
 
-    const projectDir = process.env.CLAUDE_PROJECT_DIR
-        || path.resolve(__dirname, '..', '..');
+    // Anchor to the MAIN worktree so a session started inside a linked worktree
+    // primes from the one shared store (the worktree memory-loss fix).
+    const projectDir = resolveProjectRoot(path.resolve(__dirname, '..', '..'));
     const memoriesDir = path.join(projectDir, 'docs', '.output', 'memories');
 
     if (!fs.existsSync(memoriesDir)) return { output: null };

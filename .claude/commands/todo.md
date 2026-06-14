@@ -131,6 +131,7 @@ Agent(
   2. Find existing implementations to use as patterns
   3. Find test files for affected components
   4. Check for guard tests that may break
+  4b. **Verify every path before recording it — never assume a directory layout.** A module is often NOT where its conceptual name implies (e.g. several `.claude/core/` modules actually live under `.claude/core/_lib/` after a refactor). Probe subdirectories explicitly and confirm each path resolves: e.g. `find .claude/core -name '*.js' -not -path '*__tests__*' -not -path '*_helpers*'`, then diff that output against any path you were about to hardcode. A wrong path in the TODO costs every dispatched agent a discovery round. (Field-proven: a coverage epic mis-pathed 4 `_lib/` modules; 3 agents each burned a rediscovery round.)
 
   ## Dependency Analysis
   5. Map every file each proposed change would touch

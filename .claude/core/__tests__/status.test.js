@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import os from 'node:os';
@@ -459,6 +459,475 @@ describe('status', () => {
                 expect(out).toMatch(/\| 2 \| Beta \| 3 \| 12h \| \[ \] \|/);
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+    });
+
+    // ── Legacy parseChecklist — bold-checkbox and table-status formats ──
+    //
+    // When a checklist file has NO `## Story N.M:` headers, parseChecklist falls
+    // through to the legacy path that counts only bold-prefixed checkboxes
+    // (`- [x] **Story title**`) and table status cells (`| [x] |`).
+    describe('parseTodoFile — legacy checklist format (bold checkboxes + table status)', () => {
+        const writeTmp = (name, content) => {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-legacy-'));
+            const file = path.join(dir, name);
+            fs.writeFileSync(file, content, 'utf8');
+            return { dir, file };
+        };
+
+        it('counts bold-prefixed checkboxes as stories with correct status markers', () => {
+            const { parseTodoFile } = require('../status');
+            const content = [
+                '# TODO: Legacy Checklist',
+                '',
+                '- [x] **Story 1: Completed story**',
+                '- [>] **Story 2: In-progress story**',
+                '- [!] **Story 3: Blocked story**',
+                '- [~] **Story 4: Deferred story**',
+                '- [ ] **Story 5: Pending story**',
+                '',
+                '- [ ] non-bold task (should be ignored)',
+                '- [x] plain checkbox (not bold — ignored)',
+            ].join('\n');
+            const { dir, file } = writeTmp('TODO_epic_legacy.md', content);
+            try {
+                const r = parseTodoFile(file);
+                expect(r.type).toBe('checklist');
+                expect(r.stories.total).toBe(5);
+                expect(r.stories.done).toBe(1);
+                expect(r.stories.inProgress).toBe(1);
+                expect(r.stories.blocked).toBe(1);
+                expect(r.stories.deferred).toBe(1);
+                expect(r.stories.pending).toBe(1);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        it('counts table status cells (| [x] | format) as stories', () => {
+            // The /todo output format uses table rows with a Status column
+            const { parseTodoFile } = require('../status');
+            const content = [
+                '# TODO: Sprint Checklist',
+                '',
+                '| Story | Description | Status |',
+                '|-------|-------------|--------|',
+                '| S1 | First story | [x] |',
+                '| S2 | Second story | [>] |',
+                '| S3 | Third story | [ ] |',
+            ].join('\n');
+            const { dir, file } = writeTmp('TODO_sprint.md', content);
+            try {
+                const r = parseTodoFile(file);
+                expect(r.type).toBe('checklist');
+                expect(r.stories.total).toBe(3);
+                expect(r.stories.done).toBe(1);
+                expect(r.stories.inProgress).toBe(1);
+                expect(r.stories.pending).toBe(1);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    // ── computeTelemetryMetrics — JSONL parsing ──
+    describe('computeTelemetryMetrics', () => {
+        const makeTelemetryProject = (jsonlLines) => {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-tel-'));
+            const telDir = path.join(root, 'docs', '.output', 'telemetry');
+            fs.mkdirSync(telDir, { recursive: true });
+            fs.writeFileSync(
+                path.join(telDir, 'command-usage.jsonl'),
+                jsonlLines.join('\n'),
+                'utf8',
+            );
+            return root;
+        };
+
+        it('returns null when telemetry file does not exist', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-notel-'));
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result).toBeNull();
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('returns null when telemetry file is empty', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const root = makeTelemetryProject(['']);
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result).toBeNull();
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('counts command_invocation entries and aggregates gate_run outcomes', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const jsonl = [
+                JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-01T00:00:00Z' }),
+                JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-02T00:00:00Z' }),
+                JSON.stringify({ type: 'command_invocation', command: '/todo', timestamp: '2026-06-03T00:00:00Z' }),
+                JSON.stringify({ type: 'gate_run', command: 'gate:node', outcome: 'success', timestamp: '2026-06-01T00:00:00Z' }),
+                JSON.stringify({ type: 'gate_run', command: 'gate:node', outcome: 'failure', timestamp: '2026-06-02T00:00:00Z' }),
+                JSON.stringify({ type: 'gate_run', command: 'gate:node', outcome: 'success', timestamp: '2026-06-03T00:00:00Z' }),
+                'not valid json',
+            ];
+            const root = makeTelemetryProject(jsonl);
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result).not.toBeNull();
+                expect(result.commands['/do']).toBe(2);
+                expect(result.commands['/todo']).toBe(1);
+                expect(result.gates['gate:node'].pass).toBe(2);
+                expect(result.gates['gate:node'].fail).toBe(1);
+                // 2 pass out of 3 total = 67% (Math.round(2/3*100))
+                expect(result.gates['gate:node'].rate).toBe(67);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('supports legacy pass/fail outcome strings for backward-compat', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const jsonl = [
+                JSON.stringify({ type: 'gate_run', command: 'gate:cargo', outcome: 'pass', timestamp: '2026-06-01T00:00:00Z' }),
+                JSON.stringify({ type: 'gate_run', command: 'gate:cargo', outcome: 'fail', timestamp: '2026-06-01T00:00:00Z' }),
+            ];
+            const root = makeTelemetryProject(jsonl);
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result.gates['gate:cargo'].pass).toBe(1);
+                expect(result.gates['gate:cargo'].fail).toBe(1);
+                expect(result.gates['gate:cargo'].rate).toBe(50);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('counts session directories under docs/.output/sessions/', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const root = makeTelemetryProject([
+                JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-01T00:00:00Z' }),
+            ]);
+            const sessionsDir = path.join(root, 'docs', '.output', 'sessions');
+            fs.mkdirSync(path.join(sessionsDir, 'session-01'), { recursive: true });
+            fs.mkdirSync(path.join(sessionsDir, 'session-02'), { recursive: true });
+            // A file in the sessions dir should not count
+            fs.writeFileSync(path.join(sessionsDir, 'not-a-dir.txt'), 'x');
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result.sessions).toBe(2);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('ignores gate_run entries with unknown outcome', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const jsonl = [
+                JSON.stringify({ type: 'gate_run', command: 'gate:node', outcome: 'unknown', timestamp: '2026-06-01T00:00:00Z' }),
+                JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-01T00:00:00Z' }),
+            ];
+            const root = makeTelemetryProject(jsonl);
+            try {
+                const result = computeTelemetryMetrics(root);
+                // gate:node exists but has 0 pass + 0 fail → rate 0
+                expect(result.gates['gate:node'].pass).toBe(0);
+                expect(result.gates['gate:node'].fail).toBe(0);
+                expect(result.gates['gate:node'].rate).toBe(0);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('parses memory-benchmark.jsonl and returns hit rate for last 30 days', () => {
+            const { computeTelemetryMetrics } = require('../status');
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-membench-'));
+            const telDir = path.join(root, 'docs', '.output', 'telemetry');
+            fs.mkdirSync(telDir, { recursive: true });
+            // Need a command-usage.jsonl so computeTelemetryMetrics doesn't return null
+            fs.writeFileSync(
+                path.join(telDir, 'command-usage.jsonl'),
+                JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-01T00:00:00Z' }),
+                'utf8',
+            );
+            // Build memory-benchmark.jsonl with 3 recent hits and 1 miss
+            const recentDate = new Date();
+            recentDate.setUTCDate(recentDate.getUTCDate() - 5);
+            const recentISO = recentDate.toISOString();
+            const entries = [
+                JSON.stringify({ type: 'memory_benchmark', timestamp: recentISO, hit: true, retrieval_rank: 1 }),
+                JSON.stringify({ type: 'memory_benchmark', timestamp: recentISO, hit: true, retrieval_rank: 2 }),
+                JSON.stringify({ type: 'memory_benchmark', timestamp: recentISO, hit: false, retrieval_rank: null }),
+                // Old entry outside 30-day window — should be ignored
+                JSON.stringify({ type: 'memory_benchmark', timestamp: '2020-01-01T00:00:00Z', hit: false, retrieval_rank: 5 }),
+                // Wrong type — should be ignored
+                JSON.stringify({ type: 'other', timestamp: recentISO, hit: true }),
+                'bad json line',
+            ];
+            fs.writeFileSync(path.join(telDir, 'memory-benchmark.jsonl'), entries.join('\n'), 'utf8');
+            try {
+                const result = computeTelemetryMetrics(root);
+                expect(result).not.toBeNull();
+                expect(result.memoryBenchmark).not.toBeNull();
+                expect(result.memoryBenchmark.total).toBe(3);   // 3 recent entries counted
+                expect(result.memoryBenchmark.hits).toBe(2);    // 2 hits
+                expect(result.memoryBenchmark.rate).toBe(67);   // Math.round(2/3*100)
+                // meanRank: only entries with numeric retrieval_rank are included
+                // entries have ranks 1, 2 (null excluded) → mean = (1+2)/2 = 1.5
+                expect(result.memoryBenchmark.meanRank).toBe(1.5);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+    });
+
+    // ── printTextSummary — console output ──
+    describe('printTextSummary', () => {
+        it('prints "No TODO files found." when files array is empty', () => {
+            const { printTextSummary } = require('../status');
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary([], null, null, null);
+                expect(output.some(l => l.includes('No TODO files found.'))).toBe(true);
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('prints progress bar and story counts for each file', () => {
+            const { printTextSummary } = require('../status');
+            const files = [{
+                title: 'My Epic',
+                path: 'docs/todo/TODO_epic01.md',
+                type: 'checklist',
+                stories: { total: 10, done: 4, inProgress: 2, blocked: 0, deferred: 1, pending: 3 },
+                epics: [],
+                phases: [],
+            }];
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary(files, null, null, null);
+                const combined = output.join('\n');
+                expect(combined).toContain('My Epic');
+                expect(combined).toContain('40%');
+                expect(combined).toContain('4/10');
+                expect(combined).toContain('2 active');
+                expect(combined).toContain('1 deferred');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('prints epic list when file has epics', () => {
+            const { printTextSummary } = require('../status');
+            const files = [{
+                title: 'Master Tracker',
+                path: 'docs/TODO_MyProj.md',
+                type: 'master',
+                stories: { total: 8, done: 8, inProgress: 0, blocked: 0, deferred: 0, pending: 0 },
+                epics: [
+                    { id: '1', title: 'Alpha', stories: 4, estHours: 10, status: 'done' },
+                    { id: '2', title: 'Beta', stories: 4, estHours: 8, status: 'in_progress' },
+                ],
+                phases: [],
+            }];
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary(files, null, null, null);
+                const combined = output.join('\n');
+                expect(combined).toContain('[x] Epic 1: Alpha');
+                expect(combined).toContain('[>] Epic 2: Beta');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('prints telemetry metrics when telemetry object is provided', () => {
+            const { printTextSummary } = require('../status');
+            const files = [{
+                title: 'Epic 01',
+                path: 'docs/todo/TODO_epic01.md',
+                type: 'checklist',
+                stories: { total: 5, done: 3, inProgress: 1, blocked: 0, deferred: 0, pending: 1 },
+                epics: [],
+                phases: [],
+            }];
+            const telemetry = {
+                commands: { '/do': 12, '/todo': 7 },
+                gates: { 'gate:node': { pass: 10, fail: 2, rate: 83 } },
+                sessions: 5,
+                memoryBenchmark: { rate: 75, hits: 15, total: 20, meanRank: 1.5 },
+            };
+            const gitMetrics = { activeDays: 14 };
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary(files, telemetry, gitMetrics, null);
+                const combined = output.join('\n');
+                expect(combined).toContain('/do (12)');
+                expect(combined).toContain('83% pass');
+                expect(combined).toContain('Commits (7d): 14');
+                expect(combined).toContain('Sessions: 5');
+                // Memory hit rate: 75% → Green tag
+                expect(combined).toContain('75%');
+                expect(combined).toContain('Green');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('prints memory health metrics when memMetrics is provided', () => {
+            const { printTextSummary } = require('../status');
+            const files = [{
+                title: 'Epic 01',
+                path: 'docs/todo/TODO_epic01.md',
+                type: 'checklist',
+                stories: { total: 2, done: 1, inProgress: 0, blocked: 0, deferred: 0, pending: 1 },
+                epics: [],
+                phases: [],
+            }];
+            const telemetry = {
+                commands: {},
+                gates: {},
+                sessions: 0,
+                memoryBenchmark: null,
+            };
+            const memMetrics = {
+                total: 20,
+                byCategory: { patterns: 10, decisions: 10 },
+                healthScore: 55,
+                staleCount: 2,
+            };
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary(files, telemetry, null, memMetrics);
+                const combined = output.join('\n');
+                // healthScore 55 >= 50 → Green
+                expect(combined).toContain('55/70');
+                expect(combined).toContain('Green');
+                expect(combined).toContain('20 total');
+                expect(combined).toContain('2 stale');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('prints TOTAL line when multiple files are present', () => {
+            const { printTextSummary } = require('../status');
+            const files = [
+                {
+                    title: 'Epic 01', path: 'docs/todo/TODO_epic01.md', type: 'checklist',
+                    stories: { total: 5, done: 5, inProgress: 0, blocked: 0, deferred: 0, pending: 0 },
+                    epics: [], phases: [],
+                },
+                {
+                    title: 'Epic 02', path: 'docs/todo/TODO_epic02.md', type: 'checklist',
+                    stories: { total: 5, done: 0, inProgress: 0, blocked: 0, deferred: 0, pending: 5 },
+                    epics: [], phases: [],
+                },
+            ];
+            const output = [];
+            const spy = vi.spyOn(console, 'log').mockImplementation((...args) => output.push(args.join(' ')));
+            try {
+                printTextSummary(files, null, null, null);
+                const combined = output.join('\n');
+                expect(combined).toContain('TOTAL:');
+                expect(combined).toContain('5/10');
+                expect(combined).toContain('50%');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+    });
+
+    // ── parseTodoFile — master index parsing (parseMasterIndex) ──
+    describe('parseTodoFile — master index with Phase Map and Epic Index', () => {
+        const writeTmp = (name, content) => {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-master-'));
+            const file = path.join(dir, name);
+            fs.writeFileSync(file, content, 'utf8');
+            return { dir, file };
+        };
+
+        it('identifies master index by ## Phase Map heading and parses phases + epics', () => {
+            const { parseTodoFile } = require('../status');
+            const content = [
+                '# TODO: MyProj',
+                '',
+                '## Phase Map',
+                '',
+                '| Phase | Name | Goal | Epics | Stories | Done | Status |',
+                '|-------|------|------|-------|---------|------|--------|',
+                '| 1 | Bootstrap | set up | 2 | 8 | 3 | IN PROGRESS |',
+                '| **Total** | | | **2** | **8** | **3** | **37%** |',
+                '',
+                '## Epic Index',
+                '',
+                '| Epic | Title | Phase | Stories | Est. Hours | Status | Checklist |',
+                '|------|-------|-------|---------|-----------|--------|-----------|',
+                '| 1 | Core | 1 | 4 | 10h | [x] | [TODO](todo/TODO_epic01.md) |',
+                '| 2 | Auth | 1 | 4 | 8h | [>] | [TODO](todo/TODO_epic02.md) |',
+                '',
+            ].join('\n');
+            const { dir, file } = writeTmp('TODO_MyProj.md', content);
+            try {
+                const r = parseTodoFile(file);
+                expect(r.type).toBe('master');
+                expect(r.phases.length).toBe(1);
+                expect(r.phases[0].id).toBe('1');
+                expect(r.phases[0].stories).toBe(8);
+                expect(r.phases[0].done).toBe(3);
+                expect(r.epics.length).toBe(2);
+                expect(r.epics[0].status).toBe('done');
+                expect(r.epics[1].status).toBe('in_progress');
+                // stories aggregated from Phase Map rows
+                expect(r.stories.total).toBe(8);
+                expect(r.stories.done).toBe(3);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        it('derives stories.total from epics when Phase Map has zero totals', () => {
+            // When phase rows show 0/0, parseMasterIndex falls back to epic-level aggregation
+            const { parseTodoFile } = require('../status');
+            const content = [
+                '# TODO: MyProj',
+                '',
+                '## Epic Index',
+                '',
+                '| Epic | Title | Phase | Stories | Est. Hours | Status | Checklist |',
+                '|------|-------|-------|---------|-----------|--------|-----------|',
+                '| 1 | Core | 1 | 4 | 10h | [x] | [TODO](todo/TODO_epic01.md) |',
+                '| 2 | Auth | 1 | 6 | 8h | [ ] | [TODO](todo/TODO_epic02.md) |',
+                '| 3 | Admin | 1 | 2 | 4h | [!] | [TODO](todo/TODO_epic03.md) |',
+                '| 4 | Reports | 1 | 3 | 6h | [~] | [TODO](todo/TODO_epic04.md) |',
+                '',
+            ].join('\n');
+            const { dir, file } = writeTmp('TODO_MyProj2.md', content);
+            try {
+                const r = parseTodoFile(file);
+                expect(r.type).toBe('master');
+                // total from epics: 4+6+2+3 = 15
+                expect(r.stories.total).toBe(15);
+                // done from epics with status 'done': 4
+                expect(r.stories.done).toBe(4);
+                // status enum checks
+                expect(r.epics[2].status).toBe('blocked');
+                expect(r.epics[3].status).toBe('deferred');
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
             }
         });
     });

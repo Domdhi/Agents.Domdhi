@@ -3,9 +3,6 @@
   "private": true,
   "license": "MIT",
   "type": "commonjs",
-  "bin": {
-    "domdhi-install": ".claude/core/install.js"
-  },
   "scripts": {
     "build": "echo \"No build step — template-only\"",
     "test": "vitest run",
@@ -21,8 +18,8 @@
     "feedback:rollup": "node tools/feedback-aggregate.js"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.0.0",
-    "vitest": "^2.0.0"
+    "@vitest/coverage-v8": "^4.1.8",
+    "vitest": "^4.1.8"
   },
   "optionalDependencies": {
     "better-sqlite3": "^11.0.0"

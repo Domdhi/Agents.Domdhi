@@ -33,7 +33,7 @@ flowchart TD
     %% ── Store ──────────────────────────────────────────────────────
     subgraph STOREBOX["STORE"]
         direction TB
-        STORE["docs/.output/memories/<br/>├─ {category}/{id}.json — source of truth<br/>└─ memories.db — SQLite FTS5 index"]
+        STORE["docs/.output/memories/<br/><i>anchored to the MAIN worktree via _lib/project-root.js<br/>— shared across all git worktrees</i><br/>├─ {category}/{id}.json — source of truth<br/>└─ memories.db — SQLite FTS5 index"]
     end
     MGR --> STORE
 

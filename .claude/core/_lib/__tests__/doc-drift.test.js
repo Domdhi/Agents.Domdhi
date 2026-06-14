@@ -1,13 +1,19 @@
 // Tests for doc-drift.js — detection of legacy/duplicate planning docs (F2).
+//
+// Coverage targets:
+//   line 97  — catch { return; } inside findMisplacedTodos walk when readdirSync fails
+//   lines 154-183 — main() CLI output paths (no-drift, legacy, duplicates, misplacedTodos)
+//   line 188 — require.main guard (NOT COVERED: evaluates true only when node is entry)
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const { detectDocDrift, stripTemplateMarker, isRealDoc } = require('../doc-drift');
+const DOC_DRIFT_PATH = require.resolve('../doc-drift');
+const { detectDocDrift, stripTemplateMarker, isRealDoc, findMisplacedTodos } = require('../doc-drift');
 
 let root;
 beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-drift-')); });
@@ -96,6 +102,79 @@ describe('detectDocDrift', () => {
         expect(r.misplacedTodos).toEqual([]);   // _archive (underscore) is skipped, not flagged
         expect(r.hasDrift).toBe(false);
     });
+
+    it('flagsAllLegacyNames', () => {
+        // Covers all entries in LEGACY_TO_CANONICAL
+        write('docs/_requirements.md');
+        write('docs/_brief.md');
+        write('docs/_design.md');
+        write('docs/_context.md');
+        const r = detectDocDrift(root);
+        expect(r.legacy.map(l => l.file)).toEqual(
+            expect.arrayContaining([
+                'docs/_requirements.md',
+                'docs/_brief.md',
+                'docs/_design.md',
+                'docs/_context.md',
+            ])
+        );
+    });
+
+    it('flagsDuplicateFeatureIdeas', () => {
+        // _feature-ideas.md also has a canonical location in todo/
+        write('docs/_feature-ideas.md');
+        write('docs/todo/_feature-ideas.md');
+        const r = detectDocDrift(root);
+        expect(r.duplicates.find(d => d.name === '_feature-ideas.md')).toBeTruthy();
+    });
+});
+
+// ── isRealDoc ────────────────────────────────────────────────────────────────
+
+describe('isRealDoc', () => {
+    it('returns true for a file with real content', () => {
+        write('docs/real.md', '# Real content\n');
+        expect(isRealDoc(path.join(root, 'docs', 'real.md'))).toBe(true);
+    });
+
+    it('returns false for a non-existent file (catch branch, line 64)', () => {
+        // Covers the catch branch in isRealDoc at line 64: file not readable → returns false
+        expect(isRealDoc(path.join(root, 'docs', 'no-such-file.md'))).toBe(false);
+    });
+
+    it('returns false for a template stub (starts with marker)', () => {
+        write('docs/stub.md', '<!-- @@template -->\n# stub\n');
+        expect(isRealDoc(path.join(root, 'docs', 'stub.md'))).toBe(false);
+    });
+});
+
+// ── findMisplacedTodos — line 97: readdirSync failure branch ─────────────────
+
+describe('findMisplacedTodos', () => {
+    it('returns empty array when docs dir does not exist — covers line 97 catch branch', () => {
+        // docsDir does not exist → readdirSync throws → catch { return; } → misplaced stays []
+        const nonExistentDocs = path.join(root, 'docs-nonexistent');
+        const result = findMisplacedTodos(nonExistentDocs);
+        expect(result).toEqual([]);
+    });
+
+    it('finds TODO files nested in non-canonical dirs', () => {
+        write('docs/subdir/nested/TODO_stale.md');
+        const result = findMisplacedTodos(path.join(root, 'docs'));
+        expect(result.some(m => m.file.includes('TODO_stale.md'))).toBe(true);
+    });
+
+    it('skips design dir (in TODO_SKIP_DIRS)', () => {
+        write('docs/design/TODO_design-notes.md');
+        const result = findMisplacedTodos(path.join(root, 'docs'));
+        expect(result).toHaveLength(0);
+    });
+
+    it('skips node_modules dir (in TODO_SKIP_DIRS)', () => {
+        write('docs/node_modules/TODO_internal.md');
+        const result = findMisplacedTodos(path.join(root, 'docs'));
+        expect(result).toHaveLength(0);
+    });
 });
 
 // ── stripTemplateMarker ──────────────────────────────────────────────────────
@@ -149,5 +228,111 @@ describe('stripTemplateMarker', () => {
     it('stripTemplateMarker_nonexistentFile_returnsFalse', () => {
         const result = stripTemplateMarker(path.join(tmpRoot, 'no-such-file.md'));
         expect(result).toBe(false);
+    });
+});
+
+// ── main() — in-process coverage of lines 154-183 ────────────────────────────
+// main() is exported from doc-drift.js (behavior-preserving addition).
+// Mock process.exit to throw, capture stdout/stderr output, set process.argv.
+
+describe('main() — lines 154-183', () => {
+    let originalArgv;
+    let stdoutCapture;
+    let stderrCapture;
+
+    beforeEach(() => {
+        originalArgv = process.argv.slice();
+        stdoutCapture = [];
+        stderrCapture = [];
+        vi.spyOn(process, 'exit').mockImplementation((code) => {
+            throw new Error(`process.exit(${code ?? 'undefined'})`);
+        });
+        vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+            stdoutCapture.push(String(s));
+            return true;
+        });
+        vi.spyOn(process.stderr, 'write').mockImplementation((s) => {
+            stderrCapture.push(String(s));
+            return true;
+        });
+    });
+
+    afterEach(() => {
+        process.argv = originalArgv;
+        vi.restoreAllMocks();
+        delete require.cache[DOC_DRIFT_PATH];
+    });
+
+    function freshMain() {
+        delete require.cache[DOC_DRIFT_PATH];
+        return require('../doc-drift').main;
+    }
+
+    function stdout() { return stdoutCapture.join(''); }
+
+    it('exits 0 when no drift detected — covers lines 157-159', () => {
+        // Empty project root → docs dir does not exist → no drift
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(0)');
+        expect(stdout()).toMatch(/No legacy\/duplicate planning docs detected/);
+    });
+
+    it('exits 1 and reports legacy docs without canonical counterpart — covers lines 162-169', () => {
+        write('docs/_prd.md');
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(1)');
+        const out = stdout();
+        expect(out).toMatch(/Legacy-named docs/);
+        expect(out).toMatch(/_prd\.md/);
+        expect(out).toMatch(/rename\/migrate to canonical/);
+    });
+
+    it('exits 1 and prints BOTH-exist message when legacy and canonical coexist — covers line 167', () => {
+        write('docs/_architecture.md');
+        write('docs/_project-architecture.md');
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(1)');
+        expect(stdout()).toMatch(/BOTH exist/);
+    });
+
+    it('exits 1 and reports duplicate docs — covers lines 171-174', () => {
+        write('docs/_backlog.md');
+        write('docs/todo/_backlog.md');
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(1)');
+        const out = stdout();
+        expect(out).toMatch(/Duplicate docs/);
+        expect(out).toMatch(/keep canonical, remove the root copy/);
+    });
+
+    it('exits 1 and reports misplaced TODO files — covers lines 176-179', () => {
+        write('docs/work/TODO_stale.md');
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(1)');
+        const out = stdout();
+        expect(out).toMatch(/Misplaced TODO files/);
+        expect(out).toMatch(/TODO_stale\.md/);
+        expect(out).toMatch(/move to docs\/todo\//);
+    });
+
+    it('exits 1 and prints reconcile guidance — covers line 181', () => {
+        write('docs/_brief.md');
+        process.argv = ['node', 'doc-drift.js', root];
+        expect(() => freshMain()()).toThrow('process.exit(1)');
+        expect(stdout()).toMatch(/Reconcile via \/onboard/);
+    });
+
+    it('uses CLAUDE_PROJECT_DIR env var when no argv[2] — covers line 154', () => {
+        write('docs/_brief.md');
+        process.argv = ['node', 'doc-drift.js'];
+        const originalEnv = process.env.CLAUDE_PROJECT_DIR;
+        process.env.CLAUDE_PROJECT_DIR = root;
+        try {
+            expect(() => freshMain()()).toThrow('process.exit(1)');
+            expect(stdout()).toMatch(/_brief\.md/);
+        } finally {
+            if (originalEnv === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+            else process.env.CLAUDE_PROJECT_DIR = originalEnv;
+        }
     });
 });

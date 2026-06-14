@@ -342,6 +342,15 @@ coverage elsewhere, mark it explicitly: `// NOT COVERED: {what}` in the test fil
 AND list it under DONE_WITH_CONCERNS. A false coverage claim is worse than an
 honest gap — it ships an untested surface looking tested.
 
+COUNT/VALUE ASSERTIONS (R6b) — a test whose name promises a count, total, number,
+or specific value MUST assert it with `toBe`/`toEqual`/a numeric comparator or
+`toMatch` on the LABELLED value — never `toContain` (substring presence) alone. A
+bare `expect(out).toContain('1')` or `toContain('commit')` is a false-green: the
+literal shows up incidentally in dates/labels/IDs and the test passes even when the
+real count is wrong. This exact anti-pattern slipped past dev agents twice in one
+coverage epic — assert the labelled value, e.g. `toContain('Concept articles:  1')`
+or `toMatch(/\(2 commits, \d+ files\)/)`.
+
 DO NOT TOUCH: {files owned by other stories in this wave}
 
 DO NOT COMMIT / DO NOT `git add` / DO NOT `git commit` — the orchestrator (Main

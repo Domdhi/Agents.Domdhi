@@ -662,4 +662,17 @@ if (require.main === module) {
     });
 }
 
-module.exports = { loadFixture, DEFAULT_QUERIES, FIXTURE_PATH };
+module.exports = {
+    loadFixture,
+    DEFAULT_QUERIES,
+    FIXTURE_PATH,
+    // Deterministic helpers exposed for in-process testing (test-coverage only —
+    // no behaviour change). hitAtK/runPass/makeManager/seedTempStores/printReport
+    // are pure or store-backed (no network, no LLM); main runs the full eval path.
+    hitAtK,
+    runPass,
+    makeManager,
+    seedTempStores,
+    printReport,
+    main,
+};

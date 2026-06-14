@@ -1484,7 +1484,7 @@ flowchart TD
 
 ## /review:retro
 
-Run a retrospective after completing an epic. Gathers commits, TODO state, work docs, and memory patterns from the epic's window; runs `/review:check-sync` alongside. Dispatches `doc-writer` to write `docs/.output/reviews/retro-{epic-slug}.md`. Extracts patterns to memory (confidence 0.8 new, promotes 0.6 → 0.8+ existing).
+Run a retrospective after completing an epic. Runs a **code-review pass over the epic's commits first** (`code-reviewer`, risk-routed — its findings feed the retro); `--skip-review` skips it when the epic was already reviewed (e.g. inside `/sweep`, whose Phase 1 satisfies it). Gathers commits, TODO state, work docs, and memory patterns from the epic's window; runs `/review:check-sync` alongside. Dispatches `doc-writer` to write `docs/.output/reviews/retro-{epic-slug}.md` (the code-review findings land in its **Code Review Findings** section — no separate file). Extracts patterns to memory (confidence 0.8 new, promotes 0.6 → 0.8+ existing).
 
 ```mermaid
 flowchart TD
@@ -1495,11 +1495,14 @@ flowchart TD
     FIND -->|None complete| ASK["Ask user which\nepic to review"]
     ASK --> MATCH
 
-    MATCH --> GATHER["Gather data:\n\nGit: commits, files changed,\nlines, date range\n\nTODO: Execution Log,\nKey Decisions, deferred [~],\nblocked [!]\n\nWork docs: plans from\n.output/plans/\n\nMemory: patterns extracted\nduring epic"]
+    MATCH --> REVIEW{"--skip-review?"}
+    REVIEW -->|No| CR["Agent: code-reviewer\nReview epic commit range\n(risk-routed: HIGH→opus)\n→ findings feed retro doc"]
+    REVIEW -->|Yes| GATHER
+    CR --> GATHER["Gather data:\n\nCode-review findings (Step 2)\n\nGit: commits, files changed,\nlines, date range\n\nTODO: Execution Log,\nKey Decisions, deferred [~],\nblocked [!]\n\nWork docs: plans from\n.output/plans/\n\nMemory: patterns extracted\nduring epic"]
 
     GATHER --> SYNC["Run /check-sync\nCapture drift findings"]
 
-    SYNC --> DELEGATE["Agent: doc-writer\nWrite docs/.output/reviews/retro-{epic-slug}.md:\n\nWhat Went Well\nWhat Didn't Go Well\nKey Decisions (table)\nPatterns Extracted (table)\nMetrics (commits, files, lines,\nbuild/test failures, first-attempt)\nRecommendations\nSystem Improvements\n  (Agent/Skill/Command/Memory)\nDoc Sync Summary"]
+    SYNC --> DELEGATE["Agent: doc-writer\nWrite docs/.output/reviews/retro-{epic-slug}.md:\n\nWhat Went Well\nWhat Didn't Go Well\nKey Decisions (table)\nPatterns Extracted (table)\nCode Review Findings (from Step 2)\nMetrics (commits, files, lines,\nbuild/test failures, findings, first-attempt)\nRecommendations\nSystem Improvements\n  (Agent/Skill/Command/Memory)\nDoc Sync Summary"]
 
     DELEGATE --> PATTERNS["Extract patterns to memory:\nNew patterns → confidence 0.8\nExisting /do patterns (0.6) →\npromote to 0.8+"]
 
@@ -1700,7 +1703,7 @@ Which commands dispatch which agents. Use this when deciding where a change in a
 | `ux-designer` | `/create:project-design`, `/create:module`, `/review:check-readiness` |
 | `project-planner` | `/create:project-epics`, `/create:project-todo`, `/create:project-epics-todo`, `/todo`, `/review:optimize-backlog`, `/review:check-readiness`, `/review:check-sync` |
 | `general-purpose` | `/do` (implementation), `/run-todo` (dev agents), `/create:module`, `/run-tests` (code checks) |
-| `code-reviewer` | `/review:code-review`, `/todo` (large review), `/run-todo` (wave review) |
+| `code-reviewer` | `/review:code-review`, `/review:retro` (code-review pass), `/todo` (large review), `/run-todo` (wave review) |
 | `qa-engineer` | `/review:qa`, `/run-todo` (QA agents), `/do` (Path B TDD delegation) |
 | `doc-writer` | `/review:update-docs`, `/review:personalize`, `/review:retro`, `/review:changelog`, `/do` (TODO update sub-task) |
 | `security-auditor` | `/review:security`, `/review:check-readiness` (architecture security context) |

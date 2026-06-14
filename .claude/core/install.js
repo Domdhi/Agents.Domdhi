@@ -10,7 +10,6 @@
  *
  * Usage:
  *   node .claude/core/install.js [target-path] [flags]
- *   npx domdhi-install [target-path] [flags]
  *
  * Flags:
  *   --dry-run         Compute stats and print plan; write nothing.
@@ -409,8 +408,7 @@ function main() {
     if (argv.includes('--help') || argv.includes('-h')) {
         console.log('domdhi-install — brownfield installer for the Domdhi Agents template\n');
         console.log('Usage:');
-        console.log('  node .claude/core/install.js [target] [flags]');
-        console.log('  npx domdhi-install [target] [flags]\n');
+        console.log('  node .claude/core/install.js [target] [flags]\n');
         console.log('Arguments:');
         console.log('  target           Path to the project to install into (default: .)');
         console.log('');

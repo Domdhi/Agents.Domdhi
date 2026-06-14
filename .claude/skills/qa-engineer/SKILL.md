@@ -112,6 +112,21 @@ AC: "Given a valid email, When user submits login, Then redirect to dashboard"
 - Testing implementation details (mock verification overuse)
 - Tests that always pass (no meaningful assertion)
 
+### Count & value assertions — never `toContain` for a quantity
+A test whose name promises a **count, total, number, or specific value** MUST assert it with `toBe` / `toEqual` / a numeric comparator (`toBeGreaterThan`, `toMatch` on a labelled value) — **never `toContain` (or substring presence) alone.** A bare substring check is a false-green: the literal appears in the output incidentally (dates, labels, IDs) and the test passes even when the real count is wrong or zero.
+
+```js
+// ✗ false-green: "1" appears in dates/labels regardless of the data
+expect(output).toContain('1');
+// ✗ false-green: the word "commit" is in every day-header
+expect(timeline).toContain('commit');
+// ✓ assert the labelled value
+expect(output).toContain('Concept articles:  1');
+expect(timeline).toMatch(/\(2 commits, \d+ files\)/);
+expect(report.total).toBe(2);
+```
+This exact anti-pattern slipped past dev agents twice in one test-authoring epic (once per wave) and was caught only in review — make it a write-time check, not a review-time catch.
+
 ## Testing Conventions & Checkers
 
 Two patterns for the case where the thing under test is itself a *rule* (a cross-file convention) or a *checker* (a script that validates the tree):

@@ -27,9 +27,13 @@ const { spawnDailyLogCapture } = require('../core/_lib/hook-spawners');
 
 const DEDUP_MINUTES = 30;
 
+const { resolveProjectRoot } = require('../core/_lib/project-root');
+
 function getProjectDir() {
-    return process.env.CLAUDE_PROJECT_DIR
-        || path.resolve(__dirname, '..', '..');
+    // Anchor to the MAIN worktree so daily-log + curator writes land in the one
+    // shared store, not a throwaway worktree-local copy (the worktree memory-loss
+    // fix). git show/captureCommit still work — objects live in the shared .git.
+    return resolveProjectRoot(path.resolve(__dirname, '..', '..'));
 }
 
 function getDailyLogPath() {

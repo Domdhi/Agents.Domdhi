@@ -14,10 +14,10 @@ node_modules/
 *.local.*
 
 # Temp / Logs
-*.log
-*.bak
-*.tmp
-.archive
+*.log*
+*.bak*
+*.tmp*
+*.archive*
 
 # Runtime artifacts
 # Anchored to root with leading slash so the tracked template version at

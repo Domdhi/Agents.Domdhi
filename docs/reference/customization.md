@@ -12,7 +12,8 @@ When updating the template (via subtree, copy, or future update mechanism), some
 | `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, `assets/`, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below). **Skill-owned document templates live here** (`<skill>/assets/*`, the scaffold source of record via `SKILL_TEMPLATE_MANIFEST`) |
 | `.claude/skills-optional/` | Template | **Overwrite** (gitignored — local-only aesthetic skills) |
 | `.claude/templates/` | Template | **Overwrite** — residual no-owner templates only (CLAUDE.md docs-guide + `root/`); doc templates moved to skill `assets/` |
-| `.claude/version.json` | Template | **Overwrite** — template version metadata |
+| `.claude/version.json` | Template | **Overwrite** — template version metadata (changelog capped to the newest 3 releases by `fleet:release`) |
+| `CHANGELOG.md` (root) | **Workshop-only** | **Not propagated** — archive of older release notes demoted out of `version.json` by `fleet:release`; not in the publish allowlist, not a `.claude/` subtree, so adopters never receive it |
 | `.claude/agents/*.md` (11 base) | **Mixed** | **Merge** — see Agent File Zones below |
 | `.claude/agents/*.md` (project-added) | **Project** | **Preserve** — agents added by `/specialize` or manually |
 | `.claude/settings.json` | **Project** | **Preserve** — project-specific permissions, env vars, hook paths |

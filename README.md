@@ -23,7 +23,7 @@ A portable `.claude/` directory that turns Claude Code into a full development l
 ├── agents/                  11 agent definitions (extensible)
 ├── commands/                Slash commands — setup, build loop, review
 ├── skills/                  23 domain-knowledge modules
-├── hooks/                   12 event-driven hooks
+├── hooks/                   14 event-driven hooks
 ├── core/                    Runtime scripts (gate, scaffold, memory, status)
 ├── templates/               Blank doc templates with marker convention
 └── settings.json            Permissions, hook wiring, plan directory
@@ -60,14 +60,22 @@ That's the one command to get from zero to implementation-ready. It scaffolds th
 
 ### Existing codebase (brownfield)
 
-Don't run `/create:new-project` in a project that already has code — it's built for an empty repo. Instead, copy the `.claude/` directory in and let the zone-aware updater merge it without clobbering anything you've customized:
+Don't run `/create:new-project` in a project that already has code — it's built for an empty repo. Instead, use the one-command installer to copy `.claude/` in (it has zero runtime dependencies and prompts on any conflict):
 
 ```bash
-# From a clone of this template, sync .claude/ into your project
-node .claude/core/template-updater.js update /path/to/your-project --merge
+# From a clone of this template, install .claude/ into your existing project
+node .claude/core/install.js /path/to/your-project
 ```
 
-This preserves your `settings.json`, agent personalities, and any local customizations while bringing in the latest commands, agents, skills, and hooks. **To update an existing install later, re-run `template-updater` — don't re-clone.** A first-class one-command installer (`install.js`) and an `/onboard` command that reverse-engineers planning docs from your existing code are on the roadmap.
+This preserves your `settings.json`, agent personalities, and any local customizations while bringing in the commands, agents, skills, and hooks. Then open your project in Claude Code and run:
+
+```
+/onboard
+```
+
+`/onboard` is the brownfield analog of `/create:new-project` — it reverse-engineers `_project-architecture.md` and `_project-context.md` from your existing code, merges `CLAUDE.md` additively (never clobbering your instructions), and chains `/review:specialize` to tailor the agents to your stack.
+
+**To update an existing install later, run the zone-aware updater — don't re-clone:** `node .claude/core/template-updater.js update /path/to/your-project --merge`.
 
 ## Getting Started
 

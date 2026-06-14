@@ -275,7 +275,7 @@ function main() {
     process.exit(gating.length > 0 ? 1 : 0);
 }
 
-module.exports = { extractEpicFiles, extractEpicPhases, findOverlaps };
+module.exports = { extractEpicFiles, extractEpicPhases, findOverlaps, main };
 
 if (require.main === module) {
     main();

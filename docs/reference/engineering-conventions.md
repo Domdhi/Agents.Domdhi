@@ -67,3 +67,11 @@ Consequence: anything hardcoded in a `__tests__/` file — an absolute path, a u
 *Rules:* never put a personal/absolute path, real secret, or machine-specific value in a test fixture — use `/home/user/...`, `~/...`, tmp dirs, or env. When you fix such a leak in the workshop, remember a plain `template-updater` sync will **not** carry the fix to adopters that already have the stale test; fix those by hand. (Field-proven 2026-06-07: `guardrail.test.js` carried `/home/<user>/...` into two adopters.)
 
 *Why:* surfaced during the v4.71/v4.72 fleet work — the strip-personal-paths fix reached the storefront via publish but not the already-synced adopters via `template-updater`.
+
+### `version.json` changelog is capped; older entries live in workshop-only `CHANGELOG.md`
+
+`version.json` ships to every adopter on every `fleet:sync`, so an ever-growing inline changelog bloats the propagated file. `fleet:release` keeps only the newest `CHANGELOG_INLINE_CAP` (3) releases inline and demotes older entries to root `CHANGELOG.md`.
+
+*Rules:* `CHANGELOG.md` is **workshop-only** — it is not in the publish allowlist (`tools/publish-manifest.json`) and not a `.claude/` subtree, so neither `publish.js` nor `template-updater.js` carries it. Adopters see only the newest 3 releases in the `version.json` they sync; the full history lives in the workshop's `CHANGELOG.md`. The cap is enforced in `tools/fleet.js` (`capChangelog` / `mergeChangelogArchive`) — don't hand-edit `version.json` to re-stack old entries.
+
+*Why:* the inline changelog had grown to span v4.59→v4.80 in one string (2026-06-14), bloating every adopter's `version.json`.

@@ -94,9 +94,9 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 
 ## Phase 2 — Retro
 
-Reuses `/review:retro`. One retro per epic in scope (or one consolidated retro if INPUT was a single PR range with no clear epic split).
+Reuses `/review:retro` — **as if invoked with `--skip-review`**, because Phase 1 already ran the code-review pass that `/review:retro` would otherwise run itself. Do NOT re-review here; feed the Phase 1 findings in instead. One retro per epic in scope (or one consolidated retro if INPUT was a single PR range with no clear epic split).
 
-1. Gather data IN THE MAIN AGENT (agents have no Bash): git stats for the epic's commits, TODO Execution Log, work-doc plans, telemetry (`docs/.output/telemetry/command-usage.jsonl` if present), **and the Phase 1 code-review findings**.
+1. Gather data IN THE MAIN AGENT (agents have no Bash): git stats for the epic's commits, TODO Execution Log, work-doc plans, telemetry (`docs/.output/telemetry/command-usage.jsonl` if present), **and the Phase 1 code-review findings** (these populate the retro's *Code Review Findings* section — no second review).
 2. Run `/review:check-sync` for doc drift; capture findings.
 3. Dispatch `doc-writer` (per the retro template) to write `docs/.output/reviews/retro-{epic-slug}.md`. **Include the output-boundary instruction verbatim** ("Your ONLY output is the retro markdown… Do NOT write memories…") — the main agent owns memory extraction in Phase 3.
 4. Commit each retro: `docs: /sweep p2 — retro {epic}`.

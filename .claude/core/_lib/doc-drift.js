@@ -183,6 +183,6 @@ function main() {
     process.exit(1);
 }
 
-module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, stripTemplateMarker, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS };
+module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, stripTemplateMarker, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS, main };
 
 if (require.main === module) main();

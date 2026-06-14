@@ -60,7 +60,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/review:update-docs` | doc-writer | project-planning | Yes (fixes drift) |
 | `/review:qa` | qa-engineer | qa-engineer | Yes (generates tests) |
 | `/review:optimize-backlog` | project-planner | project-planning | Optional |
-| `/review:retro` | doc-writer | project-planning | Yes (creates retro doc) |
+| `/review:retro` | code-reviewer + doc-writer | code-review + project-planning | Yes (creates retro doc) |
 | `/review:changelog` | doc-writer | project-planning | Yes (creates/updates CHANGELOG) |
 | `/review:specialize` | architect | tailwind (as exemplar) | Yes (updates agents, creates skills) |
 | `/review:optimize-agents` | — (main) | — | Optional (--fix mode) |
@@ -241,7 +241,8 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `template-updater.js` | Zone-aware template sync to downstream projects (`--merge`, `--dry-run`) |
 | `guardrail-stats.js` | Guardrail hit-counter reporter — aggregates `guardrail-events.jsonl` (block/nudge/confirm) by decision + rule (`npm run guardrail:stats`, `--json`/`--since`/`--top`) |
 | `_lib/hook-telemetry.js` | Hook telemetry emitters — `emitHookEvent` (timing) + `emitGuardrailHit` (guardrail hit counter, secret-safe: rule/decision/tier, never the raw command) |
-| `tools/fleet.js` | Fleet orchestrator (workshop-only, not shipped) — roster-driven (`tools/fleet.json`) `status`/`sync`/`release` wrapping template-updater + publish + gate into one pass with a rollup (`npm run fleet:status\|sync\|release`) |
+| `_lib/project-root.js` | `resolveProjectRoot()` — anchors the gitignored memory store (`docs/.output/memories/`) to the MAIN git worktree via `git rev-parse --git-common-dir`, so all linked worktrees share one store (no copy, no loss on worktree removal). Precedence: `CLAUDE_PROJECT_DIR` > git-common-dir > `__dirname/../..` (non-git fallback). Used by `memory-manager.js` + the `memory-capture`/`session-start-prime` hooks |
+| `tools/fleet.js` | Fleet orchestrator (workshop-only, not shipped) — roster-driven (`tools/fleet.json`) `status`/`sync`/`release` wrapping template-updater + publish + gate into one pass with a rollup (`npm run fleet:status\|sync\|release`). `release` caps `version.json` at `CHANGELOG_INLINE_CAP` (3) releases inline; older entries overflow to root `CHANGELOG.md` (workshop-only, never synced) |
 | `status.js` | TODO progress + metrics → text + HTML dashboard |
 | `memory-health-check.js` | Headless memory health check — lint + decay report for `/review:memory-health` |
 | `cleanup-logs.js` | Prune old gate logs |
