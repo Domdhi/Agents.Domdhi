@@ -9,7 +9,7 @@ When updating the template (via subtree, copy, or future update mechanism), some
 | `.claude/commands/**/*.md` | Template | **Overwrite** — commands are orchestration, never project-specific |
 | `.claude/core/*.js` | Template | **Overwrite** — scripts are project-agnostic |
 | `.claude/hooks/*.cjs` | Template | **Overwrite** — hooks are project-agnostic (project-specific hooks preserved) |
-| `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, `assets/`, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below). **Skill-owned document templates live here** (`<skill>/assets/*`, the scaffold source of record via `SKILL_TEMPLATE_MANIFEST`) |
+| `.claude/skills/**` | Template | **Overwrite** — entire skills tree (SKILL.md + references/, examples/, `assets/`, sibling `.md`/`.ts`/`.dot`/`.sh`) except `brand-guidelines/**` (see below). **Skill `.md` escape hatch under `--merge`:** a file carrying a `<!-- @@project-additions -->` tail is **merged** (template head refreshed, adopter tail preserved) — see Skill Exceptions. **Skill-owned document templates live here** (`<skill>/assets/*`, the scaffold source of record via `SKILL_TEMPLATE_MANIFEST`) |
 | `.claude/skills-optional/` | Template | **Overwrite** (gitignored — local-only aesthetic skills) |
 | `.claude/templates/` | Template | **Overwrite** — residual no-owner templates only (CLAUDE.md docs-guide + `root/`); doc templates moved to skill `assets/` |
 | `.claude/version.json` | Template | **Overwrite** — template version metadata (changelog capped to the newest 3 releases by `fleet:release`) |
@@ -69,11 +69,12 @@ Tech Stack, ADRs, Conventions      this section doesn't exist (nothing to preser
 
 ## Skill Exceptions
 
-Most skills are template content. One exception:
+Most skills are template content. Two ways a project keeps its own skill content across updates:
 
 | Skill | Zone | Notes |
 |-------|------|-------|
-| `brand-guidelines/**` (whole tree) | **Project** | Customized per-project with brand colors, typography, visual identity, logo assets, palette files. Whole subtree preserved on update — any sub-docs added in the target stay project-owned. |
+| `brand-guidelines/**` (whole tree) | **Project** | Customized per-project with brand colors, typography, visual identity, logo assets, palette files. Whole subtree preserved on update — any sub-docs added in the target stay project-owned. (The crude, whole-subtree precedent for the section-level marker below.) |
+| Any skill `.md` with a `<!-- @@project-additions -->` tail | Template head + **Project** tail | **Section-level escape hatch (under `--merge`).** Everything below the marker is adopter-owned and preserved; the template head above it still refreshes. The skill analog of the agent Soul-Zone/Project-Context merge. Logic: `_lib/skill-merger.js`. Commands that add project content to a template skill (`/review:specialize`, `/sweep`, `/review:evolve-skills`) write it below the marker. |
 | All others (including `references/`, `assets/`, `scripts/`, `examples/`) | Template | Overwrite on update. SKILL.md **and** its support files (`references/*`, `scripts/*`, `assets/*`, etc.) propagate together — they're authored as a unit in the template, so partial propagation leaves SKILL.md pointing at missing references. |
 
 ### Opting out of template skills

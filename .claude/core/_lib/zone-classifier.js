@@ -3,7 +3,18 @@
  *
  * Zone definitions mirror the zone map in docs/reference/customization.md:
  *   Template zone  — overwrite in target (commands, core, hooks, skills, templates, etc.)
- *   Project zone   — never touch (settings.json, settings.local.json)
+ *                    Skill .md files have a --merge escape hatch in template-updater.js: a
+ *                    target copy carrying a <!-- @@project-additions --> tail is merged, not
+ *                    clobbered (template head refreshed, adopter tail preserved). The crude
+ *                    precedent is the skills/brand-guidelines/** project-exception below; the
+ *                    marker is the general, section-level version of it.
+ *   Project zone   — never touch by default (settings.json, settings.local.json,
+ *                    update-config.json). Note: settings.json has a section-aware
+ *                    --merge escape hatch in template-updater.js (template-owned sections
+ *                    hooks + plansDirectory + statusLine overwritten; project-owned
+ *                    sections preserved).
+ *                    classifyClaudeFile() still returns 'project' for settings.json —
+ *                    the special-casing lives in template-updater, not here.
  *   Mixed zone     — skip with warning, or merge with --merge (agents/*.md)
  *
  * IMPORTANT: Do NOT speculatively generalize this module for publish.js usage.
@@ -37,7 +48,15 @@ const TEMPLATE_GLOBS = [
     'guardrail-rules.yaml',
 ];
 
-/** Project zone — never touch (exact paths relative to .claude/). */
+/**
+ * Project zone — never touch by default (exact paths relative to .claude/).
+ *
+ * settings.json is listed here but has a section-aware --merge escape hatch in
+ * template-updater.js: when options.merge is set, template-updater calls
+ * _lib/settings-merger.js instead of skipping, overwriting only the template-owned
+ * sections (hooks, plansDirectory) while preserving project-owned ones.
+ * settings.local.json and update-config.json are ALWAYS skipped (no escape hatch).
+ */
 const PROJECT_FILES = [
     'settings.json',
     'settings.local.json',

@@ -331,6 +331,8 @@ For each technology in Backend, Frontend, Database, and Testing:
 
 **This step does NOT modify or delete existing skills.** It classifies and identifies gaps.
 
+> **Marker rule.** If you ever append project-specific guidance to an existing *template* skill (rather than creating a new project skill in 3d), it MUST go below a `<!-- @@project-additions -->` marker (create it if absent) — anything above the marker is template-owned and is clobbered on the next `template-updater`/`fleet:sync`. Prefer a brand-new project-added skill dir for substantial content; new skill dirs are never touched by sync. See `skill-authoring`.
+
 ### 3d. Generate Stack Skills
 
 For each gap identified in 3c, create a new skill. In `--dry-run` mode, report "Would create" and skip.

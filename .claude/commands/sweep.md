@@ -111,7 +111,7 @@ Auto-apply the retro's concrete outputs. This is the step that turns a retro fro
    - If the target category is **at/near cap (≥ 40 of the 50 default)**: **stage a draft to the inbox** (`docs/.output/memories/_inbox/`) instead — do NOT force the write. The Phase 6 defrag frees room and promotes from the inbox. Record the staged item in the Phase Log.
 2. **System Improvements** — for each row in the retro's `## System Improvements` table:
    - `Agent: …` → edit the named `.claude/agents/*.md` (surgical fix from the retro; broad re-alignment is Phase 5's job — don't duplicate).
-   - `Skill: …` → edit the named `.claude/skills/*/SKILL.md`.
+   - `Skill: …` → edit the named `.claude/skills/*/SKILL.md`. **In an adopter** (not the workshop), project-specific additions to a *template* skill go below a `<!-- @@project-additions -->` marker (create if absent) — edits above it are clobbered on the next sync. See `skill-authoring`.
    - `Command: …` → edit the named `.claude/commands/**/*.md`.
    - `Memory: …` → create/boost the memory (cap rule above).
 3. **Code-review MAJOR/CRITICAL fixes** — if a finding is a real bug (not a style nit) AND the fix is ≤5 files, dispatch a `general-purpose` agent to fix it, then **the orchestrator runs the gate** (`node .claude/core/gate.js test` — auto-detects the stack). Agents never build/test. If the gate fails → **stop the sweep, report.** MINOR/NIT findings are logged for the user, not auto-fixed (avoid churn on stable code).

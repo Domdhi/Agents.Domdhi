@@ -404,6 +404,35 @@ When in doubt, ask "does this skill own a scaffolded `_project-*.md` template?" 
 - [ ] `description` leads with what-it-does + keeps the "Use WHEN…" triggering clause (CSO) — never a workflow summary
 - [ ] If a doc-producer: template lives in `assets/` (raw, marker on line 1) and is registered in `SKILL_TEMPLATE_MANIFEST`
 
+## Project additions to a template skill (the `<!-- @@project-additions -->` marker)
+
+Skills are **Template zone** — `template-updater`/`fleet:sync` overwrites them in every
+adopter, so the template stays the single source of truth. The cost: any project-specific
+guidance written *into* a template skill is clobbered on the next sync (the reason the
+crude `skills/brand-guidelines/**` project-zone exception exists).
+
+The section-level escape hatch — the skill analog of the agent Soul-Zone/Project-Context
+merge — is the sentinel line:
+
+```
+<!-- @@project-additions -->
+```
+
+Everything **below** it is adopter-owned and **preserved under `--merge`**; everything
+above is template-owned and refreshed from source. Logic: `_lib/skill-merger.js`, wired
+into `template-updater.js`'s template-zone branch (no marker, or no `--merge` → plain
+overwrite, exactly as before).
+
+**Rules:**
+- Project-specific content (stack quirks, local conventions, project tokens) added to a
+  *template-owned* skill goes **below** the marker — never edit above it (those edits are
+  lost on sync). Prefer a brand-new **project-added skill dir** when the content is
+  substantial — entirely new skill dirs are never touched by sync.
+- Commands that customize template skills (`/review:specialize`, `/sweep`,
+  `/review:evolve-skills`) MUST append below the marker, creating it if absent.
+- A template skill MAY ship an empty marker stub to invite additions; the merger drops a
+  duplicate source stub so the marker never doubles.
+
 ## The Law (evidence bookends the work)
 
 ```

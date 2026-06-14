@@ -486,6 +486,76 @@ describe('status', () => {
                 fs.rmSync(root, { recursive: true, force: true });
             }
         });
+
+        it('regenerateMasterIndex_checklistExpanded_recomputesStoriesTotal', () => {
+            // SINGLE-SOURCE INVARIANT (the "Done 33 of 16" Markets drift): /todo
+            // split epic 1 from 2 planned stories into 4 scaffolded stories, all
+            // done. Done (4) must NOT be shown against the stale plan (2); the
+            // Stories denominator is recomputed from the SAME checklist → 4/4 at
+            // the epic, and the phase + grand Total grow to match.
+            const epic01Expanded = [
+                '# TODO: Epic 01 — Alpha',
+                '',
+                '## Story 1.1: a `[x]`', '- [x] t',
+                '## Story 1.2: b `[x]`', '- [x] t',
+                '## Story 1.3: c `[x]`', '- [x] t',
+                '## Story 1.4: d `[x]`', '- [x] t',
+                '',
+            ].join('\n');
+            const root = makeProject({ master: MASTER, epic01: epic01Expanded, epic02: EPIC02_NONE, backlog: BACKLOG });
+            try {
+                const { regenerateMasterIndex } = loadStatusWithRoot(root);
+                regenerateMasterIndex(root, { today: '2026-06-13' });
+                const out = fs.readFileSync(path.join(root, 'docs', 'TODO_MyProj.md'), 'utf8');
+                // Epic 1: Stories recomputed 2 → 4, Status [x] (4/4). Denominator
+                // follows the checklist, never the stale plan.
+                expect(out).toMatch(/\| 1 \| Alpha \| 4 \| 5\.5h \| \[x\] \|/);
+                // Epic 2 unchanged: 3 stories, none done.
+                expect(out).toMatch(/\| 2 \| Beta \| 3 \| 12h \| \[ \] \|/);
+                // Phase 0 = epic1(4) + epic2(3) = 7 stories, 4 done. NOT 4 of 5.
+                expect(out).toMatch(/\| 0 \| Foundation \| set up \| 2 \| 7 \| 4 \| IN PROGRESS \|/);
+                // Grand Total: 4 of 7 → 57%.
+                expect(out).toMatch(/\| \*\*Total\*\* \|  \|  \| \*\*2\*\* \| \*\*7\*\* \| \*\*4\*\* \| \*\*57%\*\* \|/);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        it('regenerateMasterIndex_extraPhColumn_resolvesColumnsByHeader', () => {
+            // Markets layout: the Epic Index carries an extra "Ph" column, shifting
+            // Status from index 4 to 5. Header-based resolution must write Status to
+            // the right column and leave the Est. column untouched (the old
+            // hardcoded cells[4] clobbered Est. with a checkbox).
+            const masterPh = [
+                '# TODO: MyProj',
+                '> Last updated: 2020-01-01',
+                '',
+                '## Phase Map',
+                '| Phase | Name | Goal | Epics | Stories | Done | Status |',
+                '|-------|------|------|-------|---------|------|--------|',
+                '| 0 | Foundation | set up | 2 | 5 | 0 | PENDING |',
+                '| **Total** | | | **2** | **5** | **0** | **0%** |',
+                '',
+                '## Epic Index',
+                '| Epic | Title | Ph | Stories | Est. | Status | Checklist |',
+                '|------|-------|----|---------|------|--------|-----------|',
+                '| 1 | Alpha | 0 | 2 | 8h | [ ] | [TODO](todo/TODO_epic01_alpha.md) |',
+                '| 2 | Beta | 0 | 3 | 12h | [ ] | [TODO](todo/TODO_epic02_beta.md) |',
+                '',
+            ].join('\n');
+            const root = makeProject({ master: masterPh, epic01: EPIC01_ALL_DONE, epic02: EPIC02_NONE, backlog: BACKLOG });
+            try {
+                const { regenerateMasterIndex } = loadStatusWithRoot(root);
+                regenerateMasterIndex(root, { today: '2026-06-13' });
+                const out = fs.readFileSync(path.join(root, 'docs', 'TODO_MyProj.md'), 'utf8');
+                // Status (index 5) flips to [x]; Est. (index 4) stays "8h" — NOT clobbered.
+                expect(out).toMatch(/\| 1 \| Alpha \| 0 \| 2 \| 8h \| \[x\] \|/);
+                // Epic 2: none done → Status stays [ ], Est. "12h" preserved.
+                expect(out).toMatch(/\| 2 \| Beta \| 0 \| 3 \| 12h \| \[ \] \|/);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        });
     });
 
     // ── Legacy parseChecklist — bold-checkbox and table-status formats ──

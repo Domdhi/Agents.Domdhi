@@ -961,3 +961,70 @@ describe('runUpdate — root .gitignore managed block', () => {
     expect(fs.readFileSync(gi(), 'utf8')).toBe('node_modules/\n'); // untouched
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skill project-additions merge (template-zone escape hatch under --merge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('runUpdate skill --merge preserves project additions', () => {
+  let originalProjectDir;
+  beforeEach(() => { originalProjectDir = process.env.CLAUDE_PROJECT_DIR; });
+  afterEach(() => {
+    if (originalProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = originalProjectDir;
+  });
+
+  const MARKER = '<!-- @@project-additions -->';
+  const SRC_SKILL = `---\nname: tailwind-css-patterns\n---\n\n# Tailwind\n\nTemplate body v2.\n`;
+
+  function arrange() {
+    tmp.mkdir('src/.claude');
+    tmp.mkdir('target/.claude');
+    tmp.write('src/.claude/skills/tailwind-css-patterns/SKILL.md', SRC_SKILL);
+    process.env.CLAUDE_PROJECT_DIR = path.join(tmp.root, 'src');
+  }
+
+  it('preserves the project-additions tail and refreshes the head under --merge', () => {
+    arrange();
+    const destRel = 'target/.claude/skills/tailwind-css-patterns/SKILL.md';
+    tmp.write(destRel,
+      `---\nname: tailwind-css-patterns\n---\n\n# Tailwind\n\nTemplate body v1.\n\n${MARKER}\n\n## Project Additions\n\nuses obsidian-void palette.\n`);
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), { merge: true });
+    spy.mockRestore();
+
+    const out = fs.readFileSync(path.join(tmp.root, destRel), 'utf8');
+    expect(out).toContain('Template body v2.');      // head refreshed
+    expect(out).not.toContain('Template body v1.');
+    expect(out).toContain('obsidian-void palette.');  // tail preserved
+    expect(out.split(MARKER).length - 1).toBe(1);     // exactly one marker
+  });
+
+  it('overwrites a markerless skill (no project additions to keep)', () => {
+    arrange();
+    const destRel = 'target/.claude/skills/tailwind-css-patterns/SKILL.md';
+    tmp.write(destRel, `---\nname: tailwind-css-patterns\n---\n\n# Tailwind\n\nTemplate body v1.\n`);
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), { merge: true });
+    spy.mockRestore();
+
+    expect(fs.readFileSync(path.join(tmp.root, destRel), 'utf8')).toBe(SRC_SKILL);
+  });
+
+  it('without --merge, a skill with a tail is still overwritten (escape hatch is opt-in)', () => {
+    arrange();
+    const destRel = 'target/.claude/skills/tailwind-css-patterns/SKILL.md';
+    tmp.write(destRel,
+      `---\nname: tailwind-css-patterns\n---\n\n# Tailwind\n\nold.\n\n${MARKER}\n\nproject stuff.\n`);
+
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    runUpdate(path.join(tmp.root, 'target'), {}); // no merge
+    spy.mockRestore();
+
+    const out = fs.readFileSync(path.join(tmp.root, destRel), 'utf8');
+    expect(out).toBe(SRC_SKILL);          // clobbered
+    expect(out).not.toContain('project stuff.');
+  });
+});

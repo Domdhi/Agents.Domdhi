@@ -5,7 +5,15 @@
  *
  * Zone boundaries (docs/reference/customization.md):
  *   Template zone  — overwrite (commands, core, hooks, skills, templates, etc.)
- *   Project zone   — never touch (settings.json, settings.local.json, brand-guidelines)
+ *                    Skill files (skills/<name>/*.md) get an escape hatch under --merge:
+ *                    a target copy carrying a <!-- @@project-additions --> tail is merged
+ *                    (template head refreshed, adopter tail preserved). See _lib/skill-merger.js.
+ *   Project zone   — never touch (settings.local.json, update-config.json)
+ *                    settings.json is also project-zone by default, but under
+ *                    --merge it becomes effectively Mixed: template-owned sections
+ *                    (hooks, plansDirectory, statusLine) are overwritten while
+ *                    project-owned sections (permissions, env, $schema, unknown
+ *                    keys) are preserved. See _lib/settings-merger.js for the policy.
  *   Mixed zone     — skip with warning, or merge with --merge (agents/*.md)
  *
  * Usage:
@@ -19,14 +27,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const zoneClassifier = require('./_lib/zone-classifier');
-const { walkDir }    = require('./_lib/file-walker');
-const agentMerger    = require('./_lib/agent-merger');
+const zoneClassifier   = require('./_lib/zone-classifier');
+const { walkDir }      = require('./_lib/file-walker');
+const agentMerger      = require('./_lib/agent-merger');
+const settingsMerger   = require('./_lib/settings-merger');
+const skillMerger      = require('./_lib/skill-merger');
 const { copyWithZoneEnforcement } = require('./_lib/zone-copy');
 const { applyManagedBlock }       = require('./scaffold');
 
-const { classifyClaudeFile } = zoneClassifier;
-const { mergeAgentFile }     = agentMerger;
+const { classifyClaudeFile }  = zoneClassifier;
+const { mergeAgentFile }      = agentMerger;
+const { mergeSettingsFile }   = settingsMerger;
+const { mergeSkillFile, hasProjectAdditions } = skillMerger;
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
 
@@ -144,6 +156,27 @@ function runUpdate(targetPath, options) {
 
         if (zone === 'template') {
             if (rel === 'version.json') continue; // deferred — copy last
+
+            // Skill files get the agent-style escape hatch under --merge: a template
+            // skill (skills/<name>/*.md) whose dest carries a `<!-- @@project-additions -->`
+            // tail is merged — template head refreshed, adopter tail preserved — instead
+            // of clobbered. Without a marker (or without --merge) it overwrites as before.
+            const isSkillMd = /^skills\/[^/]+\/.*\.md$/.test(rel);
+            if (options.merge && isSkillMd && fs.existsSync(destAbs) &&
+                hasProjectAdditions(fs.readFileSync(destAbs, 'utf8'))) {
+                if (options.dryRun) {
+                    console.log(`  MERGE    .claude/${rel} — would merge (preserve project additions)`);
+                    stats.merged++;
+                } else {
+                    tryAction(`.claude/${rel}`, () => {
+                        const r = mergeSkillFile(srcAbs, destAbs);
+                        console.log(`  MERGE    .claude/${rel} — ${r.detail}`);
+                        stats.merged++;
+                    }, stats);
+                }
+                continue;
+            }
+
             if (options.dryRun) {
                 console.log(`  COPY     .claude/${rel} → .claude/${rel}`);
                 stats.copied++;
@@ -156,8 +189,32 @@ function runUpdate(targetPath, options) {
             }
 
         } else if (zone === 'project') {
-            console.log(`  SKIP     .claude/${rel} (project zone)`);
-            stats.skipped++;
+            // settings.json gets a section-aware merge under --merge:
+            //   template-owned sections (hooks, plansDirectory, statusLine) are
+            //   overwritten; project-owned sections (permissions, env, $schema,
+            //   and any unknown top-level keys) are preserved verbatim.
+            // settings.local.json and update-config.json are ALWAYS skipped —
+            //   they carry per-machine state the template must never touch.
+            if (options.merge && rel === 'settings.json') {
+                tryAction(`.claude/${rel}`, () => {
+                    const r = mergeSettingsFile(srcAbs, destAbs, { dryRun: options.dryRun });
+                    if (r.action === 'unchanged') {
+                        console.log(`  SKIP     .claude/${rel} (settings merge — ${r.detail})`);
+                        stats.skipped++;
+                    } else if (r.action === 'skipped') {
+                        console.log(`  WARN     .claude/${rel} — ${r.detail}`);
+                        stats.warned++;
+                    } else {
+                        // 'merged' or 'copied'
+                        const verb = options.dryRun ? 'MERGE(dry)' : 'MERGE';
+                        console.log(`  ${verb}    .claude/${rel} — ${r.detail}`);
+                        stats.merged++;
+                    }
+                }, stats);
+            } else {
+                console.log(`  SKIP     .claude/${rel} (project zone)`);
+                stats.skipped++;
+            }
 
         } else if (zone === 'project-exception') {
             const msg = `.claude/${rel} — Project zone exception`;
@@ -314,7 +371,15 @@ Usage:
 Zone behavior:
   Template zone   — Overwritten: commands/, core/, hooks/, skills/**/*,
                     skills-optional/, templates/, version.json, guardrail-rules.yaml
-  Project zone    — Skipped: settings.json, settings.local.json, update-config.json
+                    Skill escape hatch under --merge: a skills/<name>/*.md file whose
+                    target copy carries a <!-- @@project-additions --> marker is merged
+                    (template head refreshed, adopter tail below the marker preserved)
+                    instead of overwritten.
+  Project zone    — Skipped by default: settings.json, settings.local.json, update-config.json
+                    settings.json has an escape hatch under --merge: template-owned
+                    sections (hooks, plansDirectory, statusLine) are overwritten while
+                    project-owned sections (permissions, env, $schema, unknown keys) are
+                    preserved. settings.local.json and update-config.json are ALWAYS skipped.
   Mixed zone      — Skipped with warning (default): agents/*.md
                     With --merge: section-aware merge preserving customizations
                     (Soul Zone, Project Context, tuned descriptions, and
@@ -330,7 +395,11 @@ Zone behavior:
 
 Flags:
   --merge         Section-aware merge for agents/*.md (preserves Soul Zone, Project Context,
-                  tuned descriptions, and project-specific skills)
+                  tuned descriptions, and project-specific skills) AND section-aware merge
+                  for settings.json (hooks + plansDirectory + statusLine updated;
+                  permissions/env and all unknown keys preserved) AND skill files
+                  carrying a <!-- @@project-additions --> tail (template head refreshed,
+                  adopter tail preserved).
   --dry-run       Preview all actions without writing any files.
 
 Notes:
@@ -369,5 +438,6 @@ module.exports = Object.assign(
     { copyFile, runUpdate, loadExcludedSkills },
     zoneClassifier,
     agentMerger,
+    settingsMerger,
     { walkDir: (dirPath) => [..._libFW.walkDir(dirPath, ALWAYS_SKIP_DIRS)] }
 );
