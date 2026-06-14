@@ -146,6 +146,15 @@
         ]
       },
       {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-logger.cjs\""
+          }
+        ]
+      },
+      {
         "matcher": "Skill",
         "hooks": [
           {

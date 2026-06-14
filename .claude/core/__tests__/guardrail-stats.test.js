@@ -40,6 +40,17 @@ describe('aggregate', () => {
         expect(aggregate(mixed).total).toBe(5);
     });
 
+    it('excludes secret-scanner-sourced events (counted by the digest, not the Bash hit counter)', () => {
+        const mixed = [
+            ...EVENTS,
+            { event: 'guardrail', decision: 'block', rule: 'secret-scanner', source: 'secret-scanner', timestamp: '2026-06-13T00:00:00Z' },
+            { event: 'guardrail', decision: 'block', rule: 'secret-scanner', source: 'secret-scanner', timestamp: '2026-06-13T00:00:01Z' },
+        ];
+        const agg = aggregate(mixed);
+        expect(agg.total).toBe(5); // unchanged — scanner blocks not counted here
+        expect(agg.byRule['secret-scanner']).toBeUndefined();
+    });
+
     it('returns a zeroed shape for no events', () => {
         const agg = aggregate([]);
         expect(agg.total).toBe(0);

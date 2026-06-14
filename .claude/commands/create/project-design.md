@@ -150,6 +150,24 @@ After all design artifacts pass validation, extract brand data from the generate
 
 - Add `.claude/skills/brand-guidelines/SKILL.md` to the staged files for the commit step
 
+### 6c. Strip Template Markers (main agent)
+
+Strip the `<!-- @@template -->` marker from all generated design files so downstream gates (`isRealDoc`, `/review:check-readiness`) see them as real docs rather than unfilled stubs. The call is idempotent — it no-ops on any file that was written fresh without the marker:
+
+```bash
+node -e "
+const { stripTemplateMarker } = require('./.claude/core/_lib/doc-drift.js');
+const path = require('path');
+[
+  'docs/_project-design.md',
+  'docs/design/_wireframes.md',
+  'docs/design/_design.light.md',
+  'docs/design/_design.dark.md',
+  'docs/design/_mock-layout.html',
+].forEach(f => stripTemplateMarker(path.resolve(f)));
+"
+```
+
 ### 7. Commit (main agent)
 
 Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command and commit with a descriptive message.

@@ -48,6 +48,31 @@ function getProjectRoot() {
     return process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
 }
 
+/**
+ * Record a secret-scanner BLOCK as a source-tagged guardrail event so it shows
+ * up in the /review:feedback digest (feedback-digest.js readScannerBlocks counts
+ * guardrail-events.jsonl entries where source==='secret-scanner'). Without this,
+ * the scanner blocks silently via exit-code and the digest reads 0 (S-PI.5 gap).
+ *
+ * Best-effort + lazily required: telemetry must NEVER break the scanner's
+ * load-bearing exit code, and a missing telemetry lib (older/partial install)
+ * must not crash the block. One event per block action, not per finding.
+ *
+ * @returns {object|null} The event written, or null on any failure.
+ */
+function recordScannerBlock() {
+    try {
+        const { emitGuardrailHit } = require('../core/_lib/hook-telemetry');
+        return emitGuardrailHit({
+            decision: 'block',
+            rule: 'secret-scanner',
+            source: 'secret-scanner',
+        });
+    } catch {
+        return null;
+    }
+}
+
 // ============================================
 // Testable core functions
 // ============================================
@@ -132,6 +157,7 @@ async function runClaudeHook() {
 
     const result = processEvent(data);
     if (result) {
+        recordScannerBlock(); // source-tagged guardrail event for the feedback digest
         // Output to stderr so Claude sees the warning
         process.stderr.write(result.feedback + '\n');
         process.exit(result.exitCode);
@@ -178,6 +204,7 @@ async function runGitPrecommit() {
     }
 
     if (allFindings.length > 0) {
+        recordScannerBlock(); // source-tagged guardrail event for the feedback digest
         const report = formatFindings(allFindings);
         console.error(report);
         console.error('\nCommit blocked. Remove secrets and try again.');
@@ -218,7 +245,7 @@ function runFileScan(filePath) {
 // Exports (for tests and programmatic use)
 // ============================================
 
-module.exports = { processEvent, scanFile };
+module.exports = { processEvent, scanFile, recordScannerBlock };
 
 // ============================================
 // Entry point

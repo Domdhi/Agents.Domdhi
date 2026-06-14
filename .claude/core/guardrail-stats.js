@@ -10,8 +10,11 @@
  * and by rule, so you can see which rules earn their keep and which are pure
  * friction.
  *
- * Each event: { event:'guardrail', decision, rule, tier, timestamp }.
+ * Each event: { event:'guardrail', decision, rule, tier, source, timestamp }.
  * The raw command is never logged (secret safety — see hook-telemetry.js).
+ * Events tagged source:'secret-scanner' are EXCLUDED here (they're the
+ * secret-scanner's blocks, counted by feedback-digest's readScannerBlocks) so
+ * this stays a pure Bash-guardrail hit counter.
  *
  * Usage:
  *   node .claude/core/guardrail-stats.js                 # human-readable table
@@ -48,6 +51,11 @@ function aggregate(events, opts = {}) {
 
     for (const e of events) {
         if (!e || e.event !== 'guardrail') continue;
+        // Bash-guardrail hits only. The secret-scanner shares this file but tags
+        // its blocks with source:'secret-scanner' (counted by feedback-digest's
+        // readScannerBlocks instead) — excluding them keeps this counter the
+        // pure Bash-guardrail frequency report it documents itself to be.
+        if (e.source === 'secret-scanner') continue;
         if (since != null) {
             // Policy: when --since is active, an event with no parseable timestamp
             // is EXCLUDED — we can't prove it falls within the window.

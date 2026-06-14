@@ -56,6 +56,14 @@ Follow the `session-handoff` skill template. Tailor for the `/end` case (Step 4 
 
 ### 4. Commit the handoff (and prune old ones for this branch)
 
+Refresh the master tracker from the per-epic checklists before committing — best-effort, silently no-ops if the project has no `TODO_{Project}.md` (offline + idempotent, always safe to call):
+
+```bash
+node .claude/core/status.js --regen-master
+```
+
+If it changed the master, it rides into the handoff commit below — staged on its **own guarded line**, never folded into the main `git add` (an unmatched `docs/TODO_*.md` glob aborts the whole `git add` under zsh NOMATCH and leaves `$HANDOFF` unstaged).
+
 Prune this branch's older handoffs to the newest 3 (keeping `$HANDOFF`), so the directory doesn't sprawl. `git rm` only files that are tracked; ignore the rest:
 
 ```bash
@@ -76,12 +84,20 @@ Then run:
 
 ```bash
 git add "$HANDOFF"
+# Stage the master tracker ONLY if it exists — guarded so an unmatched glob never aborts the add (zsh NOMATCH):
+ls docs/TODO_*.md >/dev/null 2>&1 && git add docs/TODO_*.md
 node .claude/core/commit.js
 ```
 
 ### 5. Leave a clean tree (session cleanup)
 
 **Goal: the next session must NOT open on uncommitted old work.** After the handoff commit, sweep up anything this session left behind — but *reviewed*, never a blind `git add .`.
+
+**First, surface the change-attribution ledger (S-PI.7) — BEFORE staging.** Sub-agents dispatched this session edited files the lead did not author. Read today's ledger and present "files touched by which agent" so wrap-up attributes the working tree instead of guessing:
+```bash
+node .claude/core/_lib/attribution-ledger.js read
+```
+The ledger is day-rotated (`attribution-{YYMMDD}.jsonl`). If this session started before midnight, also read yesterday's file so an overnight session's earlier dispatches aren't missed: `node .claude/core/_lib/attribution-ledger.js read {yesterday YYMMDD}`. Group the entries by agent and list the files each `{story_id}`/`{agent}` reported touching. **Never `git checkout`/revert a working-tree file the lead did not author without confirming with the user first.** If a stray file in `git status` is not one the lead edited, *describe it and ask* — do not attribute it to anyone, and do not revert it on a hunch. Attribute nothing you cannot prove; surface, then ask. (Empty ledger → no sub-agent work this session; proceed normally.)
 
 ```bash
 git status --short

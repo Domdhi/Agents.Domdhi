@@ -166,7 +166,11 @@ Update the `## Derived routing` section of `new-project-interview.md` with the c
 2. Run `/create:project-epics`
    - Uses PRD + Architecture as input
    - Show story count and phase breakdown
-3. Run `/review:check-readiness`
+3. Run `/create:project-todo`
+   - Uses `docs/todo/_backlog.md` as input — generates `docs/TODO_{ProjectName}.md`, the master implementation index (a generated projection of backlog + git state, per the planning-doc lifecycle ADR `2026-06-13-adr-planning-doc-lifecycle.md` — never hand-curated as an independent source)
+   - Respects its own hard gate (a real `_backlog.md`) and commits its own output (its Post-Command Commit step) — the Step 10 wrap-up commit does NOT re-stage `TODO_{ProjectName}.md`
+   - Show the phase count and epic-level status table
+4. Run `/review:check-readiness`
    - Validate all docs are complete and consistent
    - If CONCERNS: show issues, ask if user wants to fix
    - If FAIL: fix issues before proceeding
@@ -183,6 +187,51 @@ After readiness passes, specialize the generic agents and memory for this projec
    - Audits skills for relevance and flags framework gaps
 2. Show the specialization report to the user
 3. If framework skill gaps are surfaced, note them — the user can create them later via `/create:component` or defer
+
+### 8b. Generate Project Root CLAUDE.md
+
+This runs **after** `/review:specialize` deliberately — the stack and the project's real build/test commands are now known, so the generated CLAUDE.md "Build & Test" section can be filled with actual commands (the toolkit's own CLAUDE.md says specialize should describe the project's real build/test commands; this is the step that makes that true for greenfield projects). Mirror `/onboard` Step 7's proven Case 0 / Case A / Case B logic.
+
+**Source material:** ground the CLAUDE.md in whatever planning docs are present for this tier — `docs/_project-brief.md` (medium/complex tiers), `docs/_project-requirements.md`, `docs/_project-architecture.md` — plus the specialized stack and the real build/test commands resolved by `/review:specialize` (also recorded in `gate.js` detection). Simple-tier projects may lack a brief; ground in whatever exists.
+
+Inspect whether a `CLAUDE.md` already exists at the project root.
+
+**Case 0 — CLAUDE.md exists but is the install stub:** the template installer may leave a minimal placeholder whose entire content points back here (it contains *"This project uses the Domdhi Agents template"* / *"Run `/onboard`"* / *"to complete setup"*). This is NOT a real adopter file to preserve. If the existing CLAUDE.md matches the install stub (short, and contains that "Run `/onboard`" / "to complete setup" marker), treat it as **Case A** — generate a fresh project CLAUDE.md and overwrite the stub (no diff-confirm needed; there is no user content to protect).
+
+**Case A — No CLAUDE.md exists (or it is the install stub per Case 0):**
+Generate a new, **lean, project-specific** `CLAUDE.md` (NOT a copy of the full Domdhi.Agents template) grounded in the planning docs and the specialized stack:
+- Short project description (1-2 sentences, from `_project-brief.md` or the interview elevator pitch)
+- Tech stack (from `_project-architecture.md` / `/review:specialize`)
+- Build and test commands (the real commands resolved during specialize — what `gate.js` auto-detects for this stack)
+- Key file paths and entry points (from the architecture doc's structure section, if present)
+- Gate configuration note (point at `gate.js` or `gate.config.json`)
+
+Do NOT generate the full Domdhi.Agents template CLAUDE.md — generate a lean project-specific one that captures what was learned about *this* project.
+
+**Case B — A real CLAUDE.md exists (not the install stub):**
+Read the existing CLAUDE.md, then propose an **additive merge** — never clobber.
+
+Diff what would be added:
+- Build/test commands if absent
+- Tech stack / key file paths if absent
+- A note that `.claude/` conventions are now active (if the file doesn't already describe them)
+
+Produce a diff-style proposal:
+
+```
+Proposed additions to CLAUDE.md:
+
+--- existing
++++ proposed additions
+
+{diff showing only what would be added}
+
+Apply this merge? (y/n)
+```
+
+Wait for confirmation before writing. If the user says no, skip CLAUDE.md modification and note it in the report.
+
+This step is **self-contained** — it does NOT call the built-in `/init` command. The generated/merged `CLAUDE.md` is staged and committed by the wrap-up commit in Step 10 (not its own commit), consistent with how Steps 9's `_project-context.md` is handled.
 
 ### 9. Generate Project Context
 
@@ -233,6 +282,7 @@ Write `docs/_project-context.md`:
 
 **What this step commits:** only the files NOT yet staged by any sub-command. In practice that's:
 - `docs/_project-context.md` (written in Step 9)
+- `CLAUDE.md` (written or additively merged in Step 8b — only if it was created/modified, i.e. not when Case B was declined)
 - `docs/.output/work/{date}/new-project-interview.md` (written in Step 3a)
 - Any scaffolded template files that were left empty and committed as-scaffolded (edge case — usually not applicable)
 
@@ -247,6 +297,7 @@ feat: /create:new-project — {project name} initialized
 Then run:
 
 ```bash
+# Append CLAUDE.md to the staged set only if Step 8b created or merged it.
 git add docs/_project-context.md docs/.output/work/{date}/new-project-interview.md
 node .claude/core/commit.js
 ```
@@ -284,6 +335,7 @@ Answer the self-review honestly from this run (friction, what broke, one change 
 | Backlog | docs/todo/_backlog.md | Created |
 | Feature Ideas | docs/todo/_feature-ideas.md | {Created — complex tier only / Skipped} |
 | Project Context | docs/_project-context.md | Created |
+| Root CLAUDE.md | CLAUDE.md | {Created (lean, project-specific) / Merged / Unchanged — user declined} |
 
 ### Specialization: {report summary}
 

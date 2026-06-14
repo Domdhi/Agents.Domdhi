@@ -393,6 +393,12 @@ Run any cleanup from the checklist:
 - Reset modified configs
 - Do NOT stop the dev server unless user asks
 
+Then refresh the master tracker so any TODO status changes from Step 8 propagate to it — best-effort, silently no-ops if the project has no `TODO_{Project}.md` (offline + idempotent, always safe to call):
+
+```bash
+node .claude/core/status.js --regen-master
+```
+
 ### Step 11: Final Report
 
 `TaskUpdate: "Cleanup + final report" → completed`

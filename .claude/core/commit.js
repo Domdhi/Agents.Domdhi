@@ -44,18 +44,25 @@ const dryRun = has('--dry-run', '-n');
 const fileIdx = args.indexOf('--file');
 const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
 
+const mIdx = args.indexOf('-m');
+const inlineMsg = mIdx >= 0 ? args[mIdx + 1] : null;
+
 function git(...a) {
   return execFileSync('git', a, { encoding: 'utf8' });
 }
 
-if (!fs.existsSync(msgFile)) {
+// When -m is provided, skip the file existence check and file read entirely.
+if (!inlineMsg && !fs.existsSync(msgFile)) {
   console.error(`[commit] message file not found: ${msgFile}`);
   console.error('[commit] Write your subject + body there first (Write tool), then re-run.');
   process.exit(1);
 }
 
 // Read, normalize line endings, and trim trailing junk lines.
-let lines = fs.readFileSync(msgFile, 'utf8').replace(/\r\n/g, '\n').split('\n');
+// When -m is used, take the inline string directly (never touch the file).
+let lines = inlineMsg
+  ? inlineMsg.replace(/\r\n/g, '\n').split('\n')
+  : fs.readFileSync(msgFile, 'utf8').replace(/\r\n/g, '\n').split('\n');
 while (lines.length && /^[\s@'"`]*$/.test(lines[lines.length - 1])) lines.pop();
 
 if (!lines.join('\n').trim()) {
@@ -66,14 +73,22 @@ if (!lines.join('\n').trim()) {
 // Ensure exactly one Co-Authored-By trailer.
 const body = lines.join('\n').replace(/\s+$/, '');
 const finalMsg = body.includes(TRAILER) ? `${body}\n` : `${body}\n\n${TRAILER}\n`;
-fs.writeFileSync(msgFile, finalMsg, 'utf8');
+// Only write finalMsg back to the file when using the file-based path.
+// When -m is used we never create a file (that's the whole point).
+if (!inlineMsg) {
+  fs.writeFileSync(msgFile, finalMsg, 'utf8');
+}
 
 if (dryRun) {
   console.log('[commit] --dry-run — final message below, nothing committed:\n');
   console.log('────────────────────────────────────────');
   process.stdout.write(finalMsg);
   console.log('────────────────────────────────────────');
-  console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
+  if (inlineMsg) {
+    console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -m <msg>${amend ? ' --amend' : ''}`);
+  } else {
+    console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
+  }
   process.exit(0);
 }
 
@@ -107,8 +122,11 @@ if (!noScan) {
   }
 }
 
-const commitArgs = ['commit', '-F', msgFile];
-if (amend) commitArgs.push('--amend');
+// When -m is used, pass the final message directly via args array (safe — spawnSync
+// does NOT go through a shell, so no quoting risk). Otherwise use -F for file-based.
+const commitArgs = inlineMsg
+  ? ['commit', '-m', finalMsg, ...(amend ? ['--amend'] : [])]
+  : ['commit', '-F', msgFile, ...(amend ? ['--amend'] : [])];
 
 // Use spawnSync with inherited stdio so hook output streams through live.
 const res = spawnSync('git', commitArgs, { stdio: 'inherit' });
@@ -120,7 +138,8 @@ if (res.status !== 0) {
 // Clean up the default message file after a successful commit so the next commit
 // starts from a blank slate — and so the Write tool never has to read-before-write
 // a stale leftover. Custom --file paths are deliberately left untouched.
-if (fileIdx < 0) {
+// When -m is used, no file was written so there is nothing to delete.
+if (fileIdx < 0 && !inlineMsg) {
   try {
     fs.rmSync(msgFile);
   } catch {

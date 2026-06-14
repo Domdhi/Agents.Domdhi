@@ -7,7 +7,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const { detectDocDrift } = require('../doc-drift');
+const { detectDocDrift, stripTemplateMarker, isRealDoc } = require('../doc-drift');
 
 let root;
 beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-drift-')); });
@@ -95,5 +95,59 @@ describe('detectDocDrift', () => {
         const r = detectDocDrift(root);
         expect(r.misplacedTodos).toEqual([]);   // _archive (underscore) is skipped, not flagged
         expect(r.hasDrift).toBe(false);
+    });
+});
+
+// ── stripTemplateMarker ──────────────────────────────────────────────────────
+
+describe('stripTemplateMarker', () => {
+    let tmpRoot;
+    beforeEach(() => { tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'strip-marker-')); });
+    afterEach(() => { fs.rmSync(tmpRoot, { recursive: true, force: true }); });
+
+    function writeTmp(name, content) {
+        const p = path.join(tmpRoot, name);
+        fs.writeFileSync(p, content);
+        return p;
+    }
+
+    it('stripTemplateMarker_markerPresent_stripsMarkerAndReturnsTrue', () => {
+        const p = writeTmp('doc.md', '<!-- @@template -->\n# Real content\n');
+        const result = stripTemplateMarker(p);
+        expect(result).toBe(true);
+        const after = fs.readFileSync(p, 'utf8');
+        expect(after.startsWith('<!-- @@template -->')).toBe(false);
+        expect(after).toContain('# Real content');
+    });
+
+    it('stripTemplateMarker_markerAbsent_noopReturnsFalse', () => {
+        const original = '# Already real content\n';
+        const p = writeTmp('doc.md', original);
+        const result = stripTemplateMarker(p);
+        expect(result).toBe(false);
+        const after = fs.readFileSync(p, 'utf8');
+        expect(after).toBe(original);
+    });
+
+    it('stripTemplateMarker_idempotent_stripTwiceNoChange', () => {
+        const p = writeTmp('doc.md', '<!-- @@template -->\n# Content\n');
+        stripTemplateMarker(p);
+        const afterFirst = fs.readFileSync(p, 'utf8');
+        const result = stripTemplateMarker(p);
+        expect(result).toBe(false);
+        const afterSecond = fs.readFileSync(p, 'utf8');
+        expect(afterSecond).toBe(afterFirst);
+    });
+
+    it('stripTemplateMarker_afterStrip_isRealDocReturnsTrue', () => {
+        const p = writeTmp('doc.md', '<!-- @@template -->\n# Filled backlog\n');
+        expect(isRealDoc(p)).toBe(false);  // before strip: it's a stub
+        stripTemplateMarker(p);
+        expect(isRealDoc(p)).toBe(true);   // after strip: now a real doc
+    });
+
+    it('stripTemplateMarker_nonexistentFile_returnsFalse', () => {
+        const result = stripTemplateMarker(path.join(tmpRoot, 'no-such-file.md'));
+        expect(result).toBe(false);
     });
 });

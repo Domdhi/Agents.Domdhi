@@ -387,9 +387,224 @@ function progressBar(pct, width) {
   return '[' + '#'.repeat(filled) + '-'.repeat(width - filled) + ']';
 }
 
+// ── Master-index regeneration (S-PI.9) ───────────────────────────
+//
+// regenerateMasterIndex refreshes the generated projection — the master tracker
+// TODO_{Project}.md — from its source of record: the per-epic checklists
+// (TODO_epicNN_*.md) plus _backlog.md's phase→epic grouping. It NEVER invents
+// rows; it only refreshes the Status cell of existing Epic Index rows and the
+// Done/Status/Total cells of the Phase Map from current checkbox state.
+//
+// Idempotent + offline: pure file reads + line-level string rewrites, no network,
+// no new Date() unless opts.today is omitted. Running twice on the same checkbox
+// state produces byte-identical output. Best-effort by contract — if no master
+// index exists it returns { skipped:true } and writes nothing, so the lifecycle
+// commands (/do, /end, /run-todo, /run-tests) can call it unconditionally.
+
+// Split a markdown table row into trimmed cells (drops the leading/trailing ||).
+function splitRow(line) {
+  return line.split('|').slice(1, -1).map(c => c.trim());
+}
+
+// Reassemble a table row from cells, preserving the `| a | b |` shape.
+function joinRow(cells) {
+  return '| ' + cells.join(' | ') + ' |';
+}
+
+// Resolve an epic's per-epic checklist file from its Epic Index row.
+// Prefer the link target in the Checklist column; fall back to globbing
+// docs/todo/TODO_epic{NN}*.md. Returns an absolute path or null.
+function resolveEpicChecklist(projectRoot, epicId, checklistCell) {
+  const linkMatch = checklistCell && checklistCell.match(/\(([^)]+\.md)\)/);
+  if (linkMatch) {
+    const rel = linkMatch[1].replace(/^\.\//, '');
+    const candidate = path.isAbsolute(rel) ? rel : path.join(projectRoot, 'docs', rel);
+    if (fs.existsSync(candidate)) return candidate;
+    // The link may be docs-root-relative without the docs/ prefix.
+    const alt = path.join(projectRoot, rel);
+    if (fs.existsSync(alt)) return alt;
+  }
+  const num = String(epicId).match(/\d+/);
+  if (!num) return null;
+  const nn = num[0].padStart(2, '0');
+  const todoDir = path.join(projectRoot, 'docs', 'todo');
+  if (!fs.existsSync(todoDir)) return null;
+  let entries;
+  try { entries = fs.readdirSync(todoDir); } catch { return null; }
+  const re = new RegExp(`^TODO_epic0*${num[0]}([^0-9].*)?\\.md$`, 'i');
+  const hit = entries.find(f => re.test(f)) || entries.find(f => new RegExp(`^TODO_epic${nn}`, 'i').test(f));
+  return hit ? path.join(todoDir, hit) : null;
+}
+
+// Build a phase-number → Set(epic-id strings) map from _backlog.md's
+// `## Phase N:` / `### Epic N:` grouping. Returns null if the backlog is
+// absent/unparseable — callers then leave per-phase Done cells unchanged.
+function buildPhaseEpicMap(projectRoot) {
+  const backlogPath = path.join(projectRoot, 'docs', 'todo', '_backlog.md');
+  if (!fs.existsSync(backlogPath)) return null;
+  let content;
+  try { content = fs.readFileSync(backlogPath, 'utf8'); } catch { return null; }
+  const map = new Map();
+  let currentPhase = null;
+  for (const line of content.split('\n')) {
+    const ph = line.match(/^##\s+Phase\s+(\d+)\b/i);
+    if (ph) { currentPhase = ph[1]; if (!map.has(currentPhase)) map.set(currentPhase, new Set()); continue; }
+    const ep = line.match(/^###\s+Epic\s+(\d+)\b/i);
+    if (ep && currentPhase !== null) map.get(currentPhase).add(ep[1]);
+  }
+  return map.size > 0 ? map : null;
+}
+
+function regenerateMasterIndex(projectRoot, opts = {}) {
+  const root = projectRoot || PROJECT_ROOT;
+  // Find the master index via the existing finder (uses module-level PROJECT_ROOT).
+  const masterFiles = findTodoFiles()
+    .map(p => ({ path: p, parsed: parseTodoFile(p) }))
+    .filter(f => f.parsed.type === 'master');
+  if (masterFiles.length === 0) return { skipped: true, reason: 'no master index' };
+
+  const masterPath = masterFiles[0].path;
+  let content;
+  try { content = fs.readFileSync(masterPath, 'utf8'); } catch (err) {
+    return { skipped: true, reason: `unreadable master: ${err.message}` };
+  }
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(/\r?\n/);
+  const today = opts.today || new Date().toISOString().slice(0, 10);
+
+  // Pass 1 — recompute each epic's real done/total from its checklist.
+  // epicStats: id -> { done, total, resolved:boolean }
+  const epicStats = new Map();
+  let section = null;
+  for (const line of lines) {
+    if (/##\s+Phase Map/i.test(line)) { section = 'phases'; continue; }
+    if (/##\s+Epic Index/i.test(line)) { section = 'epics'; continue; }
+    if (/^##\s/.test(line)) { section = null; continue; }
+    if (section === 'epics' && line.trim().startsWith('|') && !line.includes('---') && !/\bEpic\b\s*\|/i.test(line)) {
+      const cells = splitRow(line);
+      if (cells.length < 6) continue;
+      const epicId = cells[0];
+      if (!/\d/.test(epicId)) continue; // skip header/spacer rows
+      const checklistPath = resolveEpicChecklist(root, epicId, cells[5]);
+      if (checklistPath) {
+        const parsed = parseTodoFile(checklistPath);
+        const idKey = (epicId.match(/\d+/) || [epicId])[0];
+        epicStats.set(idKey, { done: parsed.stories.done, total: parsed.stories.total, resolved: true });
+      } else {
+        const idKey = (epicId.match(/\d+/) || [epicId])[0];
+        epicStats.set(idKey, { resolved: false });
+      }
+    }
+  }
+
+  // Tri-state marker from done/total: all done → [x]; some done → [>]; none → [ ].
+  const markerFor = (done, total) => {
+    if (total > 0 && done >= total) return '[x]';
+    if (done > 0) return '[>]';
+    return '[ ]';
+  };
+
+  const phaseEpicMap = buildPhaseEpicMap(root);
+  let epicsRefreshed = 0;
+
+  // Pass 2 — rewrite Epic Index Status cells + Phase Map Done/Status/Total + date.
+  section = null;
+  const out = lines.map((line) => {
+    // Last updated line.
+    if (/^>\s*Last updated:/i.test(line)) {
+      return line.replace(/(Last updated:\s*).*/i, `$1${today}`);
+    }
+    if (/##\s+Phase Map/i.test(line)) { section = 'phases'; return line; }
+    if (/##\s+Epic Index/i.test(line)) { section = 'epics'; return line; }
+    if (/^##\s/.test(line)) { section = null; return line; }
+
+    if (!line.trim().startsWith('|') || line.includes('---')) return line;
+
+    if (section === 'epics') {
+      if (/\bEpic\b\s*\|/i.test(line)) return line; // header row
+      const cells = splitRow(line);
+      if (cells.length < 6 || !/\d/.test(cells[0])) return line;
+      const idKey = (cells[0].match(/\d+/) || [cells[0]])[0];
+      const stat = epicStats.get(idKey);
+      if (!stat || !stat.resolved) return line; // missing checklist → unchanged
+      cells[4] = markerFor(stat.done, stat.total);
+      epicsRefreshed++;
+      return joinRow(cells);
+    }
+
+    if (section === 'phases') {
+      if (/\bPhase\b\s*\|/i.test(line)) return line; // header row
+      const cells = splitRow(line);
+      if (cells.length < 7) return line;
+      const isTotal = /\*\*Total\*\*/i.test(cells[0]);
+      if (isTotal) {
+        // Sum done across ALL resolved epics; total stories from this row stays.
+        let doneSum = 0;
+        for (const s of epicStats.values()) if (s.resolved) doneSum += s.done;
+        const totalStories = parseInt(cells[4].replace(/\D/g, '')) || 0;
+        const pct = totalStories > 0 ? Math.round((doneSum / totalStories) * 100) : 0;
+        cells[5] = `**${doneSum}**`;
+        cells[6] = `**${pct}%**`;
+        return joinRow(cells);
+      }
+      // Per-phase row: recompute Done from this phase's epics (needs backlog map).
+      const phaseId = (cells[0].match(/\d+/) || [])[0];
+      if (phaseEpicMap && phaseId != null && phaseEpicMap.has(phaseId)) {
+        const epicsInPhase = phaseEpicMap.get(phaseId);
+        let doneSum = 0; let allResolvedDone = true; let anyDone = false; let anyResolved = false;
+        let anyUnresolved = false;
+        for (const eid of epicsInPhase) {
+          const s = epicStats.get(eid);
+          if (!s || !s.resolved) { allResolvedDone = false; anyUnresolved = true; continue; }
+          anyResolved = true;
+          doneSum += s.done;
+          if (s.done > 0) anyDone = true;
+          if (!(s.total > 0 && s.done >= s.total)) allResolvedDone = false;
+        }
+        // If any epic in this phase has no resolvable checklist, we can't compute a
+        // trustworthy Done — leave the whole phase row unchanged rather than silently
+        // dropping the missing epic's prior Done contribution (M1).
+        if (anyUnresolved) return line;
+        cells[5] = String(doneSum);
+        // Status casing matches the file's existing PENDING/IN PROGRESS/COMPLETE.
+        if (anyResolved && allResolvedDone && epicsInPhase.size > 0) cells[6] = 'COMPLETE';
+        else if (anyDone) cells[6] = 'IN PROGRESS';
+        else cells[6] = 'PENDING';
+        return joinRow(cells);
+      }
+      return line; // no backlog map → leave per-phase row unchanged
+    }
+
+    return line;
+  });
+
+  const newContent = out.join(eol);
+  if (newContent !== content) {
+    try { fs.writeFileSync(masterPath, newContent, 'utf8'); } catch (err) {
+      return { skipped: true, reason: `write failed: ${err.message}` };
+    }
+  }
+  return {
+    updated: true,
+    path: path.relative(root, masterPath).replace(/\\/g, '/'),
+    epicsRefreshed,
+    changed: newContent !== content,
+  };
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main() {
+  // --regen-master: refresh the master tracker projection only, NO HTML dashboard.
+  // Best-effort + silent no-op when no master index exists (lifecycle commands
+  // call this unconditionally). Default `node status.js` behavior is unchanged.
+  if (process.argv.includes('--regen-master')) {
+    const res = regenerateMasterIndex(PROJECT_ROOT);
+    if (res.skipped) console.log(`  [status] master tracker: skipped (${res.reason})`);
+    else console.log(`  [status] master tracker refreshed: ${res.path} (${res.epicsRefreshed} epics)`);
+    return;
+  }
+
   const todoFiles = findTodoFiles();
   const parsed    = todoFiles.map(parseTodoFile);
 
@@ -432,4 +647,4 @@ if (require.main === module) {
 // After the P2.4 split, `generateHtml(files, telemetry, gitMetrics, outputDir)`
 // is the canonical signature. Earlier single-arg callers (if any existed in
 // downstream projects) must migrate — the new signature is NOT backward-compat.
-module.exports = { findTodoFiles, parseTodoFile, computeTelemetryMetrics, computeGrandTotals, generateHtml, printTextSummary, esc };
+module.exports = { findTodoFiles, parseTodoFile, computeTelemetryMetrics, computeGrandTotals, generateHtml, printTextSummary, esc, regenerateMasterIndex };

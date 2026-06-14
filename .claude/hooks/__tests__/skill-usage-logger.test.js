@@ -2,11 +2,14 @@
 // Read + Agent). Logger never blocks; we test the pure parse/resolve helpers and
 // processEvent routing (without asserting file writes).
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { parseSkillPath, resolveAgentSkills } = require('../skill-usage-logger.cjs');
+const { processEvent, parseSkillPath, resolveAgentSkills } = require('../skill-usage-logger.cjs');
 
 describe('parseSkillPath', () => {
   it('extracts skill + file from a .claude/skills path', () => {
@@ -50,5 +53,75 @@ describe('resolveAgentSkills', () => {
     expect(resolveAgentSkills('no-such-agent', process.cwd())).toEqual([]);
     expect(resolveAgentSkills(null, process.cwd())).toEqual([]);
     expect(resolveAgentSkills('', process.cwd())).toEqual([]);
+  });
+});
+
+describe('processEvent — subagent dispatch (the S-PI.4 producer)', () => {
+  let sandbox;
+  let prevProjectDir;
+
+  beforeEach(() => {
+    sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-usage-'));
+    // Seed a minimal agent definition so resolveAgentSkills finds a skills: list.
+    const agentsDir = path.join(sandbox, '.claude', 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, 'general-purpose.md'),
+      '---\nname: general-purpose\nskills:\n  - full-output-enforcement\n  - systematic-debugging\n---\n\nBody.\n',
+    );
+    prevProjectDir = process.env.CLAUDE_PROJECT_DIR;
+    process.env.CLAUDE_PROJECT_DIR = sandbox;
+  });
+
+  afterEach(() => {
+    if (prevProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = prevProjectDir;
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  });
+
+  function readRows() {
+    const jsonl = path.join(sandbox, 'docs', '.output', 'telemetry', 'skill-usage.jsonl');
+    if (!fs.existsSync(jsonl)) return [];
+    return fs.readFileSync(jsonl, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+  }
+
+  it('emits an agent_dispatch event for a Task-named tool payload', () => {
+    const event = processEvent({
+      tool_name: 'Task',
+      tool_input: { subagent_type: 'general-purpose', description: 'x' },
+    });
+    expect(event).not.toBeNull();
+    expect(event.type).toBe('agent_dispatch');
+    expect(event.agent).toBe('general-purpose');
+    expect(event.description).toBe('x');
+    expect(Array.isArray(event.skills)).toBe(true);
+    expect(event.skills.length).toBeGreaterThan(0);
+  });
+
+  it('appends the agent_dispatch row to skill-usage.jsonl on a Task dispatch', () => {
+    processEvent({
+      tool_name: 'Task',
+      tool_input: { subagent_type: 'general-purpose', description: 'do work' },
+    });
+    const rows = readRows();
+    const dispatches = rows.filter((r) => r.type === 'agent_dispatch');
+    expect(dispatches.length).toBe(1);
+    expect(dispatches[0].agent).toBe('general-purpose');
+    // feedback-digest readSkillUsage() keys on exactly these fields.
+    expect(dispatches[0]).toHaveProperty('timestamp');
+    expect(dispatches[0]).toHaveProperty('skills');
+  });
+
+  it('still emits for the legacy Agent tool name', () => {
+    const event = processEvent({
+      tool_name: 'Agent',
+      tool_input: { subagent_type: 'general-purpose' },
+    });
+    expect(event).not.toBeNull();
+    expect(event.type).toBe('agent_dispatch');
+    expect(event.agent).toBe('general-purpose');
   });
 });

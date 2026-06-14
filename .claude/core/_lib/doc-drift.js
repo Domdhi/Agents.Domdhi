@@ -67,6 +67,21 @@ function isRealDoc(absPath) {
 }
 
 /**
+ * Strip the template marker from the first line of a file if present.
+ * No-ops if already stripped or the file is unreadable. Returns true if modified.
+ */
+function stripTemplateMarker(absPath) {
+    try {
+        const content = fs.readFileSync(absPath, 'utf8');
+        if (!content.startsWith(TEMPLATE_MARKER)) return false;
+        fs.writeFileSync(absPath, content.slice(TEMPLATE_MARKER.length).replace(/^\n/, ''), 'utf8');
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Walk docs/** for TODO_*.md files that live outside the two canonical homes
  * (docs/ root for the master index, docs/todo/ for per-epic/backlog TODOs).
  * Returns relative paths like `docs/work/TODO_epic00.md` (F17).
@@ -168,6 +183,6 @@ function main() {
     process.exit(1);
 }
 
-module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS };
+module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, stripTemplateMarker, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS };
 
 if (require.main === module) main();

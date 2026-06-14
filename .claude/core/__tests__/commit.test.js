@@ -10,6 +10,7 @@
 //   - honors CLAUDE_COMMIT_TRAILER override (and model-agnostic default)
 //   - trims trailing junk lines (stray @, quote, backtick, blanks)
 //   - exits non-zero on an empty message or a missing file
+//   - -m "message" inline flag (S-PI.8): skips file read, commits via -m args array
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'node:module';
@@ -178,5 +179,111 @@ describe('commit.js secret-scan gate', () => {
     const { status } = runCommit(repo.repoPath, msg);
     expect(status).toBe(0);
     expect(commitCount(repo.repoPath)).toBe(before + 1);
+  });
+});
+
+// ─── Inline -m flag (S-PI.8) ─────────────────────────────────────────────────
+// commit.js now accepts `-m "message"` so callers don't need to write a
+// .commit-msg file first. The existing --file path must remain unchanged.
+
+/** Run commit.js --dry-run with an inline -m message. Returns {status, stdout}. */
+function runInlineMsg(msg, env = {}) {
+  try {
+    const stdout = execFileSync(
+      'node',
+      [COMMIT_JS, '--dry-run', '-m', msg],
+      { encoding: 'utf8', env: { ...process.env, ...env } },
+    );
+    return { status: 0, stdout };
+  } catch (e) {
+    return { status: e.status ?? 1, stdout: (e.stdout || '') + (e.stderr || '') };
+  }
+}
+
+describe('commit.js inline -m flag', () => {
+  let tmp;
+  beforeEach(() => { tmp = createTmpDir({ prefix: 'commit-inline-' }); });
+  afterEach(() => tmp.cleanup());
+
+  it('inlineMessage_dryRun_printsMessageWithTrailer', () => {
+    // -m dry-run must print the message with exactly one Co-Authored-By trailer
+    // and the "would run: ... commit -m" variant (not -F).
+    const { status, stdout } = runInlineMsg('feat: x');
+    expect(status).toBe(0);
+    expect(stdout).toContain('feat: x');
+    const trailerMatches = stdout.match(/Co-Authored-By: Claude <noreply@anthropic\.com>/g) || [];
+    expect(trailerMatches).toHaveLength(1);
+    expect(stdout).toMatch(/would run:.*commit -m/);
+  });
+
+  it('inlineMessage_dryRun_doesNotRequireMsgFile', () => {
+    // Running -m in a directory with NO .commit-msg file must succeed (exit 0).
+    // cwd is a brand-new empty tmp dir — no docs/.output/.commit-msg present.
+    try {
+      const stdout = execFileSync(
+        'node',
+        [COMMIT_JS, '--dry-run', '-m', 'feat: no file needed'],
+        { encoding: 'utf8', cwd: tmp.root, env: { ...process.env } },
+      );
+      // stdout present means exit 0 — confirm message text is included
+      expect(stdout).toContain('feat: no file needed');
+    } catch (e) {
+      // Any non-zero exit from this path is a test failure
+      throw new Error(
+        `commit.js -m exited non-zero when no .commit-msg exists.\n` +
+        `Output: ${(e.stdout || '') + (e.stderr || '')}`,
+      );
+    }
+  });
+
+  it('defaultPath_stillWorks', () => {
+    // The --file dry-run path (the original behavior) must be unaffected.
+    const f = tmp.write('MSG', 'feat: unchanged default path\n\nbody text\n');
+    const { status, stdout } = runDryRun(f);
+    expect(status).toBe(0);
+    expect(stdout).toContain('feat: unchanged default path');
+    const trailerMatches = stdout.match(/Co-Authored-By: Claude <noreply@anthropic\.com>/g) || [];
+    expect(trailerMatches).toHaveLength(1);
+    // Default path uses -F in the would-run line, not -m
+    expect(stdout).toMatch(/would run:.*commit -F/);
+  });
+
+  it.skipIf(!gitAvailable())('inlineMessage_commit_noMsgFileCreated', () => {
+    // Non-dry-run -m commit: subject appears in git log and NO .commit-msg
+    // file is written to the repo working tree.
+    const repo = createGitRepo({ root: tmp.root });
+    // Stage a clean file so there is something to commit
+    fs.writeFileSync(path.join(repo.repoPath, 'app.js'), 'const x = 1;\n');
+    execFileSync('git', ['add', 'app.js'], { cwd: repo.repoPath, stdio: 'pipe' });
+    const before = commitCount(repo.repoPath);
+
+    try {
+      execFileSync(
+        'node',
+        [COMMIT_JS, '-m', 'feat: inline commit test', '--no-scan'],
+        {
+          cwd: repo.repoPath,
+          encoding: 'utf8',
+          env: { ...process.env, CLAUDE_PROJECT_DIR: repo.repoPath },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
+    } catch (e) {
+      throw new Error(
+        `commit.js -m commit failed.\nOutput: ${(e.stdout || '') + (e.stderr || '')}`,
+      );
+    }
+
+    expect(commitCount(repo.repoPath)).toBe(before + 1);
+
+    // Confirm subject
+    const subject = execFileSync('git', ['log', '-1', '--format=%s'], {
+      cwd: repo.repoPath, encoding: 'utf8',
+    }).trim();
+    expect(subject).toBe('feat: inline commit test');
+
+    // Confirm .commit-msg was NOT created in the repo root
+    const msgFilePath = path.join(repo.repoPath, 'docs', '.output', '.commit-msg');
+    expect(fs.existsSync(msgFilePath)).toBe(false);
   });
 });

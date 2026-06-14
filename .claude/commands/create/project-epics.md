@@ -106,6 +106,14 @@ node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
 
 This is a warning, not a failure — `/create:project-epics` does not block on overlaps.
 
+### 6b. Strip Template Marker (main agent)
+
+Strip the `<!-- @@template -->` marker from the generated backlog so downstream gates (`isRealDoc`, `/review:check-readiness`) see it as a real doc rather than an unfilled stub:
+
+```bash
+node -e "require('./.claude/core/_lib/doc-drift.js').stripTemplateMarker(require('path').resolve('docs/todo/_backlog.md'))"
+```
+
 ### 7. Commit (main agent)
 
 Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command and commit with a descriptive message.

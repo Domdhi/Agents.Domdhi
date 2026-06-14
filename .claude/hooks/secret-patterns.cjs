@@ -119,6 +119,25 @@ function isPlaceholderValue(matched) {
     return PLACEHOLDER_PATTERNS.some(p => p.test(value));
 }
 
+// A connection-string / DATABASE_URL credential is a documentation example —
+// not a leaked secret — when its PASSWORD is an obvious placeholder, the whole
+// userinfo is a template (`<USER>:<PASSWORD>`, `${VAR}`, `{x}`), or there are no
+// embedded credentials at all (`sqlite:///path`, `redis://localhost:6379`).
+// Keyed on the password (the secret) — a real-looking password still blocks even
+// next to a placeholder username, so this can't be used to smuggle a credential.
+const CONN_PLACEHOLDER_TOKEN = /^(?:user(?:name)?|pass(?:word|wd)?|pwd|secret|changeme|example|test(?:ing)?|dummy|placeholder|sample|default|xxx+|<[^>]+>|\{[^}]+\}|\$\{[^}]+\}|\$[A-Z_]+)$/i;
+const CONN_USERINFO_TEMPLATE = /^(?:<[^>]+>|\{[^}]+\}|\$\{[^}]+\})(?::(?:<[^>]+>|\{[^}]+\}|\$\{[^}]+\}))?$/;
+
+function isPlaceholderConnString(matched) {
+    const creds = matched.match(/:\/\/([^@\s'"]*)@/);
+    if (!creds) return true;                 // no embedded credentials → nothing to leak
+    const userinfo = creds[1];
+    if (CONN_USERINFO_TEMPLATE.test(userinfo)) return true;
+    const ci = userinfo.indexOf(':');
+    const password = ci >= 0 ? userinfo.slice(ci + 1) : '';
+    return CONN_PLACEHOLDER_TOKEN.test(password);
+}
+
 // ============================================
 // High-Risk File Detection
 // ============================================
@@ -224,6 +243,11 @@ function scanContent(content, filePath) {
                     isPlaceholderValue(match[0])) {
                     continue;
                 }
+                if ((pattern.name === 'Connection String' ||
+                    pattern.name === 'Database URL') &&
+                    isPlaceholderConnString(match[0])) {
+                    continue;
+                }
 
                 findings.push({
                     type: 'SECRET_PATTERN',
@@ -270,10 +294,15 @@ function redactSecretsInText(content) {
         // built from the source to avoid lastIndex pitfalls.
         const re = new RegExp(pattern.regex.source, pattern.regex.flags);
         result = result.replace(re, (match) => {
-            // Same placeholder filter scanContent uses for these two patterns
+            // Same placeholder filter scanContent uses for these patterns
             if ((pattern.name === 'Password Assignment' ||
                  pattern.name === 'Secret Assignment') &&
                 isPlaceholderValue(match)) {
+                return match;
+            }
+            if ((pattern.name === 'Connection String' ||
+                 pattern.name === 'Database URL') &&
+                isPlaceholderConnString(match)) {
                 return match;
             }
             return `<REDACTED:${pattern.name}>`;
@@ -336,6 +365,7 @@ module.exports = {
     HIGH_RISK_BASENAMES,
     HIGH_RISK_PATHS,
     isPlaceholderValue,
+    isPlaceholderConnString,
     shouldSkipPath,
     isHighRiskFile,
     scanContent,

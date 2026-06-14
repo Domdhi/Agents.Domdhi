@@ -284,3 +284,44 @@ describe('precommit', () => {
         expect(exitCode).toBe(0);
     });
 });
+
+// ─── recordScannerBlock (S-PI.5 producer — scanner-block telemetry) ───────────
+describe('recordScannerBlock', () => {
+    const { recordScannerBlock } = scanner;
+
+    function readGuardrailEvents(root) {
+        const p = path.join(root, 'docs', '.output', 'telemetry', 'guardrail-events.jsonl');
+        if (!fs.existsSync(p)) return [];
+        return fs.readFileSync(p, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+    }
+
+    it('emits a source-tagged guardrail block event the feedback digest counts', () => {
+        const tmp = createTmpDir();
+        const saved = process.env.CLAUDE_PROJECT_DIR;
+        process.env.CLAUDE_PROJECT_DIR = tmp.root;
+        try {
+            recordScannerBlock();
+
+            const events = readGuardrailEvents(tmp.root);
+            expect(events).toHaveLength(1);
+            expect(events[0]).toMatchObject({
+                event: 'guardrail',
+                decision: 'block',
+                rule: 'secret-scanner',
+                source: 'secret-scanner',
+            });
+
+            // End-to-end: feedback-digest's readScannerBlocks must now read non-zero.
+            const { readScannerBlocks } = require('../../core/feedback-digest.js');
+            expect(readScannerBlocks(tmp.root)).toBe(1);
+        } finally {
+            if (saved === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+            else process.env.CLAUDE_PROJECT_DIR = saved;
+            tmp.cleanup();
+        }
+    });
+
+    it('never throws (telemetry is best-effort, must not break the scanner exit code)', () => {
+        expect(() => recordScannerBlock()).not.toThrow();
+    });
+});

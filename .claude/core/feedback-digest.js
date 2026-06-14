@@ -75,6 +75,77 @@ function countFilesRecursive(absDir, match) {
 
 // ── individual readers (each takes root) ────────────────────────────────────
 
+/**
+ * Read gate run counts from the telemetry store.
+ *
+ * DESIGN DECISION (S-PI.5): gate-run count uses a two-source strategy.
+ *   Primary:  `gate_run` rows in command-usage.jsonl — these carry pass/fail
+ *             outcomes, so we prefer them when present.
+ *   Fallback: count `gate-*.log` files under docs/.output/telemetry/logs/ —
+ *             gate.js writes a timestamped log per run; no JSONL rows in older
+ *             sessions means the fallback avoids a "Gate runs: 0" false zero.
+ *   When JSONL has at least one gate_run row, log files are ignored entirely
+ *   (counts would double-count the same runs).
+ *
+ * @param {string} root  Absolute project root
+ * @returns {{ total: number, passed: number, failed: number, source: 'jsonl'|'logs'|'none' }}
+ */
+function readGateRuns(root) {
+    // Attempt primary: count gate_run rows in command-usage.jsonl
+    const rows = readJsonl(getJsonlPath(root, 'command-usage.jsonl'));
+    let total = 0, passed = 0, failed = 0;
+    for (const ev of rows) {
+        if (ev.type !== 'gate_run') continue;
+        total++;
+        const o = ev.outcome;
+        if (o === 'success' || o === 'pass') passed++;
+        else if (o === 'failure' || o === 'fail') failed++;
+    }
+    if (total > 0) return { total, passed, failed, source: 'jsonl' };
+
+    // Fallback: count gate-*.log files — no pass/fail info available from logs alone
+    const logsDir = path.join(root, 'docs', '.output', 'telemetry', 'logs');
+    let logCount = 0;
+    for (const ent of listDir(logsDir)) {
+        if (ent.isFile() && ent.name.startsWith('gate-') && ent.name.endsWith('.log')) {
+            logCount++;
+        }
+    }
+    if (logCount > 0) return { total: logCount, passed: 0, failed: 0, source: 'logs' };
+
+    return { total: 0, passed: 0, failed: 0, source: 'none' };
+}
+
+/**
+ * Count secret-scanner commit blocks surfaced in the digest.
+ *
+ * DESIGN DECISION (S-PI.5): scanner blocks get their own digest line rather
+ * than being merged into the Bash-guardrail hit counter, because the two have
+ * different semantics (scanner blocks Write/Edit and git commits; guardrail
+ * blocks Bash commands) and the AC explicitly permits a distinct line.
+ *
+ * SOURCE: guardrail-events.jsonl entries where `source === 'secret-scanner'`.
+ * The secret-scanner hook does NOT currently emit these events — it blocks
+ * silently via exit-code. When a future story wires the scanner to emit a
+ * guardrail event with `source: 'secret-scanner'`, this reader will pick them
+ * up automatically. Until then this returns 0 (documented gap).
+ *
+ * TODO (future story): update secret-scanner.cjs to call emitGuardrailHit with
+ * { decision:'block', rule:'secret-scanner', source:'secret-scanner' } so
+ * blocks are counted here.
+ *
+ * @param {string} root  Absolute project root
+ * @returns {number}
+ */
+function readScannerBlocks(root) {
+    try {
+        const rows = readJsonl(getJsonlPath(root, 'guardrail-events.jsonl'));
+        return rows.filter(e => e && e.source === 'secret-scanner').length;
+    } catch {
+        return 0;
+    }
+}
+
 function readCommandUsage(root) {
     const rows = readJsonl(getJsonlPath(root, 'command-usage.jsonl'));
     const invocations = {};
@@ -220,6 +291,15 @@ function buildDigest(root = resolveRoot()) {
         lastGate: gateSummary
             ? { overall: gateSummary.overall, mode: gateSummary.mode || null, durationMs: gateSummary.durationMs ?? null }
             : null,
+        // S-PI.5: explicit gate-run counter (primary: gate_run JSONL rows;
+        // fallback: gate-*.log file count). Separate from commands.gates so the
+        // two sources can coexist without double-counting.
+        gateRuns: readGateRuns(root),
+        // S-PI.5: secret-scanner commit blocks as a distinct digest line.
+        // Source: guardrail-events.jsonl where source==='secret-scanner'.
+        // Returns 0 until secret-scanner.cjs emits those events (see TODO in
+        // readScannerBlocks). Field is always present so the digest contract is stable.
+        scannerBlocks: readScannerBlocks(root),
         commands: readCommandUsage(root),
         hooks: readHookEvents(root),
         guardrail: readGuardrailHits(root),
@@ -250,6 +330,12 @@ function renderMarkdown(d) {
     if (cmds.length) L.push(`  - ${cmds.map(([k, v]) => `${k}×${v}`).join(', ')}`);
     else L.push('  - none captured (user-typed commands without self-instrumentation leave no row)');
     L.push('');
+    // S-PI.5: Gate runs section — shows the run counter from the dedicated
+    // readGateRuns reader (JSONL rows primary, log-file count fallback).
+    L.push('### Gate runs');
+    const gr2 = d.gateRuns || { total: 0, passed: 0, failed: 0, source: 'none' };
+    L.push(`- gate-runs: **${gr2.total}** · passed ${gr2.passed} · failed ${gr2.failed} · source ${gr2.source}`);
+    L.push('');
     L.push('### Gate');
     const g = d.commands.gates;
     L.push(`- runs **${g.runs}** · pass ${g.pass} · fail ${g.fail} · unknown ${g.unknown} · pass-rate ${pct(g.passRate)}`);
@@ -267,6 +353,12 @@ function renderMarkdown(d) {
     L.push(`- hits logged: **${gr.total}**${decisions.length ? ` (${decisions.map(([k, v]) => `${k} ${v}`).join(', ')})` : ''}`);
     const topRules = Object.entries(gr.byRule).sort((a, b) => b[1] - a[1]).slice(0, 5);
     if (topRules.length) L.push(`  - top rules: ${topRules.map(([k, v]) => `${v}× ${k.length > 50 ? k.slice(0, 47) + '…' : k}`).join('; ')}`);
+    L.push('');
+    // S-PI.5: Scanner blocks — distinct from Bash-guardrail hits; sourced from
+    // guardrail-events.jsonl entries tagged source==='secret-scanner'. Returns 0
+    // until secret-scanner.cjs emits those events (see readScannerBlocks TODO).
+    L.push('### Scanner blocks');
+    L.push(`- scanner-blocks: **${d.scannerBlocks ?? 0}** (Write/Edit + commit blocks by secret-scanner)`);
     L.push('');
     L.push('### Agent dispatches');
     L.push(`- dispatches: **${d.agents.dispatches}** · agents: ${d.agents.agents.join(', ') || 'none'}`);
@@ -288,12 +380,15 @@ function summarize(d) {
         stack: d.stack,
         generated: d.generated,
         commands_logged: d.commands.totalInvocations,
-        gate_runs: d.commands.gates.runs,
+        // S-PI.5: gate_runs now sourced from readGateRuns (JSONL primary, log fallback)
+        gate_runs: d.gateRuns ? d.gateRuns.total : d.commands.gates.runs,
         gate_pass_rate: d.commands.gates.passRate,
         gate_avg_ms: d.commands.gates.avgDurationMs,
         hook_fires: d.hooks.rows,
         hook_failures: d.hooks.failures,
         guardrail_hits: d.guardrail ? d.guardrail.total : 0,
+        // S-PI.5: secret-scanner commit blocks as a distinct summary field
+        scanner_blocks: d.scannerBlocks ?? 0,
         agent_dispatches: d.agents.dispatches,
         memories: d.memoryStore.total,
         system: d.system,
@@ -318,4 +413,7 @@ module.exports = {
     readSkillUsage,
     readMemoryStore,
     readSystemFiles,
+    // S-PI.5: new readers for gate-run counting and scanner-block visibility
+    readGateRuns,
+    readScannerBlocks,
 };

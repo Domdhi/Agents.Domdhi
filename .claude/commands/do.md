@@ -574,12 +574,13 @@ Agent(
 
 ### 9b. Cascade to master index
 
-If a per-epic TODO was updated, check if the master index needs updating:
+Refresh the master tracker from the now-updated per-epic checklists — best-effort, silently no-ops if the project has no `TODO_{Project}.md` (offline + idempotent, always safe to call):
 
+```bash
+node .claude/core/status.js --regen-master
 ```
-Read docs/TODO_{Project}.md
-Update the epic's story count or status if all stories are now [x]
-```
+
+This regenerates the Epic Index status cells + Phase Map Done/Total from current checkbox state (it never hand-edits the master as an independent source). If it changed the master, stage it in Step 9e — but on its **own guarded line**, never folded into the main `git add` (an unmatched `docs/TODO_*.md` glob aborts the whole `git add` under zsh NOMATCH and leaves the real files unstaged).
 
 ### 9c. Log agent issues (Main Agent)
 
@@ -600,6 +601,13 @@ If any misalignment or quality issue was observed in Step 6, append to today's d
 ### Prompt Improvements
 - {what should be added/changed in future prompts to prevent this}
 ```
+
+**Attribution ledger (S-PI.7):** when you read the dispatched agent's status (Step 6), append one entry to the per-run change-attribution ledger so wrap-up can tell which agent touched which files (and never wrongly revert a sub-agent's work). Use the files the agent reported touching:
+```bash
+node .claude/core/_lib/attribution-ledger.js append \
+  '{"story_id":"{story ID}","agent":"{agent-type}","model":"{sonnet|opus}","files_touched":["path/a","path/b"],"status":"{DONE|DONE_WITH_CONCERNS|BLOCKED}"}'
+```
+Skip only if no agent was dispatched (Opus-direct path). The ledger lands at `docs/.output/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
 
 ### 9d. Regenerate the session handoff — session-handoff skill
 
@@ -629,6 +637,8 @@ Then run:
 
 ```bash
 git add {implementation files} {test files} {TODO updates if any} "$HANDOFF" docs/.output/plans/{YYMMDD-HHMM}-do-{slug}.md
+# Stage the master tracker ONLY if it exists — guarded so an unmatched glob never aborts the add (zsh NOMATCH):
+ls docs/TODO_*.md >/dev/null 2>&1 && git add docs/TODO_*.md
 node .claude/core/commit.js
 ```
 

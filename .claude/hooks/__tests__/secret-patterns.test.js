@@ -210,6 +210,40 @@ describe('scanContent', () => {
             const names = findings.map(f => f.name);
             expect(names).toContain('Connection String');
         });
+
+        // Placeholder connection strings in docs/agents are examples, not secrets.
+        it('scanContent_placeholderConnString_userPass_noDetection', () => {
+            const content = 'Example: postgresql://user:pass@host/db';
+            const names = scanContent(content, 'docs/_project-architecture.md').map(f => f.name);
+            expect(names).not.toContain('Connection String');
+        });
+        it('scanContent_placeholderConnString_usernamePassword_noDetection', () => {
+            const content = 'mysql://username:password@localhost:3306/mydb';
+            const names = scanContent(content, '.claude/agents/db-architect.md').map(f => f.name);
+            expect(names).not.toContain('Connection String');
+        });
+        it('scanContent_placeholderConnString_templateUserinfo_noDetection', () => {
+            const content = 'postgres://<USER>:<PASSWORD>@host:5432/db';
+            const names = scanContent(content, 'README.md').map(f => f.name);
+            expect(names).not.toContain('Connection String');
+        });
+        it('scanContent_databaseUrl_placeholder_noDetection', () => {
+            const content = 'DATABASE_URL=postgresql://user:pass@host/db';
+            const names = scanContent(content, 'docs/_backlog.md').map(f => f.name);
+            expect(names).not.toContain('Database URL');
+        });
+        it('scanContent_databaseUrl_noCredentials_noDetection', () => {
+            const content = 'DATABASE_URL=postgresql://localhost:5432/appdb';
+            const names = scanContent(content, 'docs/_project-architecture.md').map(f => f.name);
+            expect(names).not.toContain('Database URL');
+        });
+        // A real-looking password STILL blocks, even with a placeholder username —
+        // the guard keys on the password, so it can't smuggle a credential.
+        it('scanContent_realPassword_placeholderUsername_stillDetected', () => {
+            const content = 'postgres://user:' + 'Xk9mP2vQ7sLr4Tz' + '@prod.abc123.rds.amazonaws.com/maindb';
+            const names = scanContent(content, 'config.js').map(f => f.name);
+            expect(names).toContain('Connection String');
+        });
     });
 
     describe('scanContent_jsonQuotedAssignment', () => {

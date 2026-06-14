@@ -6,7 +6,9 @@
  * Dual-trigger telemetry for the skill system. Registered on two PostToolUse
  * events and handles each differently:
  *
- * ── Trigger 1: PostToolUse:Agent ──────────────────────────────────────────
+ * ── Trigger 1: PostToolUse:Agent / PostToolUse:Task ───────────────────────
+ * Registered on both event names because the subagent-dispatch tool fires as
+ * 'Task' on current Claude Code builds and as 'Agent' on older ones.
  * When a subagent is dispatched, resolves the agent definition file from
  * `subagent_type`, parses its `skills:` frontmatter list, and emits an
  * `agent_dispatch` event. This captures the expected auto-loaded skill set
@@ -157,7 +159,11 @@ function processEvent(parsedJson) {
 
     let event = null;
 
-    if (toolName === 'Agent' || parsedJson?.tool_input?.subagent_type !== undefined) {
+    // The subagent-dispatch tool fires under different names across Claude Code
+    // builds — historically 'Agent', more commonly 'Task' on current runtimes.
+    // Recognize both explicitly; the subagent_type fallback covers any other name.
+    if (toolName === 'Agent' || toolName === 'Task'
+        || parsedJson?.tool_input?.subagent_type !== undefined) {
         event = handleAgentDispatch(parsedJson, projectRoot);
     } else if (toolName === 'Read' || parsedJson?.tool_input?.file_path !== undefined) {
         event = handleRead(parsedJson);

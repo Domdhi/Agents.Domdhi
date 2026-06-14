@@ -89,7 +89,13 @@ function emitHookEvent(token, outcome) {
  * Best-effort: never throws — a telemetry write must never break the guardrail
  * (the guardrail's exit code is load-bearing for blocking dangerous commands).
  *
- * @param {{ decision: string, rule?: string|null, tier?: string|null }} hit
+ * The optional `source` field tags WHO emitted the hit. The Bash guardrail
+ * (guardrail.cjs) omits it (source=null); the secret-scanner tags its blocks
+ * with source:'secret-scanner'. guardrail-stats.js counts only un-sourced
+ * (Bash-guardrail) events, while feedback-digest's readScannerBlocks counts the
+ * scanner-sourced ones — both readers share this one file, partitioned by source.
+ *
+ * @param {{ decision: string, rule?: string|null, tier?: string|null, source?: string|null }} hit
  * @returns {object|null} The event written, or null on any failure.
  */
 function emitGuardrailHit(hit) {
@@ -100,6 +106,7 @@ function emitGuardrailHit(hit) {
             decision: hit.decision,            // 'block' | 'nudge' | 'confirm'
             rule: hit.rule != null ? hit.rule : null,
             tier: hit.tier != null ? hit.tier : null,
+            source: hit.source != null ? hit.source : null,  // e.g. 'secret-scanner'; null = Bash guardrail
             timestamp: new Date().toISOString(),
         };
         appendJsonl(getJsonlPath(getProjectRoot(), 'guardrail-events.jsonl'), entry, {

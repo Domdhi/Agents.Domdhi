@@ -350,6 +350,16 @@ Committing yourself breaks the per-wave atomic commit and bypasses the project's
 `commit.js` convention. This line is non-optional; it is the most common
 misalignment for delegated dev agents in this template.
 
+VERIFY YOUR SLICE ONLY — DO NOT run the full gate (`node .claude/core/gate.js
+test` / `npm test`). You share ONE working tree and ONE gate lock with the other
+agents in this wave; N agents running the whole suite at once causes lock
+contention and git-fixture flakes (a sibling mid-editing `commit.js` while your
+gate runs produces a transient FALSE failure that is not your regression). Verify
+your own work by running ONLY your narrow test file(s) — `npx vitest run <your
+test file>` — or skip self-gating entirely and rely on the orchestrator. The
+Main Agent runs the authoritative full gate AFTER the wave; that is the gate of
+record, not yours. This line is non-optional.
+
 STATUS — Report your completion status as ONE of:
 - DONE — completed as specified, all AC met
 - DONE_WITH_CONCERNS — completed but something feels off (explain what and why)
@@ -401,6 +411,13 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 | **BLOCKED** | Read blocker. Fix if possible (missing file, wrong path, missing dep). If truly blocked → mark story `[!]`, remove from wave, continue with remaining stories. |
 | **NEEDS_CONTEXT** | Answer questions by reading more files. Re-dispatch that agent only with additional context. |
 
+**Attribution ledger (S-PI.7):** as you read each story's agent STATUS, append one entry to the per-run change-attribution ledger — so wave wrap-up can attribute working-tree changes by agent and never wrongly revert a sub-agent's work. Use the files that agent reported touching:
+```bash
+node .claude/core/_lib/attribution-ledger.js append \
+  '{"story_id":"{story ID}","agent":"{agent-type}","model":"{sonnet|opus}","files_touched":["path/a","path/b"],"status":"{DONE|DONE_WITH_CONCERNS|BLOCKED}"}'
+```
+One entry per dispatched story. The ledger lands at `docs/.output/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
+
 **4b. Check for known failure modes:**
 
 | # | Failure Mode | Fix | Log to agent-updates? |
@@ -448,6 +465,8 @@ Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their w
 #### Step 5: Build + Test gate
 
 `TaskUpdate: "Wave {N}: Build + Test gate" → in_progress`
+
+**This is the authoritative gate — the only one that counts.** Dev agents were told NOT to run the full gate themselves (they verify only their narrow test file; see the Path B dispatch prompt) precisely so this post-wave run is the single instrument of record. Parallel agents each gating in the shared working tree produced 4 transient FALSE failures in the pipeline-improvements epic (gate-lock contention + a sibling-edit git-fixture flake) while this orchestrator gate was clean — see `workflows/parallel-agents-skip-full-gate-orchestrator-owns-it`. Run it once, here, after all agents have reported.
 
 ```bash
 node .claude/core/gate.js build
@@ -619,7 +638,13 @@ Agent(
 
 **8b. Cascade to master index**
 
-Read `docs/TODO_{Project}.md`. Update epic status/counts if applicable.
+Refresh the master tracker from the per-epic checklists this wave just updated — best-effort, silently no-ops if the project has no `TODO_{Project}.md` (offline + idempotent, always safe to call):
+
+```bash
+node .claude/core/status.js --regen-master
+```
+
+It regenerates the Epic Index status + Phase Map Done/Total from current checkbox state (never hand-edited as an independent source). If it changed the master, it rides into the wave commit in 8f — staged on its **own guarded line**, never folded into the main `git add` (an unmatched `docs/TODO_*.md` glob aborts the whole `git add` under zsh NOMATCH and leaves the wave's real files unstaged).
 
 **8c. Log agent issues (Main Agent)**
 
@@ -685,7 +710,9 @@ AC verified: {total_pass}/{total} passed, {manual_count} manual
 Then run:
 
 ```bash
-git add {implementation files} {test files} {TODO_PATH} {master TODO if updated} docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md "$HANDOFF"
+git add {implementation files} {test files} {TODO_PATH} docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md "$HANDOFF"
+# Stage the master tracker ONLY if it exists — guarded so an unmatched glob never aborts the add (zsh NOMATCH):
+ls docs/TODO_*.md >/dev/null 2>&1 && git add docs/TODO_*.md
 node .claude/core/commit.js
 ```
 
@@ -832,6 +859,7 @@ Stories that are read-only verification (no code changes):
 4. **Context assembly matters for delegation.** When delegating (Path B), reading files and pasting code into agent prompts prevents hallucination. Never send just file paths. When Main Agent implements directly (Path A), the context from Step 2 is sufficient.
 5. **Send variable names to dev agents.** Identical signatures, types, test IDs across all agents in a wave. This is the #1 misalignment source. Only applies to Path B.
 6. **Main Agent writes tests before dev agents run.** Tests are derived from AC (TDD), not from implementation. Dev agents implement to pass the tests Main Agent wrote. The build gate (Step 5) runs these tests as a hard pass/fail — **including every suite the wave touched, not just `gate.js test`'s single command** (run a separate E2E/Playwright suite explicitly; see Step 5, F25), **plus the E2E leg (`gate.js e2e`) on contract-change waves or whenever `--e2e` is passed** (R1). The gate fails closed on a zero-collected run. **Exception:** test-authoring epics where the deliverable *is* the test invert this — skip pre-writing, dispatch one-round, and gate on "are the assertions real?" (Step 2b, F26).
+   - **6a. The orchestrator owns the gate — dev agents do NOT run it.** Parallel dev agents share one working tree and one gate lock; each running the full `gate.js test` causes lock contention and git-fixture flakes (transient FALSE failures, not regressions). The Path B dispatch prompt tells agents to verify only their narrow test file (`npx vitest run <file>`) or skip self-gating; the Step 5 post-wave gate is the single instrument of record. See `workflows/parallel-agents-skip-full-gate-orchestrator-owns-it`.
 7. **ZERO file overlap within a wave.** Overlapping files = stomped changes. This applies to BOTH paths. Enforcement is currently **instruction-level** — the `DO NOT TOUCH` list in each dev prompt, plus Main Agent's Step-4b check (failure mode #5: revert any file written outside ownership and log it). There is no tool-level write-guard scoping each agent to its owned paths (known limitation, F27 — same family as the instruction-enforced gates, F8). On the parallel path the whole risk is concurrent writes, so treat an out-of-lane edit as a hard misalignment, not a nit.
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
 9. **Every wave commit regenerates the session handoff** (the run's single `$HANDOFF` file, captured once on wave 1). Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.

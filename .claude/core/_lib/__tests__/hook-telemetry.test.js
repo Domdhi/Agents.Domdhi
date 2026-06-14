@@ -155,6 +155,16 @@ describe('emitGuardrailHit', () => {
         expect(events[1].tier).toBeNull();
     });
 
+    it('records the source field when given and defaults it to null otherwise', () => {
+        const { emitGuardrailHit } = require('../hook-telemetry');
+        emitGuardrailHit({ decision: 'block', rule: 'secret-scanner', source: 'secret-scanner' });
+        emitGuardrailHit({ decision: 'block', rule: 'rm -rf /' }); // Bash guardrail — no source
+
+        const events = readGuardrailEvents();
+        expect(events[0].source).toBe('secret-scanner');
+        expect(events[1].source).toBeNull();
+    });
+
     it('never throws and returns null on a malformed hit (telemetry is best-effort)', () => {
         const { emitGuardrailHit } = require('../hook-telemetry');
         expect(emitGuardrailHit(null)).toBeNull();
