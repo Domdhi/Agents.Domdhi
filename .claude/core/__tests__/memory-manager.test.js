@@ -659,6 +659,40 @@ describe('memory-manager', () => {
       expect(finding.memory).toContain('has_broken_ref');
     });
 
+    it('lintMemories_fileCitation_notFlaggedAsBrokenRef', async () => {
+      // A prose source citation ("Ref: docs/.output/…") is a file path, not a
+      // cross-reference — it must NOT be mis-read as a bare id "docs".
+      writeFixtureMemory('patterns', 'cites_a_file', {
+        updated: new Date().toISOString(),
+        usage_count: 1,
+        content: { note: 'Surfaced 2026-06-14. Ref: docs/.output/research/260614-applied.md' },
+        metadata: { confidence: 1.0 }
+      });
+      const manager = makeManager();
+
+      const result = await manager.lintMemories();
+
+      expect(result.checks.broken_refs.count).toBe(0);
+    });
+
+    it('lintMemories_sentenceFinalBrokenRef_stillFlagged', async () => {
+      // Guard the file-citation fix against over-correction: a genuine broken ref
+      // that ends a sentence ("see: ghost-concept.") must STILL be flagged — the
+      // trailing period is punctuation, not a file extension.
+      writeFixtureMemory('patterns', 'has_trailing_dot_ref', {
+        updated: new Date().toISOString(),
+        usage_count: 1,
+        content: { note: 'As noted, see: ghost-concept.' },
+        metadata: { confidence: 1.0 }
+      });
+      const manager = makeManager();
+
+      const result = await manager.lintMemories();
+
+      expect(result.checks.broken_refs.count).toBe(1);
+      expect(result.checks.broken_refs.findings[0].referenced_id).toBe('ghost-concept');
+    });
+
     it('lintMemories_orphanedMemory_flagsWarning', async () => {
       // Arrange — zero usage_count, updated far in the past (> 30 days)
       writeFixtureMemory('patterns', 'orphan_mem', {

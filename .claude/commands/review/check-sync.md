@@ -70,7 +70,10 @@ Task prompt:
    - Architecture references a directory or path that doesn't exist
    - A package file has significant dependencies not mentioned in architecture
    - Architecture describes patterns/structure that doesn't match reality
-5. Return structured report: item, what doc says, what reality shows, status (synced/drifted/missing)
+5. Return structured report: item, what doc says, what reality shows, status (synced/drifted/missing), and for each drifted/missing item a delta marker:
+   - ADDED — item exists in reality but is absent from the doc
+   - MODIFIED — item exists in both but the doc's description no longer matches reality
+   - REMOVED — item is documented but no longer exists in reality
 6. Rate overall: SYNCED, MINOR_DRIFT, or MAJOR_DRIFT
 
 **2b. Story status sync** (if scope is `all` or `stories`) — `subagent_type: "project-planner"`
@@ -164,9 +167,9 @@ Assemble agent results + dead reference check into the final report, including t
 **Output**: `docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md`
 
 ### Architecture Sync {agent rating}
-| Item | Doc Says | Reality | Status |
-|------|----------|---------|--------|
-| {dependency/path} | {what architecture claims} | {what actually exists} | {synced/drifted/missing} |
+| Item | Doc Says | Reality | Status | Delta |
+|------|----------|---------|--------|-------|
+| {dependency/path} | {what architecture claims} | {what actually exists} | {synced/drifted/missing} | {ADDED/MODIFIED/REMOVED/—} |
 
 ### Story Status Sync {agent rating}
 | Story | Doc Status | Git Evidence | Status |

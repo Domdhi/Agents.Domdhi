@@ -67,6 +67,140 @@ function isRealDoc(absPath) {
 }
 
 /**
+ * Grade a planning doc with deterministic (code-only, no-LLM) placeholder and
+ * structural checks (T.1). Extends isRealDoc(): a template stub fast-fails first.
+ *
+ * Checks:
+ *   • placeholder tokens — literal `TBD`, `TODO`, mustache `{{…}}`, and bare
+ *     `{…}` (single-brace) outside fenced code blocks
+ *   • per-FR acceptance criteria — each `#### FR-N:` block needs ≥1 line carrying
+ *     all three of Given / When / Then (case-insensitive)
+ *   • MoSCoW prioritization — if ≥2 FRs and EVERY one is `Must Have` → fail
+ *   • Success Criteria table — the `## Success Criteria` section needs ≥1 data row
+ *     whose cells are non-placeholder (not empty, no `{…}`)
+ *
+ * @param {string} absPath
+ * @returns {{ pass: boolean, failures: string[] }}  pass===true ⇒ failures===[]
+ */
+function gradeDoc(absPath) {
+    if (!isRealDoc(absPath)) {
+        return { pass: false, failures: ['template stub / unfilled scaffold (fails isRealDoc)'] };
+    }
+
+    let content;
+    try {
+        content = fs.readFileSync(absPath, 'utf8');
+    } catch {
+        return { pass: false, failures: ['unreadable file'] };
+    }
+
+    const failures = [];
+    const lines = content.split('\n');
+
+    // ── Placeholder scan — track fenced-code state so braces in code are ignored ──
+    let inFence = false;
+    let placeholderFound = false;
+    for (const line of lines) {
+        const fenceToggle = /^\s*(```|~~~)/.test(line);
+        if (fenceToggle) { inFence = !inFence; continue; }
+        if (inFence) continue;
+        // Ignore braces inside inline-code spans (`{n}`, `{1,5}`) — those are code,
+        // not unfilled placeholders.
+        const bare = line.replace(/`[^`]*`/g, '');
+        const braceMatch = bare.match(/\{([^}]*)\}/);
+        // A pure numeric regex quantifier ({3}, {1,5}) is not a template placeholder.
+        const isQuantifier = braceMatch && /^\d+(\s*,\s*\d*)?$/.test(braceMatch[1].trim());
+        if (/\bTBD\b/.test(bare) || /\bTODO\b/.test(bare) || bare.includes('{{') || (braceMatch && !isQuantifier)) {
+            placeholderFound = true;
+            break;
+        }
+    }
+    if (placeholderFound) {
+        failures.push('placeholder token left unfilled (TBD / TODO / {{…}} / bare {…})');
+    }
+
+    // ── Per-FR acceptance criteria + MoSCoW collection ──
+    // Walk FR blocks: a block runs from a `#### FR-N:` heading until the next
+    // `####`/`##`/`#` heading or EOF.
+    const frBlocks = [];
+    let current = null;
+    for (const line of lines) {
+        const frMatch = line.match(/^####\s+(FR-\d+)\b/i);
+        if (frMatch) {
+            current = { id: frMatch[1], lines: [] };
+            frBlocks.push(current);
+            continue;
+        }
+        if (/^#{1,6}\s/.test(line)) {
+            // Any other heading (H1–H6) closes the current FR block — a deeper
+            // subsection's content is not the FR's own acceptance criteria.
+            current = null;
+            continue;
+        }
+        if (current) current.lines.push(line);
+    }
+
+    // Accept acceptance criteria either all-on-one-line ("Given … When … Then …")
+    // or as a multi-line Gherkin block (separate Given / When / Then lines).
+    const gwt = (line) => /\bgiven\b/i.test(line) && /\bwhen\b/i.test(line) && /\bthen\b/i.test(line);
+    const blockHasAc = (blk) =>
+        blk.lines.some(gwt) ||
+        (blk.lines.some((l) => /\bgiven\b/i.test(l)) &&
+            blk.lines.some((l) => /\bwhen\b/i.test(l)) &&
+            blk.lines.some((l) => /\bthen\b/i.test(l)));
+    const priorities = [];
+    for (const block of frBlocks) {
+        const hasAc = blockHasAc(block);
+        if (!hasAc) {
+            failures.push(`${block.id} is missing a Given/When/Then acceptance criteria line`);
+        }
+        for (const line of block.lines) {
+            const pm = line.match(/\*\*Priority\*\*:\s*(.+?)\s*$/i);
+            if (pm) priorities.push(pm[1].trim());
+        }
+    }
+
+    if (priorities.length >= 2 && priorities.every((p) => /^must have\b/i.test(p))) {
+        failures.push('every FR is Must Have — MoSCoW priority gives no real prioritization');
+    }
+
+    // ── Success Criteria table — ≥1 non-placeholder data row ──
+    // Accept the section at H2 or H3 (it is sometimes nested under a feature heading).
+    let scIdx = -1;
+    let scDepth = 2;
+    for (let i = 0; i < lines.length; i++) {
+        const m = lines[i].match(/^(#{2,3})\s+Success Criteria\b/i);
+        if (m) { scIdx = i; scDepth = m[1].length; break; }
+    }
+    const scEnd = new RegExp(`^#{1,${scDepth}}\\s`); // a same-or-shallower heading ends the table
+    let successOk = false;
+    let sawSeparator = false;
+    if (scIdx !== -1) {
+        for (let i = scIdx + 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (scEnd.test(line)) break; // next section ends the table search
+            if (!/^\s*\|/.test(line)) continue; // not a table row
+            const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+            if (cells.length === 0) continue;
+            // The header separator row (e.g. |---|---|) marks the header/data boundary.
+            if (cells.every((c) => /^:?-+:?$/.test(c) || c === '')) { sawSeparator = true; continue; }
+            // A data row only counts once the separator has been seen — a well-formed
+            // markdown table is always header | separator | data. This stops a header-only
+            // (separator-less) table, even one with custom-worded headers, from passing as
+            // if it carried data. Rows before the separator are headers, skipped.
+            if (!sawSeparator) continue;
+            const isPlaceholderRow = cells.some((c) => c === '' || /\{[^}]*\}/.test(c));
+            if (!isPlaceholderRow) { successOk = true; break; }
+        }
+    }
+    if (!successOk) {
+        failures.push('Success Criteria table has no filled (non-placeholder) data row');
+    }
+
+    return { pass: failures.length === 0, failures };
+}
+
+/**
  * Strip the template marker from the first line of a file if present.
  * No-ops if already stripped or the file is unreadable. Returns true if modified.
  */
@@ -151,6 +285,25 @@ function detectDocDrift(projectRoot) {
 }
 
 function main() {
+    // `grade <path>` subcommand — code-graded quality gate on a single doc.
+    if (process.argv[2] === 'grade') {
+        const docPath = process.argv[3];
+        if (!docPath) {
+            process.stderr.write('usage: doc-drift.js grade <path>\n');
+            process.exit(2);
+            return;
+        }
+        const result = gradeDoc(path.resolve(docPath));
+        if (result.pass) {
+            process.stdout.write(`PASS — ${docPath}\n`);
+        } else {
+            process.stdout.write(`FAIL — ${docPath}\n`);
+            for (const f of result.failures) process.stdout.write(`  • ${f}\n`);
+        }
+        process.exit(result.pass ? 0 : 1);
+        return;
+    }
+
     const projectRoot = process.argv[2] || process.env.CLAUDE_PROJECT_DIR || process.cwd();
     const { legacy, duplicates, misplacedTodos, hasDrift } = detectDocDrift(projectRoot);
 
@@ -183,6 +336,6 @@ function main() {
     process.exit(1);
 }
 
-module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, stripTemplateMarker, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS, main };
+module.exports = { detectDocDrift, findMisplacedTodos, isRealDoc, gradeDoc, stripTemplateMarker, LEGACY_TO_CANONICAL, CANONICAL_LOCATIONS, main };
 
 if (require.main === module) main();

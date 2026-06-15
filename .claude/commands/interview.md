@@ -31,7 +31,7 @@ node .claude/core/telemetry-log.js interview
 3. **Ask 1-4 questions per round** using `AskUserQuestion` with concrete options
 4. **Summarize answers** after each round
 5. **Ask follow-up rounds** if needed (max 3 rounds)
-6. **Output a decision summary** when done — what was decided and why
+6. **Output a decision summary** when done — what was decided and why, then **persist it to a file** (Step 6b) so it survives compaction
 
 ## Rules
 
@@ -55,6 +55,27 @@ Round 2: [2 follow-ups based on answers about grouping and priority]
 Summary: "Decided: SignalR push for real-time, toast + badge count, grouped by entity,
          stored in app.Notifications with 30-day retention. Ready to build."
 ```
+
+## Step 6b: Persist the decision summary to a file (before you report)
+
+The closing chat summary (Step 6) is the only downstream-observable record of what the interview decided — and it dies on session end (see Limitations below). Before reporting back, write that summary to a file so the decisions survive compaction and the next session can act on them. This is the "write before you report" rule applied to interview output.
+
+Write the summary with the Write tool to:
+
+```
+docs/.output/work/{YYYY-MM-DD}/interview/{topic-slug}.md
+```
+
+where `{topic-slug}` is a kebab-case slug of the interview topic (the argument). Include:
+
+- **Topic** and date
+- **Decisions** — each decision with its rationale (the same content as the chat summary)
+- **Rounds** — per round, the questions asked and the option the user chose (restate them; the `AskUserQuestion` selections are not otherwise observable — see Limitations)
+- **Open items** — anything deferred or left for a later phase
+
+If the interview feeds a specific downstream artifact (a PRD, an ADR, a module brief), the answers also belong *in that artifact* — that write-back is owned by the consuming command (e.g. `/create:project-requirements` Step 5b folds clarifications straight into the spec). Step 6b is the universal capture; it does not need to know every downstream type.
+
+This file is the durable record; Step 7 below promotes the *cross-project reusable* subset into the memory store on top of it.
 
 ## Step 7: Promote durable decisions to memory (after the closing summary)
 

@@ -45,17 +45,17 @@ If `/check-sync` finds no drift → report "Docs are in sync. Nothing to update.
 
 For each drift item from the report, classify:
 
-| Type | Auto-fixable | Action |
-|------|-------------|--------|
-| Story marked `[ ]` but has commits | Yes | Mark as `[x]` in `TODO_epic*.md` checklist |
-| Story marked `[x]` but no commits | Confirm | Ask user before unmarking |
-| Master index counts stale | Yes | Recalculate done/total in `TODO_{Project}.md` |
-| New dependency in package files not in architecture | Yes | Add to tech stack table |
-| Architecture references non-existent path | Yes | Update path or remove reference |
-| Dead internal doc link | Yes | Update link target or remove |
-| Architecture lists removed dependency | Yes | Remove from tech stack table |
-| PRD requirement not yet implemented | No | Informational only (expected during development) |
-| New code pattern not in architecture | Manual | Flag for manual architecture update |
+| Type | Delta | Auto-fixable | Action |
+|------|-------|-------------|--------|
+| Story marked `[ ]` but has commits | ADDED | Yes | Mark as `[x]` in `TODO_epic*.md` checklist |
+| Story marked `[x]` but no commits | REMOVED | Confirm | Ask user before unmarking |
+| Master index counts stale | MODIFIED | Yes | Recalculate done/total in `TODO_{Project}.md` |
+| New dependency in package files not in architecture | ADDED | Yes | Add to tech stack table |
+| Architecture references non-existent path | REMOVED | Yes | Update path or remove reference |
+| Dead internal doc link | REMOVED | Yes | Update link target or remove |
+| Architecture lists removed dependency | REMOVED | Yes | Remove from tech stack table |
+| PRD requirement not yet implemented | — | No | Informational only (expected during development) |
+| New code pattern not in architecture | ADDED | Manual | Flag for manual architecture update |
 
 > **Note**: `_backlog.md` is a **read-only planning artifact** — it defines what to build but does NOT track completion status. Story status lives in per-epic TODO checklists (`docs/todo/TODO_epic*.md`). Never modify `_backlog.md` to update story markers.
 
@@ -67,11 +67,11 @@ Present all proposed changes to the user before applying:
 ## Proposed Doc Updates
 
 ### Auto-fixable ({count})
-| # | File | Change | Before | After |
-|---|------|--------|--------|-------|
-| 1 | TODO_epic01_*.md | Mark story done | `[ ] Story 1.1` | `[x] Story 1.1` |
-| 2 | _project-architecture.md | Add dependency | (missing) | `| Backend | express | 4.18 |` |
-| 3 | TODO_{Project}.md | Update epic count | `2/5 done` | `3/5 done` |
+| # | File | Delta | Change | Before | After |
+|---|------|-------|--------|--------|-------|
+| 1 | TODO_epic01_*.md | ADDED | Mark story done | `[ ] Story 1.1` | `[x] Story 1.1` |
+| 2 | _project-architecture.md | ADDED | Add dependency | (missing) | `| Backend | express | 4.18 |` |
+| 3 | TODO_{Project}.md | MODIFIED | Update epic count | `2/5 done` | `3/5 done` |
 
 ### Need Confirmation ({count})
 | # | File | Change | Reason |

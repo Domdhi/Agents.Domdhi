@@ -39,9 +39,45 @@ BEFORE claiming any status or expressing satisfaction:
    - If NO: State actual status with evidence
    - If YES: State claim WITH evidence
 5. ONLY THEN: Make the claim
+6. EMIT THE SHIP TOKEN: emit the literal `SHIP_CHECK_OK` once — and only once —
+   BOTH of these hold in this message:
+     (a) a fresh verification command ran THIS message and its output was read, AND
+     (b) every acceptance-criteria bullet is checked off (verified, not assumed).
+   The token is the deterministic signal that the work passed the gate. Downstream
+   steps (commit, wave-close) look for this exact literal before they proceed.
 
 Skip any step = lying, not verifying
 ```
+
+### Emitting `SHIP_CHECK_OK`
+
+`SHIP_CHECK_OK` is a textual contract, not a parser: emit the bare literal once the two
+preconditions above are both true. It means "fresh verification passed AND all AC are
+checked." Do not emit it speculatively, and do not emit it when verification was skipped
+or any AC is unchecked.
+
+**Audited override — `SHIP_CHECK_SKIP: <reason>`.** When verification genuinely cannot
+run (no local runner, CI-only matrix job, manual/UI-only AC), emit `SHIP_CHECK_SKIP: <reason>`
+instead — the literal followed by a one-line reason. This is the one path that lets work
+proceed without `SHIP_CHECK_OK`, and it is audited: the reason is the record of why the
+gate was bypassed. Use it for true cannot-verify cases, never as a shortcut to skip a
+verification that could have run.
+
+**Consumers.** The emit contract lives here; the commands that check for the token are `/do` (Step 8c, per-task precondition for commit) and `/run-todo` (per-wave ship-token gate before the wave commit). Keep this list current when a new command starts gating on the token, so the full producer→consumer contract is findable from one place.
+
+## Critic vs Judge
+
+Two distinct layers govern whether work ships. Keep them separate:
+
+- **Critic** — the **review** layer. It advises and diagnoses; it can be wrong, over-confident,
+  or under-confident. Code-reviewer findings are critic output: signal to weigh, not a verdict
+  that blocks on its own.
+- **Judge** — the **gate** layer. It is the deterministic pass/fail that actually blocks: the
+  build/test gate (exit code), the line-by-line AC verification, and the `SHIP_CHECK_OK` ship
+  token that records both passed. A critic can advise "this looks fine"; only the judge's
+  evidence lets the work ship.
+
+The token belongs to the judge: it is emitted by evidence, not by opinion.
 
 ## Common Failures
 

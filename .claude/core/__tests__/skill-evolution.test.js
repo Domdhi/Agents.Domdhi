@@ -747,3 +747,50 @@ describe('intake', () => {
         expect(result.unattributed).toEqual([]);
     });
 });
+
+// ── extractFailureTraces (T.11 / GEPA trace-mining) ──────────────────────────
+// Pulls per-assertion failure evidence out of a benchmark so the evolve-skills
+// proposer can diagnose from the trace, not just the scalar pass-rate.
+// Contract: extractFailureTraces(benchmark) → [{ eval_name, assertion, evidence: string[] }]
+// only for assertions whose evidence_on_fail is non-empty.
+
+describe('extractFailureTraces (T.11)', () => {
+    it('returns one trace per assertion that has failure evidence', () => {
+        const benchmark = {
+            skill_name: 'demo',
+            evals: [
+                {
+                    eval_name: 'eval-A',
+                    assertions: [
+                        { text: 'seeds the DB', evidence_on_fail: ['no INSERT observed', 'still none'] },
+                        { text: 'returns 200', evidence_on_fail: [] },
+                    ],
+                },
+                {
+                    eval_name: 'eval-B',
+                    assertions: [
+                        { text: 'handles empty input', evidence_on_fail: ['threw on []'] },
+                    ],
+                },
+            ],
+        };
+        const traces = m.extractFailureTraces(benchmark);
+        expect(traces).toEqual([
+            { eval_name: 'eval-A', assertion: 'seeds the DB', evidence: ['no INSERT observed', 'still none'] },
+            { eval_name: 'eval-B', assertion: 'handles empty input', evidence: ['threw on []'] },
+        ]);
+    });
+
+    it('returns an empty array when no assertion has failure evidence', () => {
+        const benchmark = {
+            evals: [{ eval_name: 'clean', assertions: [{ text: 'x', evidence_on_fail: [] }] }],
+        };
+        expect(m.extractFailureTraces(benchmark)).toEqual([]);
+    });
+
+    it('tolerates a benchmark with no evals / missing fields', () => {
+        expect(m.extractFailureTraces({})).toEqual([]);
+        expect(m.extractFailureTraces({ evals: [] })).toEqual([]);
+        expect(m.extractFailureTraces({ evals: [{ eval_name: 'e' }] })).toEqual([]);
+    });
+});

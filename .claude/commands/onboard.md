@@ -351,6 +351,12 @@ Recommended next commands:
 3. **`/create:project-epics`** — break work into implementable stories once the architecture doc is reviewed and `_project-requirements.md` exists.
 4. **`/do {story-id}`** — start implementing once the backlog is defined.
 5. **`/review:personalize`** — give the specialized agents names and personality.
+
+### Tips for this session
+
+**Effort level.** Commands like `/do` and `/run-todo` orchestrate multiple sub-agents. If you see delegation steps being skipped or plans cut short, raise effort to `high` or above (`/config set effort high`) before continuing.
+
+**Troubleshooting bisect.** If something looks wrong and you can't tell whether it's Domdhi.Agents or Claude Code itself, run `claude --safe-mode` (if available in your version) to start a session with extensions disabled — a clean reproduction there rules out this template. If that flag isn't available, temporarily rename `.claude/` to `_claude_disabled/` and test in a plain session; rename it back when done. Either way the goal is the same: disable all of Domdhi.Agents to isolate the problem.
 ```
 
 ## Anti-Patterns

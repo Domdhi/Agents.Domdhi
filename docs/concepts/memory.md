@@ -4,6 +4,14 @@ Memory in this system is a persistent, compounding record of what each session l
 
 It is deliberately not a database. There's no query language, no schema migration, no indexing beyond SQLite FTS5 for search. It's a pile of files under `docs/.output/memories/` that five small scripts shape into something useful. The point is durability across sessions, not structured retrieval.
 
+### What kind of thing this is
+
+The memory store is repo-native: it lives under `docs/.output/memories/`, travels with the project directory, and requires nothing beyond Node and the scripts already in `.claude/core/`. No hosted service, no vendor account, no API key. You can move the repo, rename it, or hand it to someone else and the memories come with it.
+
+It is also regenerable. The store is gitignored by design — not because it is disposable, but because it is locally derived from your session history and decays as your work evolves. If you delete it, the next few sessions rebuild a working set automatically. That also means no accidental secret-in-a-memory commit and no merge conflicts when two people work on the same repo.
+
+Claude Code's native memory (Project Memory, `/memory`) offers similar persistence — context that survives across conversations without you re-explaining it. This system is not a replacement for that. They coexist: native memory is the right place for general guidance about how you want Claude to behave across all your projects; this store is the right place for project-specific learned facts, rejected approaches, and architectural decisions that belong to *this* codebase. Neither is the wrong choice — they answer different questions.
+
 ## The pipeline
 
 Each session runs memory through five stages. The four-stage automated pipeline runs on hooks; **Acquire** is Main Agent's job at session-handoff time and lives outside the pipeline diagram below.

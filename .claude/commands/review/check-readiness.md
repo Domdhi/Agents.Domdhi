@@ -62,6 +62,18 @@ node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
 
 This catches silent merge conflicts before `/run-todo` dispatches parallel agents into the same files — without the false-burden of hand-acknowledging cross-phase pairs that can't collide.
 
+### 1.6. Grade Planning Docs (main agent)
+
+Skip this step if Step 1 already FAILed (the PRD was missing or a template stub) — there is nothing real to grade. Otherwise run the deterministic doc-quality gate over the requirements doc. This catches placeholder tokens and structural gaps that the section-presence check in step 2 does not — an FR with no acceptance criteria, an all-Must MoSCoW, an empty Success Criteria table, or a leftover `{placeholder}`/`TBD`:
+
+```bash
+node .claude/core/_lib/doc-drift.js grade docs/_project-requirements.md
+```
+
+- Exit 0 → the doc is filled and structurally sound; proceed to step 2.
+- Exit 1 → the printed failures list what is unfilled. Record each as a readiness finding and **FAIL** the check, pointing the user back to `/create:project-requirements` to fill the gaps. Do not pass readiness on a doc that still carries placeholders.
+- A different non-zero exit (the script erroring, not a quality verdict — e.g. the file unreadable for an infrastructure reason) → warn and continue to step 2; do not block readiness on a tooling failure.
+
 ### 2. Delegate Completeness Checks (main agent → domain agents)
 
 Launch domain agents **in parallel** via Task tool. Each agent auto-loads its skills via frontmatter — do NOT tell them which skill files to read.

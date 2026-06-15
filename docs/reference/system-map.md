@@ -28,6 +28,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Command | Agent | Skill | What it does |
 |---------|-------|-------|-------------|
+| `/route` | — (main) | — | Front door — assess a request's scale (Complexity rubric + architectural reach) → route to the right pipeline depth (Tier 0 `/do` … Tier 3 `/create:new-project`). Names skipped phases, logs to daily log; routing ≠ gate-bypass. Chat output only. |
 | `/prime` | — (main) | — | Load context from the latest per-branch handoff (handoff-path.js) + git log. Chat output only. |
 | `/todo` | Explore + project-planner + code-reviewer | — | Research codebase, assemble execution-ready checklist with AC |
 | `/do` | Explore + domain agent | — | Execute one task from a TODO. Plan → implement → verify → commit. |

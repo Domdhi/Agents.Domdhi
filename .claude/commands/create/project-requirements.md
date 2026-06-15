@@ -83,9 +83,30 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the PRD
 
 The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter — do NOT tell it to read the skill file.
 
+### 5b. Post-draft clarify pass (main agent)
+
+The first draft is where ambiguity hides — an FR with an unstated edge case, a persona goal the draft glossed, an NFR with no target. Run one clarify pass to resolve the gaps **into the doc**, so the answers live in the spec and survive compaction (interview answers that stay in chat evaporate — the failure `/interview` Step 6b also fixes).
+
+1. After the Step-5 agent has completed and `docs/_project-requirements.md` exists as a real draft, read it. (Do not run this pass while the draft is still being generated.)
+2. Identify up to **5** genuine gaps or ambiguities a downstream implementer would have to guess at — missing acceptance criteria, an unscoped NFR, an undecided priority, an unstated assumption. Skip anything the brief or codebase already answers.
+3. If there are no real gaps, skip this step — do not invent questions.
+4. Ask them with `AskUserQuestion` (concrete options, recommendation first — same rules as `/interview`). One round; don't interrogate.
+5. **Write each answer back into the relevant section of the doc** with the Edit tool — into the FR's acceptance criteria, the NFR's target, the assumptions list — not into a chat-only summary. The doc is the record.
+
+Then proceed to validate the now-clarified doc.
+
 ### 6. Validate (main agent)
 
 After the agent completes, read `docs/_project-requirements.md` and validate against the **Required Sections Checklist** in `.claude/skills/project-planning/references/project-requirements.md`. Also verify MoSCoW is used (not everything Must Have) and NFRs have measurable targets. If anything is missing, delegate back to the agent to fill it.
+
+Then run the deterministic quality gate over the doc:
+
+```bash
+node .claude/core/_lib/doc-drift.js grade docs/_project-requirements.md
+```
+
+- Exit 0 → the doc has no leftover placeholders and passes the structural checks; proceed to step 7.
+- Exit 1 → the printed failures list what is unfilled (placeholder tokens, an FR with no Given/When/Then acceptance criteria, an all-Must MoSCoW, or an empty Success Criteria table). Delegate back to the agent to fix each one, then re-run the gate. Do not proceed until it exits 0.
 
 ### 7. Commit (main agent)
 

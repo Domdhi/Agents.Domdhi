@@ -64,7 +64,11 @@ Use the Task tool with `subagent_type: "product-strategist"` to conduct the rese
 3. Where to write output (`{OUTPUT_PATH}`)
 4. Whether to append to existing research or start fresh
 5. The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter.
-6. Instruction to: state questions upfront, document methodology, present findings with confidence levels, cite sources
+6. Instruction to: state questions upfront, document methodology, present findings with confidence levels, cite sources — applying the **Claim Discipline** defined in `project-planning/references/brainstorm-research.md § Claim Discipline` (that section is authoritative; the bullets below are a condensed pointer for the delegate, because `references/*` is progressive-disclosure and not auto-loaded with the skill — when editing, change the skill section first and keep this in sync):
+   - Permit explicit uncertainty ("I don't have enough information") rather than filling gaps with confident-sounding inference.
+   - Ground each claim in an extracted quote or source reference before stating its implication (quote-first).
+   - Per-claim cite-or-retract: every factual assertion carries a source at the claim site, or the claim is omitted / reframed as an open question.
+   - Mark any claim drawn from training knowledge rather than session-verified sources as "Based on general knowledge — not verified in session."
 
 **For multiple research topics**, launch parallel Task calls — one per topic:
 - `Task(product-strategist)`: Research topic A → writes to `{OUTPUT_PATH}` or separate files

@@ -216,6 +216,7 @@ with no logical dependency), and respect dependency order across waves.
 **Track:** {A (track name)}
 **Domain:** {Backend|Frontend|DevOps|...}
 **Estimate:** {S|M|L|XL}
+**Complexity:** {1–10}  <!-- persisted routing signal `/do` reads; score per the canonical rubric in `/todo` (≤5 → Opus-direct, ≥6 → Sonnet-delegate). Distinct from Estimate (wall-clock effort). -->
 
 **As a** {persona}, **I want** {capability}, **So that** {benefit}.
 
@@ -291,7 +292,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage files created 
 **Next step**: Run `/do` to implement the first available story, or `/create:project-epics-todo {N+1}` for the next epic.
 ```
 
-## CRITICAL OUTPUT RULES
+## Output Rules
 
 1. Use status markers as defined in Key
 2. Reference files as paths or `file.cs:line` format
@@ -300,5 +301,5 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage files created 
 5. Focus on WHAT to do, not HOW to do it
 6. Include ALL sections even if empty (for consistency with `/do` and `/review:organize`)
 7. **Stories MUST be in dependency-optimized order**
-8. **Every story MUST include Dependencies, Unblocks, Track, Domain, and Estimate metadata**
+8. **Every story MUST include Dependencies, Unblocks, Track, Domain, Estimate, and Complexity metadata** (Complexity = the 1–10 routing score `/do` reads — score it per the canonical rubric in `/todo`, never restate that rubric here)
 9. Acceptance criteria MUST match `_backlog.md` exactly — do not paraphrase or invent new ones

@@ -49,6 +49,8 @@ IF INPUT is empty → infer:
 
 **Output of this step:** A clear task description, and optionally a TODO file path + story ID if this task lives in a checklist.
 
+**Surface the Complexity score at pick-time.** When the resolved task is a story that carries a persisted `**Complexity:** {1–10}` field (emitted by `/todo` and `/create:project-epics-todo`), echo it now with the route it implies — e.g. `T15.2 · Complexity 4 → Path A (Opus-direct)`. This makes the size/route decision visible the moment the story is picked, before planning. If the story has no Complexity field (older TODO), say so and note the route will be sized from the plan at Step 6b. The threshold is defined in Step 6b.
+
 ---
 
 ## Step 2: Build the TaskList (Main Agent — this is your spine)
@@ -114,7 +116,7 @@ node .claude/core/memory-manager.js search "<story title + AC keywords>"
 
 `TaskUpdate: "Write plan" → in_progress`
 
-**CRITICAL — write the plan file BEFORE implementation starts.** If the session dies between here and Step 9, a disk-persisted plan lets the next session resume with `/do` reading it. A plan that only lives in chat is gone on disconnect.
+**Write the plan file BEFORE implementation starts.** If the session dies between here and Step 9, a disk-persisted plan lets the next session resume with `/do` reading it. A plan that only lives in chat is gone on disconnect.
 
 ### 4a. Check for existing plan
 
@@ -261,7 +263,12 @@ If dirty → commit or stash before proceeding.
 
 ### 6b. Size the task
 
-Assess complexity from the plan (Step 4):
+**Route on the persisted Complexity score first.** When the story carries a `**Complexity:** {1–10}` field (emitted by `/todo` / `/create:project-epics-todo` per the canonical rubric in `/todo`), that score is the **routing signal of record** — it was scored at authoring time so the size/route decision is auditable, not re-judged here:
+
+- **Complexity ≤ 5** → **Path A** (Main Agent / Opus-direct)
+- **Complexity ≥ 6** → **Path B** (Sonnet-delegate)
+
+**Fallback when no Complexity field is present** (older TODOs authored before the field, or ad-hoc tasks): size from the plan (Step 4) using the signal table below — never error, never block on a missing field.
 
 | Signal | Small/Medium → Main Agent direct | Large → Delegate |
 |--------|---------------------------|-----------------|
@@ -272,7 +279,7 @@ Assess complexity from the plan (Step 4):
 
 **Default: Main Agent implements directly.** Delegation adds overhead: prompt assembly, lossy translation (Sonnet misinterprets intent), status triage, fix-up. Field-tested: delegation introduced 3 bugs Main Agent wouldn't have made, cost 6+ min wall time for a single agent call. It only pays off when the task is large enough that Main Agent benefits from focusing on judgment over typing.
 
-Override: `--delegate` in INPUT forces delegation regardless of size.
+Override: `--delegate` in INPUT forces delegation (Path B) regardless of the Complexity score or the signal table.
 
 ### 6c. Decision Principles (when to auto-decide vs. ask)
 
@@ -307,6 +314,12 @@ Main Agent holds both the spec and the codebase in context — no translation lo
    - Did I follow the existing patterns from Step 3?
    - Did I stay within the file list from the plan?
    - **Did I backtrack or abandon an approach during this story?** If yes, capture the rejected approach as a `rejected-approaches` memory BEFORE committing. Example payload: `{"content":{"approach":"tried X","why_rejected":"caused Y","story":"<story-id>","importance":2}}`. Include an `importance` score (rejected-approaches are usually 1–2 — narrow and will be obsolete once the story ships). Use `/remember` for quick capture or `node .claude/core/memory-manager.js create rejected-approaches <slug> '<json>'` for structured. This prevents cross-session retry of the same dead ends.
+
+   Spec-bug checks (runs inline, no subagent — source: code-review severity rubric):
+   - AC-satisfaction: does the impl match what the AC *says*, not just that tests pass? (A test shaped to the wrong output is still wrong.)
+   - Edge cases: does any AC bullet imply a boundary (empty input, max value, concurrent access) that the impl doesn't cover?
+   - Error paths: if an AC mentions an error scenario, is that path actually handled in the code written?
+   - Contract mismatches: does the impl's interface (types, return values, event shapes) match what callers in adjacent code expect?
 
 Proceed to Step 7 (gate).
 
@@ -542,6 +555,23 @@ Only after spec passes. Check:
 | 2 | {criterion} | PASS | {command output confirming} |
 | 3 | {criterion} | [manual] | Requires UI testing |
 ```
+
+### 8c. Ship-token precondition (hard precondition for commit)
+
+Before moving to Step 9, the verification-before-completion gate must have emitted the
+ship token. Confirm one of these literals is present for this task:
+
+- `SHIP_CHECK_OK` — emitted once a fresh verification command passed AND every AC bullet
+  is checked (the table above is all PASS / `[CI-pending]` / `[manual]`). This is the
+  normal path.
+- `SHIP_CHECK_SKIP: <reason>` — the audited override, when verification genuinely could
+  not run (CI-only, manual/UI-only AC). The reason is the audit record.
+
+If neither literal is present, the commit does not run. Branch on why:
+- Verification *could* run but didn't, or an AC is still unchecked → return to Step 8, produce the evidence, then emit `SHIP_CHECK_OK`.
+- Verification genuinely *cannot* run (CI-only, manual/UI-only AC) → emit `SHIP_CHECK_SKIP: <reason>` — do not loop back to Step 8 to manufacture evidence that doesn't exist.
+
+This is a precondition, not a judgment call: no token, no commit.
 
 `TaskUpdate: "Verify AC" → completed`
 

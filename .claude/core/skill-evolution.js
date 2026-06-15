@@ -422,6 +422,29 @@ function main(argv) {
     process.exit(2);
 }
 
+/**
+ * Mine GEPA-style failure traces from an already-built benchmark object.
+ * Input: { evals: [{ eval_name, assertions: [{ text, evidence_on_fail }] }] }
+ * Output: [{ eval_name, assertion, evidence: string[] }] — one entry per
+ * assertion whose evidence_on_fail is a non-empty array. Assertions with no
+ * failure evidence are skipped. Pure function, no I/O.
+ */
+function extractFailureTraces(benchmark) {
+    const traces = [];
+    for (const ev of (benchmark && benchmark.evals) || []) {
+        for (const a of (ev && ev.assertions) || []) {
+            if (Array.isArray(a.evidence_on_fail) && a.evidence_on_fail.length > 0) {
+                traces.push({
+                    eval_name: ev.eval_name,
+                    assertion: a.text,
+                    evidence: a.evidence_on_fail,
+                });
+            }
+        }
+    }
+    return traces;
+}
+
 if (require.main === module) {
     try {
         main(process.argv.slice(2));
@@ -449,5 +472,6 @@ module.exports = {
     intake,
     renderIntakeMd,
     check,
+    extractFailureTraces,
     main,
 };

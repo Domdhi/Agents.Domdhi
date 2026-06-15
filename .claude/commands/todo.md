@@ -62,7 +62,7 @@ Read in parallel:
 
 ## Phase 2: Research (Sonnet agents — scaled to complexity)
 
-**CRITICAL: All research agents MUST persist their output to files.** Agent results evaporate when context compresses — persisted files are the permanent record.
+**All research agents must persist their output to files.** Agent results evaporate when context compresses — persisted files are the permanent record.
 
 **Reuse warm session agents before cold-spawning.** If agents earlier in THIS session already hold relevant context — e.g. an audit or investigation that motivated this TODO and already read the target files — RESUME them with a focused deep-dive prompt (SendMessage to the `agentId`) instead of cold-spawning fresh researchers. A warm agent skips rediscovery, already knows the file layout, and returns exact signatures faster. Still require it to persist findings to the research file below. Cold-spawn only for subsystems no prior agent has touched.
 
@@ -218,6 +218,7 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
     * [ ] {Specific, testable acceptance criterion}
     * [ ] {Another specific criterion}
   * **Estimate:** {XS|S|M|L}
+  * **Complexity:** {1–10}
   * **Dependencies:** {None | Story X.X}
   * **Files:**
     * `{exact/path/to/file}` — {what changes}
@@ -228,9 +229,9 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 
 ## Story Index
 
-| Story | Title | Size | Wave | Status | Dependencies |
-|-------|-------|------|------|--------|--------------|
-| {PREFIX}-N.N | {title} | {XS/S/M/L} | {wave #} | [ ] | {deps} |
+| Story | Title | Size | Complexity | Wave | Status | Dependencies |
+|-------|-------|------|-----------|------|--------|--------------|
+| {PREFIX}-N.N | {title} | {XS/S/M/L} | {1–10} | {wave #} | [ ] | {deps} |
 
 **Total: N stories. Estimated: ~N hours.**
 
@@ -278,6 +279,7 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 2. **Every story has a Files section** — exact paths from codebase research, not guesses
 3. **Every story has Research notes** — what exists now, patterns to follow, gotchas
 4. **Every story has an Estimate** — XS (< 30 min), S (30-60 min), M (1-2 hr), L (2-4 hr)
+4b. **Every story has a Complexity score (1–10)** — the persisted routing signal `/do` reads (see Complexity Score below). Wall-clock effort (Estimate) and routing complexity are distinct: a long-but-mechanical story is high-Estimate / low-Complexity.
 5. **Story Index with wave column** — `/run-todo` reads this to know execution order
 6. **Wave Plan with file ownership, QA flag, and Shape line** — `/run-todo` reads this directly. Shape line is required (see Wave Shape Decision below).
 7. **File overlap constraint depends on the Shape** — in `file-overlap partitioned` shape, zero overlap per wave is mandatory. In `single-hotspot collapsed` shape, the hotspot file appears across waves *by design*. In `role-based` shape, overlap is allowed at the role-wave level but stories within a role-wave have zero overlap when dispatched in parallel.
@@ -285,6 +287,23 @@ Main Agent writes the TODO directly. Do NOT delegate assembly to a subagent — 
 9. **No code blocks** — file paths and descriptions only. Implementation is the dev agent's job
 10. **AC bullets are NEVER stripped or summarized** — they flow verbatim into `/do` and `/run-todo`
 11. **Every story carries an Agent budget line within the HARD CAP** — ≤5 files modified / ≤2 files created (tests count). Split anything larger into parallel sub-stories. Bias toward more, smaller stories + more agents.
+
+---
+
+### Complexity Score (1–10) — canonical rubric
+
+Every story carries a persisted `**Complexity:** {1–10}` field. This is the **routing signal of record**: `/do` reads it to choose Main-Agent/Opus-direct vs Sonnet-delegate (Complexity ≤5 → Opus-direct; ≥6 → delegate), and `/review:optimize-backlog` can reason over it. Scoring it at authoring time makes the size/route decision **auditable** instead of re-judged ad-hoc on every `/do` run.
+
+Score from the same signals `/do` uses to size a task — files touched, new LOC, AC-bullet count, and nature (mechanical vs ambiguous):
+
+| Score | Band | Signals |
+|-------|------|---------|
+| 1–3 | Trivial/Small | ≤2 files modified, <150 new LOC, ≤4 AC bullets, mechanical spec→code |
+| 4–5 | Medium | ≤5 files, <500 LOC, ≤8 AC, mostly mechanical |
+| 6–7 | Large | >5 files OR ≥500 LOC OR >8 AC, some ambiguity |
+| 8–10 | Complex | multi-component, cross-cutting, multiple valid approaches |
+
+Complexity is **distinct from Estimate**: Estimate is wall-clock effort, Complexity is routing/ambiguity. A 2-hour but purely mechanical refactor is high-Estimate, low-Complexity (≤5 → stays Opus-direct). This is the single source of truth for the score; `/create:project-epics-todo` references this rubric rather than restating it.
 
 ---
 
@@ -331,6 +350,7 @@ Before handing off to external review, Main Agent scans its own output for plan 
 - [ ] Any story is missing the Files section or has only guessed paths (not from research)
 - [ ] Any story is missing Research notes
 - [ ] Any story is missing an Estimate
+- [ ] Any story is missing its **Complexity** score (1–10) — the persisted routing signal `/do` reads
 - [ ] Any story references an undefined story ID in Dependencies
 - [ ] Wave Plan is missing the **Shape** line (role-based | single-hotspot collapsed | file-overlap partitioned) — required for every TODO
 - [ ] In `file-overlap partitioned` shape: any wave has file overlap between stories (must be zero)
@@ -342,6 +362,15 @@ Before handing off to external review, Main Agent scans its own output for plan 
 - [ ] Wave Plan is missing the **Critical Path & Parallel Workstreams** block
 
 **This is a 30-second scan that catches 3-5 issues every time.** Do not skip it.
+
+**Spec-bug checks (wrong output, not just incomplete):**
+
+These run inline as part of the same scan — no subagent round-trip. Source: code-review severity rubric (wrong behavior, not just missing structure).
+
+- [ ] AC-satisfaction — does each story's impl description match what the AC *says*, not just that tests exist? (A passing test shaped to the wrong output is still wrong.)
+- [ ] Edge cases — does any AC bullet imply a boundary condition (empty input, max value, concurrent access) the story body doesn't address?
+- [ ] Error paths — if an AC mentions an error scenario ("returns 404", "shows an error message", "rejects invalid input"), is that path explicitly handled in the story's scope?
+- [ ] Contract mismatches — does the impl's proposed interface (types, return values, event shapes, parameter order) match what callers described in research or adjacent stories expect?
 
 ---
 

@@ -77,6 +77,46 @@ This preserves your `settings.json`, agent personalities, and any local customiz
 
 **To update an existing install later, run the zone-aware updater — don't re-clone:** `node .claude/core/template-updater.js update /path/to/your-project --merge`.
 
+## Configuration
+
+### Recommended effort level
+
+Domdhi.Agents commands like `/do`, `/run-todo`, and `/onboard` orchestrate multiple sub-agents, read and write files, run build gates, and commit. For these to work reliably, Claude Code's **effort level** should be set to `high` or above. At lower effort levels the model may cut planning steps short or skip agent delegation — both break the orchestration contract. Set effort before running any lifecycle command:
+
+```
+/config set effort high
+```
+
+(Or use the Claude Code settings UI. This is a per-session setting.)
+
+### Troubleshooting: isolating Domdhi.Agents from Claude Code itself
+
+If something goes wrong and you can't tell whether the issue is in Domdhi.Agents or in Claude Code's built-in behavior, the fastest bisect is to disable the template entirely and reproduce in a bare session.
+
+Claude Code's `--safe-mode` flag (if available in your version) disables extensions when starting a session — use it to rule out the `.claude/` hooks and commands:
+
+```bash
+claude --safe-mode
+```
+
+If the problem disappears in safe mode, it originates in Domdhi.Agents (hooks, commands, or agents). If it persists, the issue is in Claude Code itself.
+
+**If `--safe-mode` is not available in your version**, the same bisect works manually: temporarily rename `.claude/` to `_claude_disabled/`, open a plain Claude Code session, reproduce the issue, then rename the directory back. The goal is the same — remove all of Domdhi.Agents and confirm whether the problem follows.
+
+### Domdhi.Agents vs first-party Claude Code extensions
+
+There are two first-party Claude Code extensions that are sometimes compared to this template: `feature-dev` and `claude-code-setup`. The differences are architectural:
+
+| | Domdhi.Agents | `feature-dev` / `claude-code-setup` |
+|---|---|---|
+| **Lifecycle** | End-to-end: brainstorm → PRD → architecture → epics → implementation → review → retro | Implementation-phase only |
+| **Design phase** | First-class: UX spec, wireframes, themes, mock layout via `ux-designer` agent | Not covered |
+| **Doc governance** | Zone-aware two-repo model (template zone vs project zone; `template-updater.js` syncs without clobbering adopter customizations) | Single-repo, no zone model |
+| **Agent layer** | 11 specialized agents with skill auto-loading; extensible via `/review:specialize` | Generalist agents, no skill system |
+| **Memory** | Persistent, decay-weighted, FTS5-searchable memory that compounds across sessions | Session-scoped only |
+
+If you only need a coding assistant for an in-progress feature, the first-party tools may be enough. If you want a system that covers ideation through deployment and compounds knowledge over time, that's what this template is for.
+
 ## Getting Started
 
 Full walkthrough with a concrete sample project: [**docs/getting-started.md**](./docs/getting-started.md) — about thirty minutes from clone to specialized, implementation-ready project.

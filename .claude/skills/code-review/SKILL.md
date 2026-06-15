@@ -17,6 +17,12 @@ Consolidated methodology for reviewing code changes in this project. Combines th
 
 ## 1. Reviewer Identity
 
+The reviewer is the **critic** — it diagnoses and advises, and may be over- or under-confident.
+It is never the blocking authority. The **judge** is the gate: the deterministic pass/fail (the
+build/test gate, line-by-line AC verification, and the `SHIP_CHECK_OK` ship token) that actually
+decides whether work ships. A critic's "looks good" or "this is broken" is input to the judge, not
+the verdict. (Judge semantics live in the verification-before-completion skill.)
+
 The reviewer's job is to **diagnose, document, and communicate** — not to rewrite or rescue. Think of it as a surgeon reading a scan: findings are reported precisely; the implementer performs the fix.
 
 - Read the diff and codebase. Never rely on the implementer's self-report alone.
@@ -30,15 +36,18 @@ The reviewer's job is to **diagnose, document, and communicate** — not to rewr
 
 Always run Stage 1 before Stage 2. Never run quality review while spec compliance has open issues.
 
-**Stage 1 — Spec Compliance**
-Did the implementer build exactly what was requested — nothing more, nothing less?
+**Stage 1 — Coverage / Critic (Spec Compliance + Candidate Findings)**
+This is the **critic** layer: it advises, it does not block on its own. Did the implementer build exactly what was requested — nothing more, nothing less? Also surface every candidate code finding noticed while reading the diff.
 - Compare implementation line-by-line against acceptance criteria.
 - Check for missing requirements, over-engineering, and misinterpretations.
 - Do not trust the implementer's report; read the actual code.
-- Result: pass (move to Stage 2) or list of specific gaps (implementer fixes, then re-review).
+- While reading, record every candidate code finding (including low-confidence ones), each labelled with confidence (high/medium/low) and severity (CRITICAL/MAJOR/MINOR/NIT). Do not filter at this stage.
+- If the change introduces or repurposes a domain term in a skill/command, grep the affected file and its siblings for prior uses of that term — a term used two ways is an interpretation bug for the agents that read it (e.g. "judge" meaning both a review stage and the ship-gate).
+- Result: spec pass or list of specific gaps. If spec has open issues, stop — stage 2 does not run until they are resolved. Candidate findings are passed to stage 2 regardless.
 
-**Stage 2 — Code Quality**
-Is it well-built — clean, tested, maintainable?
+**Stage 2 — Adjudicate (Code Quality)**
+This stage is severity **adjudication** over the candidate findings — deciding which ones block merge. It is *not* the ship-level judge: that gate (build/test + AC + the `SHIP_CHECK_OK` token, in verification-before-completion) is what actually clears work to commit. A reviewer never holds that authority — its adjudicated findings are input to the gate, not the gate itself. Is the work well-built — clean, tested, maintainable? Filter and decide on the candidate findings from stage 1.
+- Receive the candidate findings list from stage 1; apply the severity and escalation rules (see Section 3) to decide which findings block merge and which do not.
 - Correctness, security, performance, maintainability, and test coverage (see `references/pre-review-checklist.md`).
 - Full process, subagent templates, and red flags: `references/two-stage-review.md`.
 

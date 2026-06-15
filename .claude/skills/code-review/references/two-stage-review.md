@@ -8,8 +8,8 @@
 
 Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration.
 
-**Stage 1 — Spec Compliance:** Did they build what was requested (nothing more, nothing less)?
-**Stage 2 — Code Quality:** Is it well-built (clean, tested, maintainable)?
+**Stage 1 — Coverage (Spec Compliance + Candidate Findings):** Did they build what was requested (nothing more, nothing less)? While reading the diff, surface every candidate code finding — including low-confidence ones — each labelled with confidence and severity. Do not filter; discovery is the goal.
+**Stage 2 — Adjudicate (Code Quality):** Is it well-built (clean, tested, maintainable)? Receive the candidate findings from stage 1 and apply severity and escalation rules to decide what blocks merge. (Adjudication ranks findings; it is not the ship-level judge — that gate lives in verification-before-completion.)
 
 Always run spec compliance before code quality. Never run code quality review if spec compliance has open issues.
 
@@ -127,7 +127,7 @@ Task tool (general-purpose):
 
     [From implementer's report]
 
-    ## CRITICAL: Do Not Trust the Report
+    ## Do Not Trust the Report
 
     The implementer may have been optimistic. You MUST verify everything independently.
 
@@ -165,6 +165,15 @@ Task tool (general-purpose):
     Report:
     - ✅ Spec compliant (if everything matches after code inspection)
     - ❌ Issues found: [list specifically what's missing or extra, with file:line references]
+
+    Candidate Findings (pass to stage 2 regardless of spec result):
+    While reading the diff, record every code finding you notice — do not filter here.
+    For each finding include:
+    - file:line
+    - what the issue is and why it matters
+    - confidence: high | medium | low
+    - severity: CRITICAL | MAJOR | MINOR | NIT
+    If you find nothing, write: "No candidate findings."
 ```
 
 ---
@@ -193,9 +202,15 @@ Task tool (code-reviewer):
   BASE_SHA: [commit before task]
   HEAD_SHA: [current commit]
   DESCRIPTION: [task summary]
-```
+  CANDIDATE_FINDINGS: [paste the full "Candidate Findings" block from the stage-1 report]
 
-Code reviewer returns: Strengths, Issues (Critical/Important/Minor), Assessment (Ready to merge? Yes/No/With fixes).
+  Your job as code quality reviewer:
+  - Start from the candidate findings list. Apply the severity and escalation rules (SKILL.md Section 3) to decide which findings block merge.
+  - Add any further findings you surface during your own quality pass.
+  - Do not invent findings to fill a count — report only what you actually observe.
+
+  Return: Strengths, Issues (Critical/Important/Minor), Assessment (Ready to merge? Yes/No/With fixes).
+```
 
 ---
 

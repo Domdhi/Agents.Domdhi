@@ -382,6 +382,73 @@ describe('aggregateEval', () => {
     });
 });
 
+// ── evidence_on_fail trace-mining (T.11 / GEPA) ──────────────────────────────
+// aggregateConfigRuns must stop discarding the `evidence` of FAILED expectations:
+// each assertion entry gains `evidence_on_fail: string[]` (non-empty evidence
+// strings from runs where that assertion failed). aggregateEval threads it onto
+// its per-assertion view so the benchmark carries diagnostic traces, not just a
+// scalar pass-rate.
+
+describe('evidence_on_fail (T.11 trace-mining)', () => {
+    it('aggregateConfigRuns collects evidence from failed expectations per assertion', () => {
+        const runs = [
+            { expectations: [
+                { text: 'A', passed: false, evidence: 'missing the seeding step' },
+                { text: 'B', passed: true, evidence: 'ok' },
+            ] },
+            { expectations: [
+                { text: 'A', passed: false, evidence: 'still no seeding' },
+                { text: 'B', passed: true, evidence: 'ok' },
+            ] },
+        ];
+        const agg = m.aggregateConfigRuns(runs);
+        expect(agg.assertions['A'].evidence_on_fail).toEqual([
+            'missing the seeding step',
+            'still no seeding',
+        ]);
+    });
+
+    it('does not collect evidence from passing expectations', () => {
+        const runs = [
+            { expectations: [{ text: 'B', passed: true, evidence: 'ok' }] },
+        ];
+        const agg = m.aggregateConfigRuns(runs);
+        expect(agg.assertions['B'].evidence_on_fail).toEqual([]);
+    });
+
+    it('ignores empty-string evidence on failures', () => {
+        const runs = [
+            { expectations: [{ text: 'A', passed: false, evidence: '' }] },
+        ];
+        const agg = m.aggregateConfigRuns(runs);
+        expect(agg.assertions['A'].evidence_on_fail).toEqual([]);
+    });
+
+    it('aggregateEval threads evidence_on_fail onto the per-assertion view', () => {
+        const evalRecord = {
+            eval_id: 'e-trace',
+            eval_name: 'trace-eval',
+            prompt: 'Test trace mining.',
+            baselineConfig: 'without_skill',
+            configs: {
+                with_skill: [
+                    { text: undefined, expectations: [
+                        { text: 'seeds the DB', passed: false, evidence: 'no INSERT observed' },
+                    ], total_tokens: 100, duration_ms: 500 },
+                ],
+                without_skill: [
+                    { expectations: [
+                        { text: 'seeds the DB', passed: false, evidence: 'baseline also failed' },
+                    ], total_tokens: 100, duration_ms: 500 },
+                ],
+            },
+        };
+        const result = m.aggregateEval(evalRecord);
+        const a = result.assertions.find((x) => x.text === 'seeds the DB');
+        expect(a.evidence_on_fail).toEqual(['no INSERT observed']);
+    });
+});
+
 // ── aggregateBenchmark ────────────────────────────────────────────────────────
 
 describe('aggregateBenchmark', () => {

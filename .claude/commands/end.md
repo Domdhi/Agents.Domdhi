@@ -125,6 +125,10 @@ If anything remains, **review the list before staging** (this is the safety step
 
 Output the handoff content for review, and end with the **tree state**: either `Tree: clean ✓` or an explicit list of the out-of-zone files left uncommitted (with why each was held back).
 
+## Automatic doc-drift surface (SessionEnd hook)
+
+Independently of `/end`, the `session-end-doc-sync.cjs` hook fires on every `SessionEnd` and runs a lightweight, **non-blocking** doc-drift check (`detectDocDrift` — legacy/duplicate planning docs and misplaced TODOs only, not the full `/review:check-sync` cross-reference). If it finds drift it writes a one-time notice to stderr; it **always exits 0 and never blocks the session from closing or the handoff from being written.** Silence its notice with `CLAUDE_NO_DOC_SYNC=1` (env var, e.g. in `.claude/settings.local.json`). This is a passive safety net, not part of the `/end` flow — `/end` neither triggers nor waits on it.
+
 ## Rules
 
 All rules live in the `session-handoff` skill — read them there. A few reminders specific to `/end`:

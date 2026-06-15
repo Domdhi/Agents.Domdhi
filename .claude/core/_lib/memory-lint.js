@@ -49,12 +49,20 @@ function lintMemories(allMemories, { calculateDecayedConfidence, categories, max
     const knownIds = new Set(allMemories.map(m => m.full.id));
 
     // Check 1 — Broken cross-references
-    const refPattern = /(?:related:|see:|ref:)\s*([\w-]+)/gi;
+    // Capture path chars too so a file-path citation ("ref: docs/.output/…") is
+    // swallowed whole and then skipped below — not mis-read as a bare id "docs".
+    const refPattern = /(?:related:|see:|ref:)\s*([\w./-]+)/gi;
     for (const { category, full } of allMemories) {
         const contentStr = JSON.stringify(full.content);
         let match;
         while ((match = refPattern.exec(contentStr)) !== null) {
-            const referencedId = match[1];
+            // Strip sentence-final punctuation first, so "see: missing-id." is still
+            // checked as the bare id "missing-id" rather than skipped as a path.
+            const referencedId = match[1].replace(/[.,;:]+$/, '');
+            // Memory ids are kebab-case slugs — a capture with a path separator or an
+            // INTERIOR dotted extension ("docs/foo.md") is a file-path citation, not a
+            // cross-reference. A trailing period (already stripped) is not.
+            if (referencedId.includes('/') || /\.[a-z]/i.test(referencedId)) continue;
             if (!knownIds.has(referencedId)) {
                 findings.broken_refs.findings.push({
                     memory: `${category}/${full.id}`,

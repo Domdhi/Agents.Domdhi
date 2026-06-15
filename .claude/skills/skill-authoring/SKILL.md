@@ -160,7 +160,7 @@ Concrete results
 
 **Format:** Start with "Use when..." to focus on triggering conditions
 
-**CRITICAL: Description = When to Use, NOT What the Skill Does**
+**Description = When to Use, NOT What the Skill Does**
 
 The description should ONLY describe triggering conditions. Do NOT summarize the skill's process or workflow in the description.
 

@@ -46,9 +46,29 @@ Determine the time window for time-bounded sources:
 
 State the resolved window in the report.
 
+### Step 1b: Consult the triage ledger
+
+Read `docs/.output/triage/_decisions.md` if it exists. This is a **read-only** step — `/listen` never writes to the ledger (that belongs to `/triage`). If the file is absent or empty, skip this step silently and proceed with an empty suppress set.
+
+Parse each line matching the format:
+
+```
+- {YYYY-MM-DD} · {fingerprint} · **killed|deferred** [until {hint}] — {reason}
+```
+
+Build two suppress sets:
+
+- **Killed:** every entry with `**killed**` — always suppress, no expiry.
+- **Active-deferred:** entries with `**deferred**` are suppressed ONLY while the deferral is still active:
+  - If the line has no parseable ISO date after `until` (e.g. `until pipeline-weight is reassessed` — vague text, no `YYYY-MM-DD`) → treat as active, suppress.
+  - If the line has a parseable `YYYY-MM-DD` after `until` and that date is **in the future** (≥ today) → active, suppress.
+  - If the parseable date is **in the past** (< today) → deferral has expired; do NOT suppress — allow the signal back into intake for re-evaluation.
+
+Matching during sweep (Step 2) is **fuzzy**: a gathered signal is suppressed if the fingerprint's key noun phrase appears as a **substring** of the signal text or origin tag, or vice versa. Do not require exact equality — `git:expiring-flag:payment-shim` suppresses a git signal whose text contains `payment-shim` or `payment shim`. Count the total number of suppressed signals across all sources into **SUPPRESSED_COUNT**.
+
 ### Step 2: Sweep each source (provenance-tagged)
 
-Run every applicable source. A source that yields nothing writes its header with `_No new signals._` — **never omit a section**, because a silent gap reads as "checked, all clear" when it might mean "not checked."
+Run every applicable source. A source that yields nothing writes its header with `_No new signals._` — **never omit a section**, because a silent gap reads as "checked, all clear" when it might mean "not checked." As each signal is gathered, apply the suppress set from Step 1b: if the signal matches a killed or active-deferred fingerprint (fuzzy substring match), omit it from the intake and increment **SUPPRESSED_COUNT**.
 
 **2a. `git` — code reality**
 - `git log --oneline --since={window}` — recent commits; flag anything that looks like a revert, hotfix, or "WIP/TODO" commit message.
@@ -122,6 +142,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage only the intak
 | backlog | {n} |
 | external | {n / skipped} |
 | **Total** | **{N}** |
+| Suppressed (ledger) | {SUPPRESSED_COUNT} |
 
 **Next:** run `/triage` to turn these signals into backlog items (defer / kill / promote).
 ```

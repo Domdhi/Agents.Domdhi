@@ -103,15 +103,27 @@ function aggregateConfigRuns(runs) {
 
     // Per-assertion pass-rate across runs, keyed by assertion text (stable label).
     const perAssertion = {};
+    // Parallel structure: evidence strings from runs where the assertion FAILED
+    // (the GEPA-style failure trace — diagnostic of WHY, not just the scalar rate).
+    const perAssertionEvidence = {};
     for (const r of list) {
         for (const e of r.expectations || []) {
             if (!e || typeof e.text !== 'string') continue;
             (perAssertion[e.text] ||= []).push(e.passed === true ? 1 : 0);
+            perAssertionEvidence[e.text] ||= [];
+            if (e.passed !== true && typeof e.evidence === 'string' && e.evidence) {
+                perAssertionEvidence[e.text].push(e.evidence);
+            }
         }
     }
     const assertionRates = {};
     for (const [text, hits] of Object.entries(perAssertion)) {
-        assertionRates[text] = { rate: round(mean(hits)), std: round(stddev(hits)), n: hits.length };
+        assertionRates[text] = {
+            rate: round(mean(hits)),
+            std: round(stddev(hits)),
+            n: hits.length,
+            evidence_on_fail: perAssertionEvidence[text] || [],
+        };
     }
 
     return {
@@ -157,6 +169,7 @@ function aggregateEval(evalRecord) {
             baseline: baseAgg ? b.rate : null,
             discriminating: baseAgg ? Math.abs(w.rate - b.rate) >= DISCRIMINATING_DELTA : null,
             high_variance: Math.max(w.std, b.std) >= HIGH_VARIANCE_STD,
+            evidence_on_fail: (withAgg.assertions[text] || {}).evidence_on_fail || [],
         };
     });
 

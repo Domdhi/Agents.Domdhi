@@ -129,6 +129,251 @@ describe('detectDocDrift', () => {
     });
 });
 
+// ── gradeDoc — placeholder/quality gate on planning docs (T.1) ───────────────
+// Contract: gradeDoc(absPath) → { pass: boolean, failures: string[] }
+//   - stub/unreadable (fails isRealDoc) → { pass:false, failures:[...] }
+//   - placeholder tokens (TBD, TODO, `{{`, bare `{…}` outside fenced code) → fail
+//   - each `#### FR-N:` block needs ≥1 Given/When/Then acceptance-criteria line
+//   - all-Must MoSCoW (every FR `Must Have`, ≥2 FRs) → fail
+//   - `## Success Criteria` table needs ≥1 non-placeholder data row
+
+describe('gradeDoc (T.1)', () => {
+    const { gradeDoc } = require('../doc-drift');
+
+    // A complete, filled requirements doc: no braces/TBD, two FRs with mixed
+    // MoSCoW priorities each carrying a Given/When/Then, a filled Success table.
+    const VALID_REQ = [
+        '# Product Requirements Document: Acme',
+        '',
+        '## Functional Requirements',
+        '',
+        '### Module: Auth',
+        '',
+        '#### FR-1: User login',
+        '- **Priority**: Must Have',
+        '- **Description**: The system authenticates registered users.',
+        '- **Acceptance Criteria**:',
+        '  - Given a registered user, When they submit valid credentials, Then they are authenticated.',
+        '',
+        '#### FR-2: Password reset',
+        '- **Priority**: Should Have',
+        '- **Description**: Users can reset a forgotten password.',
+        '- **Acceptance Criteria**:',
+        '  - Given a user with an account, When they request a reset, Then a reset email is sent.',
+        '',
+        '## Success Criteria',
+        '',
+        '| Criteria | Target | Measurement |',
+        '|----------|--------|-------------|',
+        '| Login success rate | 99% | server access logs |',
+        '',
+    ].join('\n');
+
+    it('passes a complete, filled requirements doc', () => {
+        write('docs/_project-requirements.md', VALID_REQ);
+        const r = gradeDoc(path.join(root, 'docs', '_project-requirements.md'));
+        expect(r.pass).toBe(true);
+        expect(r.failures).toEqual([]);
+    });
+
+    it('fails a template stub (isRealDoc guard) with pass:false', () => {
+        write('docs/_project-requirements.md', '<!-- @@template -->\n# PRD: {Project Name}\n');
+        const r = gradeDoc(path.join(root, 'docs', '_project-requirements.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.length).toBeGreaterThan(0);
+    });
+
+    it('fails on a bare {…} placeholder left in the doc', () => {
+        write('docs/req.md', VALID_REQ.replace('Acme', '{Project Name}'));
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/placeholder/i);
+    });
+
+    it('fails on a literal TBD marker', () => {
+        write('docs/req.md', VALID_REQ.replace('99%', 'TBD'));
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/placeholder|TBD/i);
+    });
+
+    it('fails on a {{…}} mustache placeholder', () => {
+        write('docs/req.md', VALID_REQ + '\nNotes: {{fill_me}}\n');
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+    });
+
+    it('does NOT flag braces inside a fenced code block', () => {
+        const withCode = VALID_REQ + '\n```json\n{ "example": "payload" }\n```\n';
+        write('docs/req.md', withCode);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+    });
+
+    it('fails when an FR block has no Given/When/Then acceptance criteria', () => {
+        // Strip FR-2's AC line, leaving the heading + priority only.
+        const noAc = VALID_REQ.replace(
+            '  - Given a user with an account, When they request a reset, Then a reset email is sent.\n',
+            ''
+        );
+        write('docs/req.md', noAc);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/FR-2|acceptance criteria/i);
+    });
+
+    it('accepts multi-line Gherkin acceptance criteria (F1 regression)', () => {
+        // Given/When/Then split across separate lines must still count as AC.
+        const multiline = VALID_REQ.replace(
+            '  - Given a registered user, When they submit valid credentials, Then they are authenticated.',
+            ['  - Given a registered user',
+             '  - When they submit valid credentials',
+             '  - Then they are authenticated'].join('\n')
+        );
+        write('docs/req.md', multiline);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+    });
+
+    it('does NOT flag braces inside a tilde-fenced code block (F2 regression)', () => {
+        const withTilde = VALID_REQ + '\n~~~json\n{ "example": "payload" }\n~~~\n';
+        write('docs/req.md', withTilde);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+    });
+
+    it('fails when every FR is Must Have (no prioritization)', () => {
+        const allMust = VALID_REQ.replace('Should Have', 'Must Have');
+        write('docs/req.md', allMust);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/must|moscow|priorit/i);
+    });
+
+    it('fails all-Must even when priorities carry annotations (Must Have (MVP))', () => {
+        // Guard against the `^must have$` anchor evading on a trailing annotation —
+        // the all-Must gate must still fire when every FR is `Must Have (MVP)`.
+        const annotatedAllMust = VALID_REQ
+            .replace('- **Priority**: Must Have', '- **Priority**: Must Have (MVP)')
+            .replace('- **Priority**: Should Have', '- **Priority**: Must Have (phase 2)');
+        write('docs/req.md', annotatedAllMust);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/must|moscow|priorit/i);
+    });
+
+    it('fails when the Success Criteria table has no filled data row', () => {
+        const noSuccess = VALID_REQ.replace(
+            '| Login success rate | 99% | server access logs |',
+            '| {what} | {target} | {how measured} |'
+        );
+        write('docs/req.md', noSuccess);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/success criteria/i);
+    });
+
+    it('grades a Success Criteria section nested at H3, not just H2 (sweep residual)', () => {
+        const h3 = VALID_REQ.replace('## Success Criteria', '### Success Criteria');
+        write('docs/req.md', h3);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+        expect(r.failures.join(' ')).not.toMatch(/success criteria/i);
+    });
+
+    it('closes an FR block on a 5-level (#####) heading — GWT in a subsection is not the FR AC (sweep residual)', () => {
+        // FR-3 has no AC of its own; a ##### Examples subsection below it carries a
+        // Given/When/Then line. The H5 heading must close the FR block so that line
+        // does NOT count as FR-3's acceptance criteria.
+        const withSub = VALID_REQ.replace(
+            '## Success Criteria',
+            [
+                '#### FR-3: Reporting',
+                '- **Priority**: Could Have',
+                '- **Description**: Users can export reports.',
+                '##### Examples',
+                '- Given a user, When they click export, Then a CSV downloads.',
+                '',
+                '## Success Criteria',
+            ].join('\n')
+        );
+        write('docs/req.md', withSub);
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(false);
+        expect(r.failures.join(' ')).toMatch(/FR-3|acceptance criteria/i);
+    });
+
+    it('does NOT flag a numeric regex quantifier {3} in prose (sweep residual)', () => {
+        write('docs/req.md', VALID_REQ + '\nThe retry policy allows {3} attempts before failing.\n');
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+    });
+
+    it('does NOT flag braces inside an inline-code span (sweep residual)', () => {
+        write('docs/req.md', VALID_REQ + '\nUse the `{n}` notation to denote a count.\n');
+        const r = gradeDoc(path.join(root, 'docs', 'req.md'));
+        expect(r.pass).toBe(true);
+    });
+});
+
+// ── gradeDoc CLI `grade` subcommand (T.1) ────────────────────────────────────
+describe('gradeDoc CLI — grade subcommand (T.1)', () => {
+    let originalArgv;
+    let stdoutCapture;
+
+    beforeEach(() => {
+        originalArgv = process.argv.slice();
+        stdoutCapture = [];
+        vi.spyOn(process, 'exit').mockImplementation((code) => {
+            throw new Error(`process.exit(${code ?? 'undefined'})`);
+        });
+        vi.spyOn(process.stdout, 'write').mockImplementation((s) => {
+            stdoutCapture.push(String(s));
+            return true;
+        });
+        vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+        process.argv = originalArgv;
+        vi.restoreAllMocks();
+        delete require.cache[DOC_DRIFT_PATH];
+    });
+
+    function freshMain() {
+        delete require.cache[DOC_DRIFT_PATH];
+        return require('../doc-drift').main;
+    }
+
+    it('exits non-zero when grading a stub', () => {
+        write('docs/req.md', '<!-- @@template -->\n# PRD: {Project Name}\n');
+        process.argv = ['node', 'doc-drift.js', 'grade', path.join(root, 'docs', 'req.md')];
+        expect(() => freshMain()()).toThrow(/process\.exit\([^0]/);
+    });
+
+    it('exits 0 when grading a complete doc', () => {
+        write('docs/req.md', [
+            '# PRD: Acme',
+            '## Functional Requirements',
+            '#### FR-1: Login',
+            '- **Priority**: Must Have',
+            '- **Acceptance Criteria**:',
+            '  - Given a user, When they log in, Then they are authenticated.',
+            '#### FR-2: Reset',
+            '- **Priority**: Should Have',
+            '- **Acceptance Criteria**:',
+            '  - Given a user, When they reset, Then an email is sent.',
+            '## Success Criteria',
+            '| Criteria | Target | Measurement |',
+            '|---|---|---|',
+            '| Uptime | 99.9% | logs |',
+            '',
+        ].join('\n'));
+        process.argv = ['node', 'doc-drift.js', 'grade', path.join(root, 'docs', 'req.md')];
+        expect(() => freshMain()()).toThrow('process.exit(0)');
+    });
+});
+
 // ── isRealDoc ────────────────────────────────────────────────────────────────
 
 describe('isRealDoc', () => {

@@ -40,7 +40,7 @@ If `_backlog.md` doesn't exist or is template-only:
 ### 2. Build Dependency Graph (main agent)
 
 Extract from `_backlog.md`:
-1. **All stories** with their ID, epic, phase, estimate, domain tag, and dependencies
+1. **All stories** with their ID, epic, phase, estimate, **Complexity score (1–10, if present)**, domain tag, and dependencies. The Complexity score (the persisted `/do` routing signal — see `/todo`'s canonical rubric) is gathered alongside the estimate and carried into the analysis below; treat it as missing-tolerant (older stories may lack it).
 2. **Build adjacency list**: For each story, list what it depends on and what depends on it
 3. **Identify**:
    - **Root nodes**: Stories with no dependencies (can start immediately)
@@ -88,7 +88,7 @@ Track A (Runtime):  3.1 → 4.1 → 4.2 → ...
 Track B (Frontend): 10.1 → 10.2 → 10.3 → ...
 Track C (Types):    2.1 → 2.2 → 2.3 → ...
 ```
-For each track: stories, total estimate, package(s) touched, which phases it spans.
+For each track: stories, total estimate, package(s) touched, which phases it spans, and — where Complexity scores are present — the count of high-Complexity (≥6, delegate-routed) stories on the track, so a track loaded with ambiguous/delegate-bound work is visible (it parallelizes differently than a track of mechanical ≤5 stories).
 
 #### D. Over-Specified Dependencies
 Stories where a listed dependency isn't strictly necessary. Example: "Story 14.1 lists 10.5 as a dependency, but 14.1 only needs the shell layout (10.3), not the API client."

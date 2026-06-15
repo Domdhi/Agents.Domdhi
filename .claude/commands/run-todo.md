@@ -122,7 +122,7 @@ TaskCreate: "Organize + report" (blockedBy: verify)
 
 ### Step 3: Write execution plan file — PERSIST BEFORE EXECUTION
 
-**CRITICAL — write the plan file to disk BEFORE Wave 1 starts.** If the session dies mid-wave, a disk-persisted plan lets `/run-todo` resume from the last incomplete wave. A plan that only exists in Plan Mode is gone on disconnect.
+**Write the plan file to disk BEFORE Wave 1 starts.** If the session dies mid-wave, a disk-persisted plan lets `/run-todo` resume from the last incomplete wave. A plan that only exists in Plan Mode is gone on disconnect.
 
 Path: `docs/.output/plans/{YYMMDD-HHMM}-run-todo-{slug}.md`. Compute the `{YYMMDD-HHMM}` run stamp (`date +%y%m%d-%H%M`) once at plan creation and reuse the exact same filename for the per-wave updates and later `git add` — a same-day re-run then never clobbers the prior plan.
 
@@ -557,6 +557,18 @@ Story {ID}:
 | 1 | {criterion} | PASS | {file:line or command output} |
 | 2 | {criterion} | PASS | {test name} |
 ```
+
+**Wave ship-token gate (hard precondition for the wave commit).** Before the wave proceeds
+to commit (Step 8), confirm the ship token is present for this wave:
+
+- `SHIP_CHECK_OK` — emitted once a fresh verification command passed for the wave AND every
+  AC bullet across the wave's stories is checked (all PASS / `[CI-pending]` / `[manual]`).
+  This is the normal path and the wave's termination condition.
+- `SHIP_CHECK_SKIP: <reason>` — the audited override, when verification genuinely could not
+  run (CI-only, manual/UI-only AC). The reason is the audit record.
+
+No token means the wave is not done — return to AC verification and produce the evidence.
+The token, not agent judgment, decides the wave is finished and may commit.
 
 `TaskUpdate: "Wave {N}: AC verification" → completed`
 
