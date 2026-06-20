@@ -891,3 +891,4 @@ Stories that are read-only verification (no code changes):
 14. **Commit per wave, not per story.** Keeps git history clean and atomic.
 15. **Main Agent fixes alignment issues and gate failures directly.** Do not re-dispatch agents for small fixes.
 16. **Pre-flight must pass.** Never start on a broken baseline.
+17. **Resolve to green — the operating standard.** Each wave fixes what it finds in-pass and AC-verifies before the wave commit (Steps 5–8). An adjacent bug a fix exposes gets resolved in the same wave, not deferred — "resolve it or don't report it." The only legitimate stop is a genuine fork (mutually-exclusive approaches, an irreversible/outward action, materially expanded scope); a clear bug is never one. The canonical statement lives in `.claude/skills/verification-before-completion/SKILL.md`.

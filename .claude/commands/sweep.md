@@ -44,6 +44,8 @@ node .claude/core/telemetry-log.js sweep
 > - A phase agent reports a CRITICAL finding that would corrupt the store (e.g., a merge that loses an evidence anchor) → skip that one operation, log it, continue.
 > - A build/test gate fails after an auto-applied code change in Step 3 → **stop, report, leave the rest unrun.**
 > - The user passed `--gated` (see Variables) → pause between phases.
+>
+> **The sweep's own damage is always resolved in-pass — the operating standard.** Any inconsistency this sweep introduces (a Phase-3/5 edit that breaks skill conformance, an orphaned skill, a broken wiring ref) is fixed and re-verified before the final report (Phase 7b) — never just logged. That is "resolve it or don't report it." Pre-existing issues *unrelated* to this sweep are the documented exception: surface them as residual follow-ups, don't churn already-merged code. Canonical statement: `.claude/skills/verification-before-completion/SKILL.md`.
 
 ## Execution Notes (generic hardening — apply regardless of stack)
 

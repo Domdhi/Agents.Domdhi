@@ -281,8 +281,12 @@ describe('seedTempStores + runPass', () => {
     it('runPass honors the includeSuperseded flag without throwing', async () => {
         const seedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-eval-seed2-'));
         try {
-            const { prunedManager } = await seedTempStores(seedRoot);
+            // seedTempStores opens BOTH managers; track both so closeTracked()
+            // releases every SQLite handle before rmSync (an untracked open handle
+            // locks the .db file and fails the cleanup with EPERM on Windows).
+            const { prunedManager, noisyManager } = await seedTempStores(seedRoot);
             trackManager(prunedManager);
+            trackManager(noisyManager);
             const withSuperseded = await runPass(prunedManager, DEFAULT_QUERIES, 3, true);
             expect(withSuperseded.total).toBe(DEFAULT_QUERIES.length);
             expect(withSuperseded.perQuery).toHaveLength(DEFAULT_QUERIES.length);

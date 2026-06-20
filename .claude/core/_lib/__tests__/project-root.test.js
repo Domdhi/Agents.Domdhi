@@ -43,11 +43,16 @@ describe('resolveProjectRoot', () => {
             git(['commit', '-qm', 'init'], root);
             git(['worktree', 'add', '-q', wt, '-b', 'feat'], root);
 
+            // Normalize both sides through realpathSync.native: on Windows,
+            // os.tmpdir() can yield an 8.3 short path (e.g. DBACA~1.NMM) while
+            // git's --git-common-dir returns the long form (dbaca.NMMFA). Same
+            // directory, different strings — canonicalize before comparing.
+            const norm = (p) => fs.realpathSync.native(p);
             // From the linked worktree, the resolved root is the MAIN worktree —
             // so a memory store anchored to it is shared, not worktree-local.
-            expect(resolveProjectRoot(wt)).toBe(root);
+            expect(norm(resolveProjectRoot(wt))).toBe(norm(root));
             // And from the main worktree it stays the main worktree.
-            expect(resolveProjectRoot(root)).toBe(root);
+            expect(norm(resolveProjectRoot(root))).toBe(norm(root));
         } finally {
             try { git(['worktree', 'remove', '--force', wt], root); } catch { /* best effort */ }
             fs.rmSync(root, { recursive: true, force: true });

@@ -30,6 +30,8 @@ The reviewer's job is to **diagnose, document, and communicate** — not to rewr
 - Be specific: `file:line`, what's wrong, why it matters, how to fix (if not obvious).
 - Give a clear verdict. "Looks good" without checking, or vague notes like "improve error handling", are not reviews.
 
+**Diagnose, don't rewrite — and that is full compliance with the operating standard, not an exception to it.** The project's standard is "resolve it or don't report it," but for the *reviewer* role it translates rather than relaxes: the reviewer's "resolve" is an **exhaustive, precise, immediately-actionable** finding (`file:line` + a concrete fix), handed to the orchestrator who performs the resolution. Writing the fix yourself would contaminate the field you're examining (and a `code-reviewer`/`security-auditor` has no `Edit` tool). So "Fix everything you find" (Section 4) is an instruction about *scope of attention* — nothing you spot is out of bounds — executed as a fix-ready finding, not a code edit. The loop still closes in one pass; the orchestrator is the hand that resolves.
+
 ---
 
 ## 2. Two-Stage Review Process

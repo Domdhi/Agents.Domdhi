@@ -7,6 +7,8 @@ argument-hint: [file path, PR number, or git diff range]
 
 Review code for quality, security, and architecture compliance. Uses the `code-review` skill.
 
+**Operating standard — read-only by design, fix-ready by obligation.** This command produces a review, not a code change: `code-reviewer` has no `Edit` tool, and that read-only stance is full compliance with "resolve it or don't report it," not an exception to it. The reviewer's half of the standard is **exhaustive, precise, immediately-actionable** findings (`file:line` + a concrete fix, no hand-waving, no truncation); the orchestrator's half is resolving the CRITICAL/MAJOR items rather than deferring them. The review dead-ends in a report only if no fix is warranted. Canonical: `.claude/skills/verification-before-completion/SKILL.md`.
+
 ## Telemetry (run first)
 
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):

@@ -13,10 +13,19 @@
 //       worktrees, where .git is a file pointer rather than a directory.)
 //      Do NOT add the Co-Authored-By trailer; this script appends it.
 //   2. Run:
-//        node .claude/core/commit.js            # commit staged changes
-//        node .claude/core/commit.js --all      # stage everything, then commit
-//        node .claude/core/commit.js --amend    # amend the last commit's message/content
-//        node .claude/core/commit.js --dry-run  # print the final message, commit nothing
+//        node .claude/core/commit.js              # commit staged changes
+//        node .claude/core/commit.js --all        # stage everything, then commit
+//        node .claude/core/commit.js --paths A B  # stage exactly A and B, then commit
+//        node .claude/core/commit.js --amend      # amend the last commit's message/content
+//        node .claude/core/commit.js --dry-run    # print the final message, commit nothing
+//
+// MULTI-PROCESS SAFETY:
+//   With NO --all and NO --paths, this commits ONLY what is already staged — it
+//   never runs `git add` of its own, so a concurrent process (a parallel /run-todo,
+//   a background agent) sharing the working tree cannot get its in-flight files
+//   swept into your commit. --all (git add -A) is UNSAFE when the tree is shared.
+//   --paths stages an explicit, reviewable set and is the multi-process-safe way
+//   to commit specific files.
 //
 // GUARANTEES:
 //   - Appends the Co-Authored-By trailer exactly once (idempotent).
@@ -43,6 +52,27 @@ function parseArgs(args) {
   const amend = has('--amend');
   const dryRun = has('--dry-run', '-n');
 
+  // --paths <pathspec...> — stage EXACTLY these paths (git add -- <paths>), then
+  // commit only-staged. Collect every token after --paths that does NOT start with
+  // '-', so trailing flags (e.g. --amend) after the path list still parse.
+  let paths = null;
+  const pathsIdx = args.indexOf('--paths');
+  if (pathsIdx >= 0) {
+    paths = [];
+    for (let i = pathsIdx + 1; i < args.length && !args[i].startsWith('-'); i++) {
+      paths.push(args[i]);
+    }
+    if (paths.length === 0) {
+      throw new Error('--paths requires at least one pathspec, e.g. --paths README.md docs/x.md');
+    }
+  }
+
+  // --paths and --all are mutually exclusive: one stages an explicit set, the
+  // other sweeps everything. Combining them is contradictory — fail loudly.
+  if (paths && stageAll) {
+    throw new Error('--paths and --all are mutually exclusive (explicit set vs sweep-everything). Pick one.');
+  }
+
   const fileIdx = args.indexOf('--file');
   const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
 
@@ -51,7 +81,7 @@ function parseArgs(args) {
 
   const noScan = has('--no-scan') || process.env.CLAUDE_COMMIT_NO_SCAN === '1';
 
-  return { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan };
+  return { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan, paths };
 }
 
 function git(...a) {
@@ -115,7 +145,14 @@ function runScan(noScan) {
 
 function main() {
   const args = process.argv.slice(2);
-  const { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan } = parseArgs(args);
+  let parsed;
+  try {
+    parsed = parseArgs(args);
+  } catch (e) {
+    console.error(`[commit] ${e.message}`);
+    process.exit(1);
+  }
+  const { stageAll, amend, dryRun, fileIdx, msgFile, inlineMsg, noScan, paths } = parsed;
 
   const lines = readMessage(inlineMsg, msgFile);
   const finalMsg = appendCoAuthor(lines);
@@ -136,10 +173,14 @@ function main() {
     console.log('────────────────────────────────────────');
     process.stdout.write(finalMsg);
     console.log('────────────────────────────────────────');
+    if (paths) {
+      console.log(`[commit] would run: git add -- ${paths.join(' ')}`);
+    }
+    const stagePrefix = stageAll ? 'add -A && ' : '';
     if (inlineMsg) {
-      console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -m <msg>${amend ? ' --amend' : ''}`);
+      console.log(`[commit] would run: git ${stagePrefix}commit -m <msg>${amend ? ' --amend' : ''}`);
     } else {
-      console.log(`[commit] would run: git ${stageAll ? 'add -A && ' : ''}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
+      console.log(`[commit] would run: git ${stagePrefix}commit -F ${msgFile}${amend ? ' --amend' : ''}`);
     }
     process.exit(0);
   }
@@ -147,7 +188,16 @@ function main() {
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
   console.log(`[commit] branch: ${branch}`);
 
-  if (stageAll) {
+  if (paths) {
+    // Stage EXACTLY the listed paths. NOTE: --paths *adds* to the index — any
+    // files staged before this call are still committed. For strict isolation,
+    // commit from a clean index.
+    git('add', '--', ...paths);
+    console.log(`[commit] staged paths: ${paths.join(' ')}`);
+    const stagedSet = git('diff', '--cached', '--name-only').trim();
+    console.log('[commit] staged set now:');
+    console.log(stagedSet ? stagedSet.split('\n').map((f) => `  ${f}`).join('\n') : '  (nothing staged)');
+  } else if (stageAll) {
     git('add', '-A');
     console.log('[commit] staged all changes (git add -A)');
   }

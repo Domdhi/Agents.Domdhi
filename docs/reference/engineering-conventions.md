@@ -75,3 +75,40 @@ Consequence: anything hardcoded in a `__tests__/` file — an absolute path, a u
 *Rules:* `CHANGELOG.md` is **workshop-only** — it is not in the publish allowlist (`tools/publish-manifest.json`) and not a `.claude/` subtree, so neither `publish.js` nor `template-updater.js` carries it. Adopters see only the newest 3 releases in the `version.json` they sync; the full history lives in the workshop's `CHANGELOG.md`. The cap is enforced in `tools/fleet.js` (`capChangelog` / `mergeChangelogArchive`) — don't hand-edit `version.json` to re-stack old entries.
 
 *Why:* the inline changelog had grown to span v4.59→v4.80 in one string (2026-06-14), bloating every adopter's `version.json`.
+
+## Working discipline
+
+### Resolve it or don't report it
+
+A problem found is a problem fixed. When investigation or verification surfaces something clearly worth fixing — a failing test, a broken parser, a typo, dead code, a flaky path — **fix it in the same pass**, then re-verify. Diagnose → fix → re-run the real command → report what you did.
+
+- A report that ends in "want me to fix it?" for an obviously-worthwhile fix is an **incomplete job**, not a courtesy.
+- "Pre-existing" / "unrelated" describe a bug's *origin*, not a license to leave it broken.
+- If a fix exposes a new failure, follow the thread to green.
+- **Only** stop to ask on a genuine fork: mutually-exclusive approaches, an irreversible/outward action, or scope that materially expands the task. A clear bug is never a fork.
+
+*Why:* established 2026-06-20 after a "4 tests fail, here's why, want me to fix them?" report — the diagnosis was right but stopping there wasted a round-trip on work that was plainly worth doing. (Mirrors the global Rule 5 and the `verification-before-completion` skill's "Resolve, Don't Defer.")
+
+## Cross-platform / Windows portability
+
+The test suite runs on Windows (Node 24) as well as Linux/macOS CI. Several classes of bug pass on POSIX and break only on Windows — guard against all of them. (All five field-proven 2026-06-20 when a Windows + Node 24 run surfaced them at once.)
+
+### Split on `/\r?\n/`, never bare `\n`; normalize to LF via `.gitattributes`
+
+A Windows checkout with `core.autocrlf=true` and no override leaves `\r` on every line. A parser that does `content.split('\n')` then exact-matches a fence (`lines[0] === '---'`) silently fails because `lines[0]` is `"---\r"`. **Rule:** split text on `/\r?\n/` in any parser that exact-matches whole lines. The repo's root `.gitattributes` (`* text=auto eol=lf`) is the systemic guard — keep it. *Field case:* `skill-conformance.js` reported all 23 skills' `name` as `null`.
+
+### `fileURLToPath(import.meta.url)`, never `new URL(import.meta.url).pathname`
+
+On Windows the latter returns `/C:/Users/...` (leading slash), which `path.resolve` turns into the bogus `C:\C:\...`. **Rule:** always `import { fileURLToPath } from 'node:url'` and use `fileURLToPath(import.meta.url)`. *Field case:* `guardrail.test.js` failed to load its rules file with `ENOENT C:\C:\...`. (Also documented in `qa-engineer/SKILL.md`.)
+
+### Prefer built-in `node:sqlite` on Node 24+; PROBE a native backend, don't trust `require()`
+
+`require('better-sqlite3')` loads only the JS wrapper — the native `.node` binary loads lazily at `new DatabaseSync()` and throws on an ABI mismatch (a build for a different Node major). **Rule:** on Node 24+ prefer the zero-dependency built-in `node:sqlite`; when adopting any SQLite backend, validate it by actually constructing an in-memory FTS5 table (`probeFts5`) before committing to it, so a broken candidate falls through instead of silently degrading every later call to JSON-only. *Field case:* memory search silently fell back to JSON (0 hits, 167 errors) on a box with a stale `better-sqlite3` build.
+
+### Canonicalize paths with `fs.realpathSync.native` before string-comparing
+
+`os.tmpdir()` can return an 8.3 short path (`C:\Users\DBACA~1.NMM\...`) while `git --git-common-dir` returns the long form (`dbaca.NMMFA`). Same directory, different strings → a `toBe` comparison fails. **Rule:** run both sides through `fs.realpathSync.native()` before comparing paths. *Field case:* the `resolveProjectRoot` worktree test.
+
+### Close SQLite handles before `rmSync` of a temp dir
+
+Windows refuses to delete a directory containing a file with an open handle (`EPERM`); POSIX allows it. A test that opens a DB and `rmSync`s its dir in `finally` must close **every** handle first. **Rule:** track and close all managers/handles a fixture opens before removing its directory — not just the ones the assertion used. *Field case:* a `seedTempStores` helper opened two managers; the test closed one, and the leaked second handle locked the `.db` against cleanup.

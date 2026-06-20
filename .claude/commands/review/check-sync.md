@@ -7,6 +7,8 @@ argument-hint: [scope: all | architecture | stories | prd]
 
 Detect documentation drift by comparing planning docs against actual project state. Run after stories, after epics, or on-demand to catch misalignment early.
 
+**Operating standard — read-only by design, fix-ready output, chains into resolution.** This command diagnoses drift; it does not rewrite the docs. That read-only stance is intentional and is full compliance with "resolve it or don't report it," not an exception: the drift report is **fix-ready** (each item names what the doc says, what reality shows, and the specific reconciliation), and it chains into resolution via `/review:update-docs`. The loop closes by handing the orchestrator an actionable report, not by dead-ending in a list. Canonical: `.claude/skills/verification-before-completion/SKILL.md`.
+
 ## Telemetry (run first)
 
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):

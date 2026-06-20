@@ -55,7 +55,10 @@ function parseField(frontmatter, field) {
 
 /** Return the frontmatter block (between the first two `---` fences), or ''. */
 function extractFrontmatter(content) {
-    const lines = content.split('\n');
+    // Split on CRLF or LF — a Windows checkout (core.autocrlf=true, no .gitattributes
+    // override) leaves \r on each line, which would make an exact `=== '---'` fence
+    // match fail and silently report every field as null.
+    const lines = content.split(/\r?\n/);
     if (lines[0] !== '---') return '';
     for (let i = 1; i < lines.length; i++) {
         if (lines[i] === '---') return lines.slice(0, i + 1).join('\n');

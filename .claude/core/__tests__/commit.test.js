@@ -361,6 +361,37 @@ describe('commit.js parseArgs (in-process)', () => {
     process.env.CLAUDE_COMMIT_NO_SCAN = '1';
     expect(commit.parseArgs([]).noScan).toBe(true);
   });
+
+  // ─── --paths (multi-process-safe explicit staging) ──────────────────────────
+  it('no --paths → paths is null (back-compat)', () => {
+    expect(commit.parseArgs([]).paths).toBe(null);
+    expect(commit.parseArgs(['--all']).paths).toBe(null);
+  });
+
+  it('--paths collects every pathspec until the next flag', () => {
+    expect(commit.parseArgs(['--paths', 'a.md', 'b.md']).paths).toEqual(['a.md', 'b.md']);
+    // A trailing flag stops collection; --amend after the list still parses.
+    const r = commit.parseArgs(['--paths', 'a.md', '--amend']);
+    expect(r.paths).toEqual(['a.md']);
+    expect(r.amend).toBe(true);
+  });
+
+  it('--paths composes with --dry-run and --file', () => {
+    const r = commit.parseArgs(['--paths', 'x.cs', 'y.cs', '--dry-run', '--file', 'msg.txt']);
+    expect(r.paths).toEqual(['x.cs', 'y.cs']);
+    expect(r.dryRun).toBe(true);
+    expect(r.msgFile).toBe('msg.txt');
+  });
+
+  it('bare --paths (no pathspec) throws', () => {
+    expect(() => commit.parseArgs(['--paths'])).toThrow(/at least one pathspec/);
+    expect(() => commit.parseArgs(['--paths', '--amend'])).toThrow(/at least one pathspec/);
+  });
+
+  it('--paths + --all is mutually exclusive (order-independent)', () => {
+    expect(() => commit.parseArgs(['--paths', 'a.md', '--all'])).toThrow(/mutually exclusive/);
+    expect(() => commit.parseArgs(['--all', '--paths', 'a.md'])).toThrow(/mutually exclusive/);
+  });
 });
 
 describe('commit.js appendCoAuthor (in-process)', () => {
@@ -596,5 +627,67 @@ describe('commit.js main() — full commit against an isolated tmp repo (in-proc
     // The "[commit] done:" line was logged.
     const logged = logSpy.mock.calls.flat().join('\n');
     expect(logged).toMatch(/\[commit\] done:/);
+  });
+});
+
+// ─── --paths against an isolated tmp repo (the multi-process-safe path) ──────────
+// Proves the headline guarantee: --paths stages ONLY the listed file, so a
+// concurrent process's in-flight file (other.md) never gets swept into the commit.
+// Uses the same runCommit/createGitRepo helpers as the secret-scan gate tests.
+
+describe('commit.js --paths (full path against tmp repo)', () => {
+  let tmp;
+  beforeEach(() => { tmp = createTmpDir({ prefix: 'commit-paths-' }); });
+  afterEach(() => tmp.cleanup());
+
+  it.skipIf(!gitAvailable())('--dry-run --paths echoes the add and stages nothing', () => {
+    const repo = createGitRepo({ root: tmp.root });
+    fs.writeFileSync(path.join(repo.repoPath, 'wanted.md'), 'wanted\n');
+    const msg = path.join(tmp.root, 'MSG');
+    fs.writeFileSync(msg, 'feat: dry run\n');
+
+    const { status, stdout } = runCommit(repo.repoPath, msg, ['--dry-run', '--paths', 'wanted.md']);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/would run: git add -- wanted\.md/);
+    // Dry-run must stage nothing.
+    const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
+      cwd: repo.repoPath, encoding: 'utf8',
+    }).trim();
+    expect(staged).toBe('');
+  });
+
+  it.skipIf(!gitAvailable())('live --paths stages ONLY the listed file, leaving a concurrent file untouched', () => {
+    const repo = createGitRepo({ root: tmp.root });
+    // Our file + a concurrent process's in-flight file side by side.
+    fs.writeFileSync(path.join(repo.repoPath, 'wanted.md'), 'wanted\n');
+    fs.writeFileSync(path.join(repo.repoPath, 'other.md'), 'concurrent\n');
+    const msg = path.join(tmp.root, 'MSG');
+    fs.writeFileSync(msg, 'feat: paths only\n');
+
+    const before = commitCount(repo.repoPath);
+    const { status } = runCommit(repo.repoPath, msg, ['--paths', 'wanted.md', '--no-scan']);
+    expect(status).toBe(0);
+    expect(commitCount(repo.repoPath)).toBe(before + 1);
+
+    // The commit contains wanted.md and NOT other.md.
+    const committed = execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'], {
+      cwd: repo.repoPath, encoding: 'utf8',
+    }).trim().split('\n').filter(Boolean);
+    expect(committed).toEqual(['wanted.md']);
+
+    // other.md must remain untracked.
+    const stillUntracked = execFileSync('git', ['status', '--porcelain', 'other.md'], {
+      cwd: repo.repoPath, encoding: 'utf8',
+    }).trim();
+    expect(stillUntracked).toMatch(/^\?\? other\.md/);
+  });
+
+  it.skipIf(!gitAvailable())('--paths + --all exits non-zero (mutually exclusive)', () => {
+    const repo = createGitRepo({ root: tmp.root });
+    const msg = path.join(tmp.root, 'MSG');
+    fs.writeFileSync(msg, 'feat: conflict\n');
+    const { status, stdout } = runCommit(repo.repoPath, msg, ['--paths', 'x.md', '--all']);
+    expect(status).not.toBe(0);
+    expect(stdout).toMatch(/mutually exclusive/);
   });
 });

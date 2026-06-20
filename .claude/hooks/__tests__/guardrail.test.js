@@ -709,7 +709,10 @@ describe('guardrail — live rules (tmp-exempt rm -rf + destructive find -exec)'
 describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
     const fs = require('node:fs');
     const path = require('node:path');
-    const here = path.dirname(new URL(import.meta.url).pathname);
+    const { fileURLToPath } = require('node:url');
+    // fileURLToPath is Windows-safe; new URL(import.meta.url).pathname returns
+    // '/C:/...' which path.resolve turns into the bogus 'C:\C:\...'.
+    const here = path.dirname(fileURLToPath(import.meta.url));
     const realRules = parseYaml(
         fs.readFileSync(path.resolve(here, '..', '..', 'guardrail-rules.yaml'), 'utf8')
     );

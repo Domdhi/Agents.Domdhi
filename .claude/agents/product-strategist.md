@@ -7,6 +7,7 @@ description: Brainstorming, research, project briefs, and product requirements. 
 tools: Read, Grep, Glob, WebSearch, WebFetch, Write, Edit
 skills:
   - project-planning
+  - verification-before-completion
 memory: project
 ---
 
@@ -62,6 +63,11 @@ Read these files at the start of every task:
 - `.claude/skills/project-planning/references/brainstorm-research.md` — brainstorming facilitation methods, research methodology, and problem space analysis frameworks
 - `.claude/skills/project-planning/references/project-brief.md` — project brief structure, vision statement format, and strategic framing
 - `.claude/skills/project-planning/references/project-requirements.md` — required PRD sections, MoSCoW prioritization format, acceptance criteria standards
+- `.claude/skills/verification-before-completion/SKILL.md` — evidence before completion claims; the canonical home of the operating standard's "Resolve, Don't Defer" gate
+
+## Operating Standard
+
+I hold to the project's operating standard — **resolve it or don't report it**: a problem clearly worth fixing, I fix in the same pass and re-verify; I leave every file cleaner than I found it; I verify before I claim done. The full standard, and its "Resolve, Don't Defer" gate, live in `.claude/skills/verification-before-completion/SKILL.md` — I follow it, I don't restate it. I stop only for a genuine fork (mutually-exclusive approaches, an irreversible or outward-facing action, or scope that materially expands the task); a clear bug is never a fork.
 
 ## Model Routing
 

@@ -65,6 +65,35 @@ The script scans every `.claude/skills/*/SKILL.md` and applies three rules:
 
 Exit code is 0 when clean or WARN-only, non-zero only when an ERROR is present. Capture stdout — each line names the offending skill, the rule, and the measured value (e.g. `WARN tailwind-css-patterns: 877 lines (budget 500)`). Any output MUST appear in Step 9's Issues Found section: ERRORs as **SPEC VIOLATION**, WARNs as **OVER BUDGET**.
 
+### 2c. Operating-Standard Enforcement
+
+Assert the project's operating standard ("resolve it or don't report it" — the mission at the top of `CLAUDE.md`) is *enforced* through the agent tier, not merely declared. Run the deterministic checker:
+
+```bash
+node .claude/core/operating-standard.js
+```
+
+It scans every `.claude/agents/*.md` and applies role-routed rules:
+- **Acting** agents (write code/docs) MUST load `verification-before-completion` in frontmatter **and** carry an `## Operating Standard` section.
+- **Report-only** agents (`disallowedTools: Edit` — `code-reviewer`, `security-auditor`) MUST carry an `## Operating Standard` section in its **report-only** translation (exhaustive/precise/fix-ready findings, hand the orchestrator the fix). They are NOT required to load the skill — that would imply they write fixes.
+- **`shadow`** is exempt — its prose persona is its convention (the documented Shadow exception); it carries the doctrine in its own idiom.
+
+Exit code is 0 when clean, non-zero when any ERROR exists. Each ERROR (a dropped `## Operating Standard` section, or an acting agent missing the skill ref) is a silent doctrine regression. This audit is read-only by design, but the operating standard binds *this command too*: don't dead-end in a report — fold any output into Step 9's Issues Found as **DOCTRINE REGRESSION** and **fix it in place** (add the missing section or `verification-before-completion` skill ref to the named agent), then re-run the checker to confirm green.
+
+### 2d. Frontmatter Skill Resolution
+
+Assert every skill an agent declares in frontmatter **actually preloads**. Subagent `skills:` is *eager full-body injection* at startup (Claude Code native — `sub-agents.md`, "Preload skills into subagents": the full body is injected, firing NO `Read` event), so a broken ref fails **silently** — no runtime error, no telemetry signal, and the agent runs as if it had the knowledge. Run the deterministic checker:
+
+```bash
+node .claude/core/skill-resolution.js
+```
+
+It scans every `.claude/agents/*.md` frontmatter `skills:` list against the `.claude/skills/` tree and flags two silent failure modes:
+- **BROKEN_SKILL_REF** — a listed skill has no `.claude/skills/<name>/SKILL.md` (typo, renamed/removed skill) → preload loads nothing.
+- **UNPRELOADABLE** — a listed skill sets `disable-model-invocation: true` → cannot be preloaded, silently skipped.
+
+Exit code is 0 when clean, non-zero on any ERROR. This is the tool-checkable form of the manual "BROKEN SKILL REF" check in Step 6 — same operating standard applies: fold output into Step 9's Issues Found as **BROKEN SKILL REF**, **fix it in place** (correct the agent's frontmatter or add/restore the skill), then re-run to confirm green.
+
 ### 3. Scan Hook Inventory
 
 ```
@@ -93,7 +122,7 @@ Read `.claude/settings.json` — extract the `hooks` section:
 
 **6a. Agent wiring:**
 - For each agent: is it referenced by at least one command? If not → **ORPHANED**
-- For each agent's skills array: does the skill directory exist? If not → **BROKEN SKILL REF**
+- Broken skill refs are now caught deterministically in Step 2d (`skill-resolution.js`) — don't re-derive them by eye here; just carry forward any **BROKEN SKILL REF** / **UNPRELOADABLE** findings it reported.
 
 **6b. Skill wiring:**
 - For each skill: is it loaded by at least one agent's frontmatter? If not → **UNUSED SKILL**

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 
@@ -233,7 +234,7 @@ describe('precommit', () => {
         // Without it the scanner would call `git diff --cached` in the real repo
         // (where nothing is staged with AWS keys) and return exit 0.
         const scannerPath = path.resolve(
-            new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+            fileURLToPath(import.meta.url),
             '..', '..', 'secret-scanner.cjs'
         );
         let exitCode = 0;
@@ -266,7 +267,7 @@ describe('precommit', () => {
         execFileSync('git', ['add', 'clean.js'], { cwd: repo.repoPath, stdio: 'pipe' });
 
         const scannerPath = path.resolve(
-            new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+            fileURLToPath(import.meta.url),
             '..', '..', 'secret-scanner.cjs'
         );
         let exitCode = 0;

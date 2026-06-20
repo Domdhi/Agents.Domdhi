@@ -128,22 +128,47 @@ function probeFts5(DS) {
     }
 }
 
-try {
-    const BetterSqlite3 = require('better-sqlite3');
-    // Adapter so callers keep using `new DatabaseSync(path)`.
-    DatabaseSync = function(dbPath) { return new BetterSqlite3(dbPath); };
-    sqliteBackend = 'better-sqlite3';
-    sqliteSupportsFts5 = true; // better-sqlite3 always bundles FTS5
-} catch {
+// Try to adopt better-sqlite3. `require()` only loads the JS wrapper — the native
+// .node binary loads lazily at construction and can fail on an ABI mismatch (a
+// better-sqlite3 built for a different Node major). So we PROBE (construct an
+// in-memory FTS5 table) before committing; a broken native binding falls through
+// instead of silently degrading every later `new DatabaseSync()` to a throw.
+function tryBetterSqlite3() {
+    try {
+        const BetterSqlite3 = require('better-sqlite3');
+        const DS = function(dbPath) { return new BetterSqlite3(dbPath); };
+        if (!probeFts5(DS)) return false; // wrapper loaded but native binding is broken
+        DatabaseSync = DS;
+        sqliteBackend = 'better-sqlite3';
+        sqliteSupportsFts5 = true;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function tryNodeSqlite() {
     try {
         const { DatabaseSync: NodeDatabaseSync } = require('node:sqlite');
         DatabaseSync = NodeDatabaseSync;
         sqliteBackend = 'node:sqlite';
         // Node 24+ bundles FTS5; older bundles may not. Probe, don't assume.
         sqliteSupportsFts5 = probeFts5(NodeDatabaseSync);
+        return true;
     } catch {
-        // Neither backend available — JSON-only mode.
+        return false;
     }
+}
+
+// Backend preference: on Node 24+, the built-in node:sqlite is preferred — it's
+// zero-dependency and immune to the native-ABI fragility above. On older Node it
+// is absent or unstable, so better-sqlite3 leads. Either way both branches probe,
+// so a broken candidate is skipped rather than half-adopted. (Neither → JSON-only.)
+const nodeMajor = Number(process.versions.node.split('.')[0]) || 0;
+if (nodeMajor >= 24) {
+    tryNodeSqlite() || tryBetterSqlite3();
+} else {
+    tryBetterSqlite3() || tryNodeSqlite();
 }
 
 class MemoryManager {

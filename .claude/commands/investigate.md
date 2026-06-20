@@ -9,6 +9,8 @@ Structured debugging command. Diagnoses failures with root cause analysis before
 
 **Iron Law: NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.**
 
+**Operating standard — investigation ends at a fix verified green, not at a writeup.** A confirmed root cause with an obvious fix is *resolved here* (Phase 6: smallest targeted fix + gate), then handed back — never dead-ended as a "want me to fix it?" report. "Resolve it or don't report it." The one legitimate read-only exit is the **3-Strike Rule** (Phase 5): three refuted hypotheses is a genuine fork — stop and ask. That is diagnosis-first *by design*, not a doctrine violation. (Commit is still the user's call — Phase 6 resolves but does not commit.) Canonical: `.claude/skills/verification-before-completion/SKILL.md`.
+
 ## Telemetry (run first)
 
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):

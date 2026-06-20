@@ -91,6 +91,24 @@ The token belongs to the judge: it is emitted by evidence, not by opinion.
 | Agent completed | VCS diff shows changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
 
+## Resolve, Don't Defer — the other half of the gate
+
+Verification finds problems. The job is not done when you've *found* them — it's done when they're *fixed and re-verified*. **Resolve it or don't report it.**
+
+- A failing test, a broken parser, a typo, dead code, a flaky path — fix it in the same pass. Diagnose → fix → re-run the verification → report what you did.
+- A report that ends in "want me to fix it?" for an obviously-worthwhile fix is an **incomplete job**, not a courtesy.
+- "Pre-existing" and "unrelated" describe a bug's *origin* — they are not a license to leave it broken. Broken is broken.
+- If a fix exposes a new failure, follow the thread to green. Completing every task down to the last detail is how quality is built — perfection is not an accident.
+- **Only** stop to ask on a genuine fork: mutually-exclusive approaches, an irreversible/outward action, or scope that materially expands the task. A clear bug is never a fork.
+
+## The Operating Standard — two role translations
+
+This skill is the canonical home of the project's operating standard (the mission at the top of `CLAUDE.md`). "Resolve it or don't report it" is literal for roles that act and figurative for roles that only report — but it **binds both**; it never relaxes for either.
+
+- **Acting roles** — any agent that writes code or docs (`general-purpose`, `architect`, `doc-writer`, `project-planner`, `qa-engineer`, `playwright`, `product-strategist`, `ux-designer`, `shadow`): fix what you touch, resolve to green, leave the file cleaner than you found it, and verify before you claim done. The gate above is yours, literally.
+- **Report-only roles** — read-only or write-scoped-to-reviews (`code-reviewer`, `security-auditor`, `Explore`): the "extra mile" is **exhaustive, precise, immediately-actionable** findings — no hand-waving ("looks fine"), no truncation, every finding carries `file:line` and a concrete fix. You do **not** write the fix — that would violate your write scope — you hand the orchestrator a fix-ready report so resolution still happens in one pass. Read-only-by-design is how you comply with the standard, never a license to dead-end in a report.
+- **The orchestrator** (main session) closes the loop: when a report-only agent surfaces an obviously-worthwhile fix, the orchestrator resolves it rather than deferring. This is where "resolve it or don't report it" bites hardest — a report that ends in "want me to fix it?" for an obvious fix is an incomplete job.
+
 ## Red Flags - STOP
 
 - Using "should", "probably", "seems to"
