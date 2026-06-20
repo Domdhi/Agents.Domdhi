@@ -230,7 +230,7 @@ function runUpdate(targetPath, options) {
                     stats.merged++;
                 } else {
                     tryAction(`.claude/${rel}`, () => {
-                        const r = mergeAgentFile(srcAbs, destAbs, { canonicalSkills, targetSkills });
+                        const r = mergeAgentFile(srcAbs, destAbs, { canonicalSkills, targetSkills, excludedSkills });
                         console.log(`  MERGE    .claude/${rel} — ${r.detail}`);
                         stats.merged++;
                     }, stats);

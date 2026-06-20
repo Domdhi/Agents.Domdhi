@@ -146,6 +146,54 @@ function extractSkillsList(lines) {
 }
 
 /**
+ * Remove every reference to an excluded skill from an agent file — both the
+ * frontmatter `skills:` list items AND the `## Skills` body bullet lines that
+ * point at `.claude/skills/<excluded>/...`.
+ *
+ * An adopter's `update-config.json` `skillExclude` removes the skill DIR from the
+ * target, but the template-owned agent skills list/body still NAMES it. Without
+ * this strip, a synced agent references a skill that has no SKILL.md — a silent
+ * broken preload (the agent loads NOTHING for that skill; skill-resolution.js
+ * flags it BROKEN_SKILL_REF). This is the cure for the skillExclude-adopter
+ * regression where template-updater clobbers a curated agent's skills with the
+ * template's, re-introducing refs the project deliberately dropped.
+ *
+ * Operates on full file content; LF/CRLF tolerant (re-emits the original EOL).
+ *
+ * @param {string} content        — full agent .md content
+ * @param {Set<string>} excludedSet — skill names the target excludes
+ * @returns {string}              — content with excluded-skill refs removed
+ */
+function stripExcludedSkills(content, excludedSet) {
+    if (!excludedSet || excludedSet.size === 0) return content;
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
+
+    // 1. Frontmatter `skills:` list — drop excluded items; remove the whole block
+    //    if nothing remains (an empty `skills:` is pointless and slightly invalid).
+    const sk = extractSkillsList(lines);
+    if (sk) {
+        const kept = sk.items.filter(s => !excludedSet.has(s));
+        if (kept.length === 0) {
+            lines.splice(sk.start, sk.end - sk.start);
+        } else if (kept.length !== sk.items.length) {
+            const indent = (lines[sk.start + 1].match(/^(\s*)-/) || [, '  '])[1];
+            lines.splice(sk.start + 1, sk.end - (sk.start + 1), ...kept.map(s => `${indent}- ${s}`));
+        }
+    }
+
+    // 2. Body bullet lines that point at an excluded skill's path (e.g. the
+    //    `## Skills` "Read these files" list). A line naming an excluded skill dir
+    //    is a dead pointer once the dir is gone.
+    const filtered = lines.filter(line => {
+        const m = line.match(/\.claude\/skills\/([^/`)\s]+)/);
+        return !(m && excludedSet.has(m[1]));
+    });
+
+    return filtered.join(eol);
+}
+
+/**
  * Merge frontmatter strings: take src lines as the base, but preserve
  * `nickname:` and `aliases:` from dst if they exist. When opts.preserveDescription
  * is set, also preserve dst's `description:` block (multi-line safe) — used when the
@@ -274,7 +322,10 @@ function mergeAgentFile(srcPath, dstPath, opts) {
     opts = opts || {};
 
     if (!fs.existsSync(dstPath)) {
-        const srcContent = fs.readFileSync(srcPath, 'utf8');
+        // Fresh install: even a brand-new agent must not carry refs to skills the
+        // target excludes — strip them before writing (same silent-broken-preload
+        // risk as the merge path).
+        const srcContent = stripExcludedSkills(fs.readFileSync(srcPath, 'utf8'), opts.excludedSkills);
         fs.mkdirSync(path.dirname(dstPath), { recursive: true });
         fs.writeFileSync(dstPath, srcContent, 'utf8');
         return { changed: true, detail: 'copied (fresh install)' };
@@ -330,6 +381,11 @@ function mergeAgentFile(srcPath, dstPath, opts) {
     // Ensure trailing newline
     if (!result.endsWith('\n')) result += '\n';
 
+    // Final pass: drop any reference to a target-excluded skill that the
+    // template-owned frontmatter/skills-zone re-introduced. Runs last so it
+    // catches both the src skills list and bespoke unions.
+    result = stripExcludedSkills(result, opts.excludedSkills);
+
     const changed = result !== destContent;
     if (changed) {
         fs.mkdirSync(path.dirname(dstPath), { recursive: true });
@@ -352,6 +408,7 @@ module.exports = {
     isPersonalized,
     extractFieldBlock,
     extractSkillsList,
+    stripExcludedSkills,
     mergeFrontmatter,
     mergeAgentFile,
 };

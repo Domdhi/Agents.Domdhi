@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const fs = require('node:fs');
 const path = require('node:path');
 const { createTmpDir } = require('../../__tests__/_helpers/tmp-dir');
-const { parseAgentSections, mergeFrontmatter, mergeAgentFile, extractFieldBlock } = require('../agent-merger');
+const { parseAgentSections, mergeFrontmatter, mergeAgentFile, extractFieldBlock, stripExcludedSkills } = require('../agent-merger');
 
 let tmp;
 
@@ -665,5 +665,85 @@ skills:
         // no mixed indentation — cloudflare added flush like the rest
         expect(merged).toMatch(/\n- cloudflare/);
         expect(merged).not.toMatch(/\n {2}- cloudflare/);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// stripExcludedSkills + skillExclude-aware merge (the skillExclude-adopter fix)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('stripExcludedSkills', () => {
+    it('returns content unchanged when the exclude set is empty/absent', () => {
+        const c = '---\nname: x\nskills:\n  - a\n  - b\n---\n# X\n';
+        expect(stripExcludedSkills(c, new Set())).toBe(c);
+        expect(stripExcludedSkills(c, undefined)).toBe(c);
+    });
+
+    it('drops excluded items from the frontmatter skills list, keeps the rest', () => {
+        const c = '---\nname: ux\nskills:\n  - ux-design\n  - tailwind-css-patterns\n  - brand-guidelines\n---\n# UX\n';
+        const out = stripExcludedSkills(c, new Set(['tailwind-css-patterns']));
+        expect(out).toContain('- ux-design');
+        expect(out).toContain('- brand-guidelines');
+        expect(out).not.toContain('tailwind-css-patterns');
+    });
+
+    it('removes the whole skills block when every item is excluded', () => {
+        const c = '---\nname: y\nskills:\n  - tailwind-css-patterns\n  - design-taste-frontend\nmemory: project\n---\n# Y\n';
+        const out = stripExcludedSkills(c, new Set(['tailwind-css-patterns', 'design-taste-frontend']));
+        expect(out).not.toContain('skills:');
+        expect(out).not.toContain('tailwind-css-patterns');
+        expect(out).toContain('name: y');
+        expect(out).toContain('memory: project');
+    });
+
+    it('strips ## Skills body lines that point at an excluded skill dir', () => {
+        const c = [
+            '---', 'name: ux', 'skills:', '  - ux-design', '  - tailwind-css-patterns', '---', '',
+            '# UX', '', '## Skills', 'Read these files:',
+            '- `.claude/skills/ux-design/SKILL.md` — design system',
+            '- `.claude/skills/tailwind-css-patterns/SKILL.md` — utility CSS',
+            '',
+        ].join('\n');
+        const out = stripExcludedSkills(c, new Set(['tailwind-css-patterns']));
+        expect(out).toContain('.claude/skills/ux-design/SKILL.md');
+        expect(out).not.toContain('tailwind-css-patterns');
+    });
+
+    it('preserves CRLF line endings', () => {
+        const c = '---\r\nname: x\r\nskills:\r\n  - a\r\n  - drop-me\r\n---\r\n# X\r\n';
+        const out = stripExcludedSkills(c, new Set(['drop-me']));
+        expect(out).toContain('\r\n');
+        expect(out).not.toContain('drop-me');
+        expect(out).toContain('- a');
+    });
+});
+
+describe('mergeAgentFile — skillExclude-aware (regression: clobbered curated agent skills)', () => {
+    it('does NOT re-introduce an excluded skill into the merged frontmatter', () => {
+        // Template agent references tailwind; the adopter excluded it. The merge
+        // must not write a ref to a skill the project does not ship.
+        const srcPath = tmp.write('src/ux-designer.md', '---\nname: ux-designer\nskills:\n  - ux-design\n  - tailwind-css-patterns\n  - brand-guidelines\n---\n\n# UX Designer\n\nGeneric.\n\n## Skills\n\n- `.claude/skills/tailwind-css-patterns/SKILL.md` — utility CSS\n');
+        // Adopter's curated agent (no tailwind — it was excluded)
+        const destPath = tmp.write('dest/ux-designer.md', '---\nname: ux-designer\nskills:\n  - ux-design\n  - brand-guidelines\n---\n\n# UX Designer\n\nCurated.\n\n## Skills\n\nux-design, brand-guidelines\n');
+
+        mergeAgentFile(srcPath, destPath, {
+            canonicalSkills: new Set(['ux-design', 'tailwind-css-patterns', 'brand-guidelines']),
+            targetSkills: new Set(['ux-design', 'brand-guidelines']),
+            excludedSkills: new Set(['tailwind-css-patterns']),
+        });
+
+        const merged = fs.readFileSync(destPath, 'utf8');
+        expect(merged).not.toContain('tailwind-css-patterns');
+        expect(merged).toContain('- ux-design');
+        expect(merged).toContain('- brand-guidelines');
+    });
+
+    it('strips excluded skills on a fresh install (dest does not exist)', () => {
+        const srcPath = tmp.write('src/general-purpose.md', '---\nname: general-purpose\nskills:\n  - dev-process\n  - verification-before-completion\n---\n\n# GP\n');
+        const destPath = path.join(tmp.root, 'dest/general-purpose.md');
+        mergeAgentFile(srcPath, destPath, { excludedSkills: new Set(['verification-before-completion']) });
+        const out = fs.readFileSync(destPath, 'utf8');
+        expect(out).not.toContain('verification-before-completion');
+        expect(out).toContain('- dev-process');
     });
 });
