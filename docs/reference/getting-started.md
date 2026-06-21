@@ -142,7 +142,7 @@ Three reasonable next moves, in rough order of most to least structural:
 
 1. **`/do {first-story-id}`** — implement the first story from `backlog.md`. `/do` reads the story's acceptance criteria, plans the work, routes to the right agent (Main Agent direct if small, delegate to `general-purpose` if not), runs the build/test gate, and commits. This is the daily loop. See [`reference/commands.md`](reference/commands.md) for the full command reference.
 2. **`/review:personalize`** (optional) — give the eleven baseline agents names and soul-level identities. After running, `code-reviewer` stops being a description in YAML and starts being *Gavel, the magistrate of the merge queue*. Cosmetic until you work at scale, at which point referring to agents by name becomes how you think about the team. Walkthrough in [`guides/personalize.md`](guides/personalize.md).
-3. **`/end`** — save session context to `docs/__handoff.md` before closing the terminal. The handoff is what `/prime` reads next session. No more "where was I."
+3. **`/end`** — save session context to a per-run file under `docs/.output/handoffs/` before closing the terminal. The handoff is what `/prime` reads next session. No more "where was I."
 
 If you want to extend the system itself — a custom command for your team's workflow, a skill for your domain — see [`guides/contributing.md`](guides/contributing.md). For a wider map of what already exists, [`reference/system-map.md`](reference/system-map.md) inventories every agent, command, skill, and hook.
 

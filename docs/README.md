@@ -58,8 +58,8 @@ If you came here from a search engine or a link and just need to find a specific
 
 A few things live in `docs/` but are out of scope for adopters reading this index:
 
-- `docs/_project-*.md` and `docs/work/todo/` — planning docs generated per-project by `/create:new-project`. These are your project's content, not the template's documentation.
-- `docs/__handoff.md` — session continuity, written by `/end` and read by `/prime`.
+- The domain folders' planning docs (`product/`, `architecture/`, `design/`, `work/`) and `docs/work/todo/` — generated per-project by `/create:new-project`. These are your project's content, not the template's documentation.
+- `docs/.output/handoffs/` — session continuity, written by `/end` and read by `/prime`.
 - `docs/modules/`, `docs/.output/` (incl. `.output/research/`) — working surfaces that each project fills as it runs.
 - `docs/CLAUDE.md` — conventions for the docs folder structure itself; auto-loaded by Claude Code when it works inside `docs/`.
 

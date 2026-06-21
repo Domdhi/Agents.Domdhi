@@ -1,6 +1,6 @@
 /**
  * doc-drift — detect legacy / duplicate planning docs that the canonical
- * `_project-*` naming has superseded (F2).
+ * domain-taxonomy naming has superseded (F2).
  *
  * Brownfield repos (and repos that predate a naming change) accumulate planning
  * docs under OLD names — `_architecture.md`, `_prd.md`, a root `_backlog.md`
@@ -57,13 +57,13 @@ const TEMPLATE_MARKER = '<!-- @@template -->';
 
 // TODO files have exactly two canonical homes (relative to docs/):
 //   • the master index  → docs/ root            (TODO_{Project}.md)
-//   • per-epic / backlog → docs/todo/           (TODO_epic*.md, TODO*.md)
+//   • per-epic / backlog → docs/work/todo/      (TODO_epic*.md, TODO*.md)
 // A TODO file anywhere else under docs/** (e.g. a stale docs/work/TODO_epic00.md
 // left by an older plan) is invisible to the create-chain and to /status, which
 // only glob the canonical paths — so it silently orphans (F17). These dirs are
 // skipped entirely when walking for misplaced TODOs.
 //   • `_archive` (underscore) is where /evolve parks a closed cycle's TODO_epic*.md
-//     via git mv (docs/todo/_archive/cycle-N-{stamp}/). Those are intentionally
+//     via git mv (docs/work/todo/_archive/cycle-N-{stamp}/). Those are intentionally
 //     retired, history-preserving copies — not misplaced live TODOs (EV7). `.archive`
 //     (dot) is kept too for any legacy hand-rolled archive dir.
 const TODO_SKIP_DIRS = new Set(['.output', '.archive', '_archive', 'node_modules', '.git', 'design', 'scratch']);
@@ -230,7 +230,7 @@ function stripTemplateMarker(absPath) {
 
 /**
  * Walk docs/** for TODO_*.md files that live outside the two canonical homes
- * (docs/ root for the master index, docs/todo/ for per-epic/backlog TODOs).
+ * (docs/ root for the master index, docs/work/todo/ for per-epic/backlog TODOs).
  * Returns relative paths like `docs/work/TODO_epic00.md` (F17).
  *
  * @param {string} docsDir  Absolute path to <projectRoot>/docs
@@ -264,7 +264,7 @@ function findMisplacedTodos(docsDir) {
  * @returns {{ legacy: Array, duplicates: Array, misplacedTodos: Array, hasDrift: boolean }}
  *   legacy:         { file, canonical, canonicalExists } — a legacy-named real doc
  *   duplicates:     { name, root, canonical } — same basename at root AND canonical path
- *   misplacedTodos: { file, dir } — a TODO_*.md outside docs/ root and docs/todo/
+ *   misplacedTodos: { file, dir } — a TODO_*.md outside docs/ root and docs/work/todo/
  */
 function detectDocDrift(projectRoot) {
     const docsDir = path.join(projectRoot, 'docs');
@@ -327,7 +327,7 @@ function main() {
 
     const lines = ['Document drift detected:', ''];
     if (legacy.length) {
-        lines.push('Legacy-named docs (superseded by canonical `_project-*` names):');
+        lines.push('Legacy-named docs (superseded by canonical domain-taxonomy names):');
         for (const l of legacy) {
             lines.push(`  • ${l.file}  →  ${l.canonical}` +
                 (l.canonicalExists ? '  (BOTH exist — reconcile & remove the legacy one)' : '  (rename/migrate to canonical)'));
