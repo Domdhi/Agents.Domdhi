@@ -546,7 +546,7 @@ No mermaid — the flow is linear and mostly interactive. The component template
 
 Master orchestrator that walks a fresh clone from zero to implementation-ready. Scaffolds `docs/` from `.claude/templates/`, runs a 3-round interview (elevator pitch → tech & scope → constraints), classifies the project as simple/medium/complex, then chains the planning pipeline (`/create:project-brief` → `/create:project-requirements` → optional `/create:project-design` → `/create:project-architecture` → `/create:project-epics` → `/review:check-readiness`), specializes the generic agents for the new stack via `/review:specialize --fix`, and writes `docs/product/context.md` as the quick-reference. Intended as the FIRST command an adopter runs after cloning the template.
 
-The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `product/context.md` and the persisted interview scratch file at `docs/work/scratch/{date}/new-project-interview.md`.
+The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `product/context.md` and the persisted interview scratch file at `docs/.output/work/{date}/new-project-interview.md`.
 
 ```mermaid
 flowchart TD
@@ -555,7 +555,7 @@ flowchart TD
     FRESH -->|Filled planning docs found,\nno --yolo| EXIT["Exit — point user to\nindividual /create:project-*\ncommands"]
     FRESH -->|Clean OR --yolo| INTERVIEW
 
-    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to work/scratch/{date}/\nnew-project-interview.md"]
+    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to .output/work/{date}/\nnew-project-interview.md"]
 
     INTERVIEW --> ROUTE{Step 4: Phase routing\nfrom interview answers}
     ROUTE -->|Simple| SIMPLE["PRD-min → Architecture → Epics"]
@@ -602,7 +602,7 @@ flowchart TD
 
     DETECT --> MAP["Step 3: Map codebase\n(parallel Explore agents)\nThread A: entry points & structure\nThread B: dependency graph\nThread C: test layout\nThread D: existing docs + git log"]
 
-    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to work/scratch/{date}/\nonboard-scan.md"]
+    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to .output/work/{date}/\nonboard-scan.md"]
 
     QUESTIONS --> ARCH["Step 5: Delegate to architect\nTask: subagent_type=architect\nReverse-Engineering Mode\nADRs marked Status: Inferred\nOutput: docs/architecture/overview.md"]
 
@@ -631,7 +631,7 @@ flowchart TD
     style REPORT fill:#888,color:#fff
 ```
 
-**Output:** `docs/architecture/overview.md` + `docs/product/context.md` + `docs/work/scratch/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
+**Output:** `docs/architecture/overview.md` + `docs/product/context.md` + `docs/.output/work/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
 
 ---
 
@@ -681,7 +681,7 @@ flowchart TD
 
 ## /todo
 
-Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/work/todo/TODO_{slug}.md` (or `docs/modules/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/work/scratch/{date}/`. No commit (chat-only).
+Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/work/todo/TODO_{slug}.md` (or `docs/modules/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/.output/work/{date}/`. No commit (chat-only).
 
 ```mermaid
 flowchart TD

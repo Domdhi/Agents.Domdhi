@@ -108,9 +108,9 @@ describe('rewriteLine — boundary anchoring & collisions', () => {
         expect(mig.rewriteLine('wireframes.md').changed).toBe(false);
     });
 
-    it('moves scratch out of the generated zone', () => {
-        expect(mig.rewriteLine('docs/.output/work/2026-06-20/task/').text)
-            .toBe('docs/work/scratch/2026-06-20/task/');
+    it('leaves task working files in the generated zone (no work/scratch move)', () => {
+        // docs/.output/work/ stays put — task working files are not relocated.
+        expect(mig.rewriteLine('docs/.output/work/2026-06-20/task/').changed).toBe(false);
     });
 
     it('renames app/ → modules/ only when docs-prefixed', () => {
@@ -121,7 +121,7 @@ describe('rewriteLine — boundary anchoring & collisions', () => {
 
     it('migrates no-slash dir refs (scaffold extraDirs) without clobbering longer words', () => {
         expect(mig.rewriteLine("'docs/app'").text).toBe("'docs/modules'");
-        expect(mig.rewriteLine("'docs/.output/work'").text).toBe("'docs/work/scratch'");
+        expect(mig.rewriteLine("'docs/.output/work'").changed).toBe(false);  // stays put
         expect(mig.rewriteLine("'docs/todo'").text).toBe("'docs/work/todo'");
         // must NOT touch a longer identifier that merely starts with the token
         expect(mig.rewriteLine('docs/application/main.js').changed).toBe(false);
@@ -159,7 +159,7 @@ describe('isPathSkipped — allowlist', () => {
         expect(mig.isPathSkipped('docs/todo/_archive/cycle-1/TODO_x.md')).toBe(true);
         expect(mig.isPathSkipped('docs/.output/reviews/2026-06-20-adr-x.md')).toBe(true);
         expect(mig.isPathSkipped('docs/architecture/decisions/0002-skill-owned-templates.md')).toBe(true);
-        expect(mig.isPathSkipped('docs/work/scratch/2026-06-03/task/notes.md')).toBe(true);
+        expect(mig.isPathSkipped('docs/.output/work/2026-06-03/task/notes.md')).toBe(true);
         expect(mig.isPathSkipped('CHANGELOG.md')).toBe(true);
         expect(mig.isPathSkipped('.claude/core/_lib/doc-drift.js')).toBe(true);
         expect(mig.isPathSkipped('.claude/core/migrate-docs-domains.js')).toBe(true);
@@ -230,7 +230,8 @@ describe('runMove — file/dir moves & ADR renumbering', () => {
         write(root, '_project-brief.md', 'x');
         write(root, 'todo/_backlog.md', 'x');
         const r = mig.runMove(root, { apply: false });
-        const pairs = r.moves.map((m) => [path.relative(root, m.from), path.relative(root, m.to)]);
+        const norm = (p) => path.relative(root, p).replace(/\\/g, '/');  // cross-platform (Windows \)
+        const pairs = r.moves.map((m) => [norm(m.from), norm(m.to)]);
         expect(pairs).toContainEqual(['_project-brief.md', 'product/brief.md']);
         expect(pairs).toContainEqual(['todo/_backlog.md', 'work/backlog.md']);
         // disk untouched

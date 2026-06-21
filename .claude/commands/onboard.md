@@ -104,7 +104,7 @@ Mark each skipped question in the internal codebase map so the architecture doc 
 
 #### 4a. Persist scan results (BEFORE delegation)
 
-Write the codebase map to `docs/work/scratch/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
+Write the codebase map to `docs/.output/work/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
 
 ```markdown
 # Onboard Scan — {project name inferred from git or directory} ({YYYY-MM-DD})
@@ -297,7 +297,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md.
 Stage the files created or modified by this run specifically:
 - `docs/architecture/overview.md`
 - `docs/product/context.md`
-- `docs/work/scratch/{date}/onboard-scan.md`
+- `docs/.output/work/{date}/onboard-scan.md`
 - `CLAUDE.md` (only if it was modified in Step 7)
 
 Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):

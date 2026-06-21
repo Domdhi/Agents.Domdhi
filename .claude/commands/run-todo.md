@@ -78,7 +78,7 @@ node .claude/core/gate.js test
 
 ### Step 1: Gather context
 
-**Check for existing research first.** If `/todo` was run, research files exist in `docs/work/scratch/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
+**Check for existing research first.** If `/todo` was run, research files exist in `docs/.output/work/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
 
 If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `Explore`) — Explore is read-only and cannot persist findings to disk.**
 
@@ -86,7 +86,7 @@ If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `
 Agent(
   subagent_type: "general-purpose",
   model: "sonnet",
-  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/work/scratch/{date}/{slug}/{time}-runtodo-research.md",
+  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/.output/work/{date}/{slug}/{time}-runtodo-research.md",
   description: "Research for {slug}"
 )
 ```

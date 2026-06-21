@@ -25,7 +25,7 @@
  *   ├── design/                    (spec.md, wireframes.md, theme.{light,dark}.md, mock.html)
  *   ├── engineering/               (conventions.md, …)
  *   ├── operations/                (deploy.md, …)
- *   ├── work/                      (backlog.md, todo/, scratch/)
+ *   ├── work/                      (backlog.md, todo/)
  *   ├── reference/                 (onboarding.md, …)
  *   ├── modules/                   (per-feature docs — mirrors codebase)
  *   └── .output/                   (generated reports)
@@ -403,9 +403,9 @@ function runScaffold(projectDir, opts) {
         'docs/operations/runbooks',
         'docs/work',
         'docs/work/todo',               // implementation checklists (+ _archive/)
-        'docs/work/scratch',            // task working files (the lone dated path outside .output/)
         // Generated/operational zone
         'docs/.output',
+        'docs/.output/work',            // task working files — docs/.output/work/{date}/{task}/
         'docs/.output/reviews',
         'docs/.output/research',
         'docs/.output/investigations',

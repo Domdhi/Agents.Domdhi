@@ -243,7 +243,8 @@ module.exports = {
         roadmap:      'work/roadmap.md',
         timeline:     'work/timeline.md',
         todo:         'work/todo',                        // dir (+ _archive/)
-        scratch:      'work/scratch',                     // dir — {date}/{task}/
+        // task working files live in the generated zone, NOT work/ (gitignored)
+        scratch:      '.output/work',                     // dir — {date}/{task}/
         // reference/ — how do I find my way?
         onboarding:   'reference/onboarding.md',
         glossary:     'reference/glossary.md',

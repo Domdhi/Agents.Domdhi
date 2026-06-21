@@ -152,7 +152,7 @@ Different callers have different information to emphasize. Fill the template wit
 ### `/todo` — after TODO creation
 - **Decisions & Context:** one bullet on why this TODO was created, what it accomplishes
 - **Next Actions:** always `/run-todo {path}` as #1, `/do {first-story-id}` as #2
-- **Key Files:** the new TODO path + research files from `docs/work/scratch/{date}/{slug}/`
+- **Key Files:** the new TODO path + research files from `docs/.output/work/{date}/{slug}/`
 
 ## Key Files lifecycle (mandatory — applies to every caller)
 

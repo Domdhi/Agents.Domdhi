@@ -14,7 +14,7 @@ project, so any path here is correct everywhere (ADR: docs/ Domain Taxonomy).
 | **design/** | *How is it experienced?* (UI only) | `spec.md`, `wireframes.md`, `theme.light.md`, `theme.dark.md`, `mock.html` |
 | **engineering/** | *How do we work on it?* | `setup.md`, `conventions.md`, `testing.md` |
 | **operations/** | *How do we ship & run it?* | `deploy.md`, `observability.md`, `security.md`, `runbooks/*.md` |
-| **work/** | *What now & next?* (the living plan) | `backlog.md`, `roadmap.md`, `timeline.md`, `todo/` (+ `_archive/`), `scratch/{date}/{task}/` |
+| **work/** | *What now & next?* (the living plan) | `backlog.md`, `roadmap.md`, `timeline.md`, `todo/` (+ `_archive/`) |
 | **reference/** | *How do I find my way?* | `onboarding.md`, `glossary.md`, `links.md` |
 
 Plus two non-domain elements:
@@ -23,7 +23,8 @@ Plus two non-domain elements:
   module folder is a mini domain-set, usually just `brief.md` until it earns more.
 - **`.output/`** — the ephemeral/generated zone (the only deep tree). Agents
   **write** here and rarely re-read; quarantining it keeps the seven domains
-  clean to scan.
+  clean to scan. Holds generated reports **and** task working files
+  (`.output/work/{date}/{task}/`).
 
 ## Folder Structure
 
@@ -56,8 +57,7 @@ docs/
 ├── work/                      # WHAT now & next (the living plan)
 │   ├── backlog.md             # Epic definitions (source of truth)
 │   ├── roadmap.md  timeline.md
-│   ├── todo/                  # Implementation checklists (+ _archive/)
-│   └── scratch/{date}/{task}/ # Task working files (the one dated path outside .output/)
+│   └── todo/                  # Implementation checklists (+ _archive/)
 │
 ├── reference/                 # HOW to find your way
 │   └── onboarding.md  glossary.md  links.md
@@ -68,13 +68,12 @@ docs/
 └── .output/                   # Operational output (partly gitignored — see note)
     ├── handoffs/  reviews/  investigations/  research/  plans/
     ├── memories/  telemetry/  intake/  triage/  canary/  agent-updates/
-    └── …                      # generated reports only — NOT scratch (that's work/scratch/)
+    └── work/{date}/{task}/     # Task working files (gitignored, dated/ephemeral)
 ```
 
 ## Conventions
 
 - **No `_` prefix.** The folder provides the namespace: `product/requirements.md`,
-  not `_requirements.md`. The `<!-- @@template -->` first-line marker still does
   the "scaffolded-but-unfilled" gate job.
 - **Every domain is a folder, even single-file ones.** Predictability beats saving
   a directory level — the set degrades by leaving a folder empty/absent, never by
@@ -82,11 +81,12 @@ docs/
 - **Cross-cutting concerns are not domains.** Security/performance/accessibility
   live *within* domains (the threat model is `architecture/decisions/`, secret
   handling is `operations/security.md`), never as a sibling folder.
-- **`work/` owns all active-work state**, including task scratch
-  (`work/scratch/{date}/{task}/`). So `.output/` holds only generated *reports*.
+- **`work/` owns the durable plan** (backlog, roadmap, timeline, todo). Ephemeral
+  task working files live in the generated zone at `.output/work/{date}/{task}/`,
+  not in `work/` — so the living plan stays scannable and scratch never ships.
 - **`.output/` is operational.** Only the regenerable/session-specific subdirs are
-  gitignored (`memories/`, `telemetry/`, `screenshots/`, `sessions/`, generated
-  `status.html`); durable records (`plans/`, `reviews/`, `research/`,
+  gitignored (`work/`, `memories/`, `telemetry/`, `screenshots/`, `sessions/`,
+  generated `status.html`); durable records (`plans/`, `reviews/`, `research/`,
   `investigations/`, `handoffs/`) are **tracked**.
 
 ## Adding a New Module

@@ -772,8 +772,8 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
             'modules',
             'architecture/decisions',
             'operations/runbooks',
-            'work', 'work/todo', 'work/scratch',
-            '.output',
+            'work', 'work/todo',
+            '.output', '.output/work',
         ];
         for (const d of domainDirs) {
             expect(fs.existsSync(path.join(tmp.root, 'docs', d))).toBe(true);

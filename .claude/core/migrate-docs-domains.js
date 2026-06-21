@@ -60,8 +60,10 @@ const FILE_MOVES = [
     ['todo/_backlog.md', 'work/backlog.md'],            // promote OUT of todo/ first
     ['todo/_feature-ideas.md', 'work/todo/feature-ideas.md'],  // drop _, into work/todo/
     ['todo/', 'work/todo/'],                            // dir: TODO_*, _archive, _design-notes
-    ['.output/work/', 'work/scratch/'],                 // scratch leaves the generated zone
     ['app/', 'modules/'],                               // dir: per-feature docs
+    // NOTE: docs/.output/work/ deliberately NOT moved — task working files stay
+    // in the generated zone (docs/.output/work/{date}/{task}/). There is no
+    // work/scratch/.
 ];
 
 // ── REF_REWRITES — drives --refs / --verify ─────────────────────────────────
@@ -139,8 +141,8 @@ const REF_REWRITES_RAW = [
     ['docs/todo/_archive', 'docs/work/todo/_archive'],
     ['docs/todo/', 'docs/work/todo/'],
     ['docs/todo', 'docs/work/todo'],                    // no-slash dir ref (e.g. scaffold extraDirs)
-    ['.output/work/', 'work/scratch/'],
-    ['.output/work', 'work/scratch'],                   // no-slash dir ref
+    // NOTE: docs/.output/work/ is NOT rewritten — task working files stay in the
+    // generated zone; there is no work/scratch/ target.
     // modules (fractal axis)
     ['docs/app/', 'docs/modules/'],
     ['docs/app', 'docs/modules'],                       // no-slash dir ref
@@ -163,9 +165,6 @@ const SKIP_PATH_RES = [
     // bodies, exactly as it leaves _archive prose alone. Without this, --verify
     // would flag legacy tokens inside historical decision records.
     /(^|\/)architecture\/decisions(\/|$)/,
-    // work/scratch/ is the ephemeral task-working zone (gitignored, like .output) —
-    // never a target for reference rewriting.
-    /(^|\/)work\/scratch(\/|$)/,
     /(^|\/)CHANGELOG\.md$/,            // historical release notes
     // Load-bearing legacy literals — these files reference OLD names on purpose
     // (drift detector / this codemod & its fixtures); hand-patched, never blind-rewritten.

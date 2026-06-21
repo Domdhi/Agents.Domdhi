@@ -231,7 +231,7 @@ Before dispatching browser agents, verify actual test selectors exist in the cod
 ```
 Agent(
   subagent_type: "general-purpose",
-  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/work/scratch/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
+  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/.output/work/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
   description: "Find test selectors for {feature}"
 )
 ```

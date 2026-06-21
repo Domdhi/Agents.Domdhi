@@ -15,6 +15,9 @@
     "guardrail:stats": "node .claude/core/guardrail-stats.js",
     "memory:eval": "node .claude/core/memory-eval.js",
     "memory:stability": "node .claude/core/memory-stability.js",
+    "memory:backup": "node .claude/core/memory-backup.js",
+    "adr:lint": "node .claude/core/adr-lint.js",
+    "branch:audit": "node .claude/core/branch-audit.js",
     "feedback:rollup": "node tools/feedback-aggregate.js"
   },
   "devDependencies": {

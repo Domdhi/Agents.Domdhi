@@ -73,7 +73,7 @@ Throughout this walkthrough we'll use a running example: **Lane**, a small CLI t
 - *Hard constraints?* → "Has to run fully offline. No cloud sync in v1."
 - *Deployment target?* → "Local install via npm."
 
-Before any sub-command runs, the command writes these answers to `docs/work/scratch/{YYYY-MM-DD}/new-project-interview.md`. That persistence is deliberate — if your session dies mid-pipeline, the interview is preserved and the re-run skips the questions.
+Before any sub-command runs, the command writes these answers to `docs/.output/work/{YYYY-MM-DD}/new-project-interview.md`. That persistence is deliberate — if your session dies mid-pipeline, the interview is preserved and the re-run skips the questions.
 
 ### Phase Routing — Why You Get the Path You Get
 

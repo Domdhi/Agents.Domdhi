@@ -102,7 +102,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 **Where your work goes:**
 - Code: edited in place, following the project's existing conventions
-- Task working files (scratch, notes, intermediate artifacts) → `docs/work/scratch/{date}/{task}/`
+- Task working files (scratch, notes, intermediate artifacts) → `docs/.output/work/{date}/{task}/`
 - You don't own the planning docs — leave the canonical docs under `product/`, `architecture/`, `design/`, `work/` to the planning agents
 
 **Run-stamp:** when you write a fresh-each-run file under `.output/` (a plan, a note), prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. Canonical planning docs are overwritten in place, never stamped.
