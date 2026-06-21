@@ -596,9 +596,9 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
         // Create a minimal templates/ tree mirroring the real scaffold structure
         // enough that runScaffold can exercise substitution end-to-end.
         const templatesDir = path.join(tmpRoot, '.claude', 'templates');
-        fs.mkdirSync(templatesDir, { recursive: true });
+        fs.mkdirSync(path.join(templatesDir, 'product'), { recursive: true });
         fs.writeFileSync(
-            path.join(templatesDir, '_project-context.md'),
+            path.join(templatesDir, 'product/context.md'),
             '<!-- @@template -->\n# Project: {Project Name}\nPhase: {current phase}\nDate: {YYYY-MM-DD}\n'
         );
     }
@@ -615,7 +615,7 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
 
         // Assert — scaffolded file has substitutions applied
         const written = fs.readFileSync(
-            path.join(tmp.root, 'docs', '_project-context.md'),
+            path.join(tmp.root, 'docs', 'product/context.md'),
             'utf8'
         );
         expect(written).toContain('# Project: Foo');
@@ -628,10 +628,10 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
     it('runScaffold_substitutionsButTargetExists_doesNotModify', () => {
         // Arrange — pre-existing target with custom user content
         makeMinimalTemplateTree(tmp.root);
-        fs.mkdirSync(path.join(tmp.root, 'docs'), { recursive: true });
+        fs.mkdirSync(path.join(tmp.root, 'docs', 'product'), { recursive: true });
         const userCustomized = '# My Custom Project\nDo not overwrite this.\n';
         fs.writeFileSync(
-            path.join(tmp.root, 'docs', '_project-context.md'),
+            path.join(tmp.root, 'docs', 'product/context.md'),
             userCustomized
         );
 
@@ -643,7 +643,7 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
 
         // Assert — pre-existing file untouched (existing skip semantics preserved)
         const written = fs.readFileSync(
-            path.join(tmp.root, 'docs', '_project-context.md'),
+            path.join(tmp.root, 'docs', 'product/context.md'),
             'utf8'
         );
         expect(written).toBe(userCustomized);
@@ -657,7 +657,7 @@ describe('runScaffold with substitutions (R10 end-to-end)', () => {
         runScaffold(tmp.root, { silent: true });
 
         const written = fs.readFileSync(
-            path.join(tmp.root, 'docs', '_project-context.md'),
+            path.join(tmp.root, 'docs', 'product/context.md'),
             'utf8'
         );
         expect(written).toContain('{Project Name}');
@@ -707,26 +707,26 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
         makeTemplatesDir(tmp.root);
         const design = writeAsset(
             tmp.root,
-            '.claude/skills/ux-design/assets/_project-design.md',
+            '.claude/skills/ux-design/assets/spec.md',
             '# Design {Project Name}'
         );
         const arch = writeAsset(
             tmp.root,
-            '.claude/skills/architecture/assets/_project-architecture.md',
+            '.claude/skills/architecture/assets/overview.md',
             '# Architecture'
         );
         const backlog = writeAsset(
             tmp.root,
-            '.claude/skills/project-planning/assets/_backlog.md',
+            '.claude/skills/project-planning/assets/backlog.md',
             '# Backlog'
         );
 
         runScaffold(tmp.root, { silent: true });
 
-        // Design system spec lands at docs root (alongside other _project-*.md)
-        const designOut = path.join(tmp.root, 'docs', '_project-design.md');
-        const archOut = path.join(tmp.root, 'docs', '_project-architecture.md');
-        const backlogOut = path.join(tmp.root, 'docs', 'todo', '_backlog.md');
+        // Manifest targets land in their domain folders (ADR domain taxonomy)
+        const designOut = path.join(tmp.root, 'docs', 'design/spec.md');
+        const archOut = path.join(tmp.root, 'docs', 'architecture/overview.md');
+        const backlogOut = path.join(tmp.root, 'docs', 'work', 'backlog.md');
 
         expect(fs.existsSync(designOut)).toBe(true);
         expect(fs.existsSync(archOut)).toBe(true);
@@ -740,13 +740,13 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
         makeTemplatesDir(tmp.root);
         writeAsset(
             tmp.root,
-            '.claude/skills/project-planning/assets/_project-context.md',
+            '.claude/skills/project-planning/assets/context.md',
             '# Context'
         );
 
         runScaffold(tmp.root, { silent: true });
 
-        const out = path.join(tmp.root, 'docs', '_project-context.md');
+        const out = path.join(tmp.root, 'docs', 'product/context.md');
         const firstLine = fs.readFileSync(out, 'utf8').split('\n')[0];
         expect(firstLine).toBe(MARKER);
     });
@@ -764,14 +764,30 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
         }
     });
 
+    it('scaffolds the domain-taxonomy folder tree (ADR docs/ Domain Taxonomy)', () => {
+        makeTemplatesDir(tmp.root);
+        runScaffold(tmp.root, { silent: true });
+        // The fixed domain folders an agent can navigate with zero search.
+        const domainDirs = [
+            'modules',
+            'architecture/decisions',
+            'operations/runbooks',
+            'work', 'work/todo', 'work/scratch',
+            '.output',
+        ];
+        for (const d of domainDirs) {
+            expect(fs.existsSync(path.join(tmp.root, 'docs', d))).toBe(true);
+        }
+    });
+
     it('skip-if-exists: a pre-existing manifest target is not overwritten without force', () => {
         makeTemplatesDir(tmp.root);
         writeAsset(
             tmp.root,
-            '.claude/skills/architecture/assets/_project-architecture.md',
+            '.claude/skills/architecture/assets/overview.md',
             '# New from asset'
         );
-        const out = path.join(tmp.root, 'docs', '_project-architecture.md');
+        const out = path.join(tmp.root, 'docs', 'architecture/overview.md');
         fs.mkdirSync(path.dirname(out), { recursive: true });
         const userContent = '# User edited — keep me\n';
         fs.writeFileSync(out, userContent);
@@ -779,37 +795,37 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
         const results = runScaffold(tmp.root, { silent: true });
 
         expect(fs.readFileSync(out, 'utf8')).toBe(userContent);
-        expect(results.skipped).toContain(path.join('docs', '_project-architecture.md'));
+        expect(results.skipped).toContain(path.join('docs', 'architecture/overview.md'));
     });
 
     it('--force overwrites a pre-existing manifest target with the asset content', () => {
         makeTemplatesDir(tmp.root);
         const asset = writeAsset(
             tmp.root,
-            '.claude/skills/architecture/assets/_project-architecture.md',
+            '.claude/skills/architecture/assets/overview.md',
             '# New from asset'
         );
-        const out = path.join(tmp.root, 'docs', '_project-architecture.md');
+        const out = path.join(tmp.root, 'docs', 'architecture/overview.md');
         fs.mkdirSync(path.dirname(out), { recursive: true });
         fs.writeFileSync(out, '# stale\n');
 
         const results = runScaffold(tmp.root, { force: true, silent: true });
 
         expect(fs.readFileSync(out, 'utf8')).toBe(asset);
-        expect(results.created).toContain(path.join('docs', '_project-architecture.md'));
+        expect(results.created).toContain(path.join('docs', 'architecture/overview.md'));
     });
 
     it('manifest substitution applies --set values to copied assets', () => {
         makeTemplatesDir(tmp.root);
         writeAsset(
             tmp.root,
-            '.claude/skills/ux-design/assets/_project-design.md',
+            '.claude/skills/ux-design/assets/spec.md',
             '# Design {Project Name}'
         );
 
         runScaffold(tmp.root, { substitutions: { project_name: 'Acme' }, silent: true });
 
-        const out = path.join(tmp.root, 'docs', '_project-design.md');
+        const out = path.join(tmp.root, 'docs', 'design/spec.md');
         const written = fs.readFileSync(out, 'utf8');
         expect(written).toContain('# Design Acme');
         expect(written).not.toContain('{Project Name}');

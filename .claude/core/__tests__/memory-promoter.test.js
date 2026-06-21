@@ -1185,11 +1185,11 @@ describe('memory-promoter', () => {
       const promoter = new MemoryPromoter();
 
       // Act
-      await promoter.mark('memory-limit', '_project-architecture.md template');
+      await promoter.mark('memory-limit', 'architecture/overview.md template');
 
       // Assert — reload the concept and check promotedTo field
       const [concept] = await promoter.loadConcepts();
-      expect(concept.promotedTo).toBe('_project-architecture.md template');
+      expect(concept.promotedTo).toBe('architecture/overview.md template');
     });
 
   });

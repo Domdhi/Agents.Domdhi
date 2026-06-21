@@ -4,7 +4,7 @@ Expert in capturing strategic product vision. Produces concise briefs that infor
 
 ## Document Template
 
-The document you produce — the canonical, scaffold-blessed template — lives in `../assets/_project-brief.md` (raw, with the `<!-- @@template -->` first-line marker). Read it to know the artifact's structure; `scaffold.js` seeds `docs/_project-brief.md` from the same file.
+The document you produce — the canonical, scaffold-blessed template — lives in `../assets/brief.md` (raw, with the `<!-- @@template -->` first-line marker). Read it to know the artifact's structure; `scaffold.js` seeds `docs/product/brief.md` from the same file.
 
 ## Required Sections Checklist
 
@@ -60,6 +60,6 @@ A constraint comes from the user's reality and *every* valid solution must honor
 7. "Are there any regulatory or compliance requirements?"
 
 ## Output Paths
-- Reads from: brainstorm/research docs if available — feature-scoped: `docs/app/{feature}/brainstorm.md`; general: `docs/.output/research/{date}-{slug}.md`
-- Produces: `docs/_project-brief.md`
-- Feeds into: `docs/_project-requirements.md` (via `/create:project-requirements`)
+- Reads from: brainstorm/research docs if available — feature-scoped: `docs/modules/{feature}/brainstorm.md`; general: `docs/.output/research/{date}-{slug}.md`
+- Produces: `docs/product/brief.md`
+- Feeds into: `docs/product/requirements.md` (via `/create:project-requirements`)

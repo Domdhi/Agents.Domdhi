@@ -31,7 +31,7 @@ TODO_PATH: $ARGUMENTS (the first non-flag argument; blank → auto-discover)
 
 ```
 IF TODO_PATH provided → read that file
-ELSE → search docs/TODO_*.md, docs/app/**/TODO*.md, docs/todo/TODO*.md
+ELSE → search docs/TODO_*.md, docs/modules/**/TODO*.md, docs/work/todo/TODO*.md
 IF multiple found → ask user which one
 IF none found → infer from conversation + handoff + git log,
                 then run /todo to create one
@@ -78,7 +78,7 @@ node .claude/core/gate.js test
 
 ### Step 1: Gather context
 
-**Check for existing research first.** If `/todo` was run, research files exist in `docs/.output/work/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
+**Check for existing research first.** If `/todo` was run, research files exist in `docs/work/scratch/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
 
 If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `Explore`) — Explore is read-only and cannot persist findings to disk.**
 
@@ -86,7 +86,7 @@ If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `
 Agent(
   subagent_type: "general-purpose",
   model: "sonnet",
-  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/.output/work/{date}/{slug}/{time}-runtodo-research.md",
+  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/work/scratch/{date}/{slug}/{time}-runtodo-research.md",
   description: "Research for {slug}"
 )
 ```
@@ -839,7 +839,7 @@ node .claude/hooks/organize.cjs
 
 ### 5. Final handoff regeneration
 
-After the plan file is updated, regenerate the session handoff ONE MORE TIME using the **`session-handoff`** skill — writing the SAME `$HANDOFF` file captured on the first wave (Step 8e), so the run still owns a single handoff file. This is the end-of-run handoff — it points the next session at the next epic/TODO or at `/review:retro`, not at the next wave (the last wave commit already did per-wave handoff).
+After the plan file is updated, regenerate the session handoff ONE MORE TIME using the **`session-handoff`** skill — writing the SAME `$HANDOFF` file captured on the first wave (Step 8e), so the run still owns a single handoff file. This is the end-of-run handoff — it points the next session at the next epic/TODO or at `/retro`, not at the next wave (the last wave commit already did per-wave handoff).
 
 ### 6. Final plan commit
 

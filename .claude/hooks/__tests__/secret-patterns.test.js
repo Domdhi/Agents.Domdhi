@@ -214,7 +214,7 @@ describe('scanContent', () => {
         // Placeholder connection strings in docs/agents are examples, not secrets.
         it('scanContent_placeholderConnString_userPass_noDetection', () => {
             const content = 'Example: postgresql://user:pass@host/db';
-            const names = scanContent(content, 'docs/_project-architecture.md').map(f => f.name);
+            const names = scanContent(content, 'docs/architecture/overview.md').map(f => f.name);
             expect(names).not.toContain('Connection String');
         });
         it('scanContent_placeholderConnString_usernamePassword_noDetection', () => {
@@ -229,12 +229,12 @@ describe('scanContent', () => {
         });
         it('scanContent_databaseUrl_placeholder_noDetection', () => {
             const content = 'DATABASE_URL=postgresql://user:pass@host/db';
-            const names = scanContent(content, 'docs/_backlog.md').map(f => f.name);
+            const names = scanContent(content, 'docs/backlog.md').map(f => f.name);
             expect(names).not.toContain('Database URL');
         });
         it('scanContent_databaseUrl_noCredentials_noDetection', () => {
             const content = 'DATABASE_URL=postgresql://localhost:5432/appdb';
-            const names = scanContent(content, 'docs/_project-architecture.md').map(f => f.name);
+            const names = scanContent(content, 'docs/architecture/overview.md').map(f => f.name);
             expect(names).not.toContain('Database URL');
         });
         // A real-looking password STILL blocks, even with a placeholder username —

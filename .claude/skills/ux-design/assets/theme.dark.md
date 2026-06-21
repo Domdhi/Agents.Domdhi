@@ -88,6 +88,6 @@ In dark mode, elevation is conveyed through surface lightness rather than shadow
 ---
 
 ## Related Documents
-- UX Spec: [../_project-design.md](../_project-design.md)
-- Light Theme: [_design.light.md](_design.light.md)
-- Mock Layout: [_mock-layout.html](_mock-layout.html)
+- UX Spec: [../design/spec.md](../design/spec.md)
+- Light Theme: [theme.light.md](theme.light.md)
+- Mock Layout: [mock.html](mock.html)

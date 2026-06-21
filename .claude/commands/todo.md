@@ -29,8 +29,8 @@ INPUT: $ARGUMENTS
 
 ```
 IF INPUT is a file path → read it as source material
-IF INPUT is an epic number → read Epic N from docs/todo/_backlog.md, use its stories as the brief
-IF INPUT is a module name → find docs/app/{name}/_brief.md, read it
+IF INPUT is an epic number → read Epic N from docs/work/backlog.md, use its stories as the brief
+IF INPUT is a module name → find docs/modules/{name}/brief.md, read it
 IF INPUT is a task description → use as the brief
 IF INPUT is empty → infer from (first that yields a concrete target wins):
   1. Current conversation context
@@ -41,22 +41,22 @@ IF INPUT is empty → infer from (first that yields a concrete target wins):
 ```
 
 **Next-epic resolution (empty INPUT — the lifecycle "what now?" loop).** When INPUT is empty and the conversation gives no specific target, consult the master index before falling back to the handoff/git heuristics. This is the source of truth no command previously read for "what's next," and it's what makes the post-`/evolve` loop self-continue (the lead epic is made ready by `/evolve` Step 5.6; *subsequent* epics get picked up here):
-1. Find the master index — `docs/TODO_{Project}.md` (the single `TODO_*.md` at the `docs/` root, not the per-epic files under `docs/todo/`). If absent or an unfilled `<!-- @@template -->` stub, skip to inference source #3.
+1. Find the master index — `docs/TODO_{Project}.md` (the single `TODO_*.md` at the `docs/` root, not the per-epic files under `docs/work/todo/`). If absent or an unfilled `<!-- @@template -->` stub, skip to inference source #3.
 2. Parse its epic rows and pick the **next** epic: prefer an **in-progress** epic (🔄 / partially-checked) if one exists — resume it — otherwise the **first not-done** epic (⬜ / `[ ]` todo, in index order). Skip ✅/`[x]` done epics. If every epic is done, say so (the cycle is complete → suggest `/evolve`) and stop.
-3. Resolve that epic to its **epic number** and hand off to the **epic-number branch** above (read Epic N's stories from `_backlog.md`). Announce the resolution in the report so it's never silent: `No INPUT given — resolved next epic from master index: Epic {N} — {title}.`
-This is deterministic and respects the same `_backlog.md` source the epic-number branch uses; the handoff/git fallbacks (#3/#4) remain for repos without a master index.
+3. Resolve that epic to its **epic number** and hand off to the **epic-number branch** above (read Epic N's stories from `backlog.md`). Announce the resolution in the report so it's never silent: `No INPUT given — resolved next epic from master index: Epic {N} — {title}.`
+This is deterministic and respects the same `backlog.md` source the epic-number branch uses; the handoff/git fallbacks (#3/#4) remain for repos without a master index.
 
 **Epic-number branch (check before treating INPUT as a task description).** INPUT is an epic number when the **entire trimmed INPUT is exactly one integer token** (`12` — but NOT `12 factor app setup`, a multi-token input that merely *starts* with a number, which is a task description), or it matches an `epic N` / `epic-N` / `epicNN` / `EX-NN` style epic identifier (case-insensitive). When it is:
-1. Read `docs/todo/_backlog.md` and locate that epic's section (its heading + story list). If `_backlog.md` is missing or is still an unfilled `<!-- @@template -->` stub, fall back to treating INPUT as a literal task description and note it.
-2. If the epic isn't found in `_backlog.md`, say so and list the epic numbers that *do* exist — do not silently treat the number as a task description.
+1. Read `docs/work/backlog.md` and locate that epic's section (its heading + story list). If `backlog.md` is missing or is still an unfilled `<!-- @@template -->` stub, fall back to treating INPUT as a literal task description and note it.
+2. If the epic isn't found in `backlog.md`, say so and list the epic numbers that *do* exist — do not silently treat the number as a task description.
 3. Use that epic's title + objective + stories as the brief. The epic's stories become the seed stories for the TODO (research still resolves exact file paths per story in Phase 2 — the backlog gives titles/AC intent, not file lists).
 4. This mirrors `/create:project-epics-todo`'s epic-aware resolution; `/todo {epic}` is the single-epic, execution-ready unit that `/evolve` Step 5.6 calls for the lead epic.
 
 ### 2. Gather Project Context
 
 Read in parallel:
-- `docs/_project-architecture.md` — architecture boundaries, schemas, ADRs
-- Module docs: `docs/app/{module}/_brief.md` (if module-scoped)
+- `docs/architecture/overview.md` — architecture boundaries, schemas, ADRs
+- Module docs: `docs/modules/{module}/brief.md` (if module-scoped)
 
 ---
 
@@ -110,7 +110,7 @@ Slice to the file budget FIRST (above), THEN count the resulting stories. This d
 ### Research Output Location
 
 ```
-docs/.output/work/YYYY-MM-DD/{slug}/
+docs/work/scratch/YYYY-MM-DD/{slug}/
   HHMM-research-codebase.md    ← Agent 1 (medium + large)
   HHMM-research-patterns.md    ← Agent 2 (large only)
 ```
@@ -141,7 +141,7 @@ Agent(
   9. Compute candidate wave groupings under both shapes: (a) file-overlap partitioning (zero overlap per wave) and (b) functional grouping for single-hotspot collapse. Leave the final shape decision to Main Agent.
   10. **Shared-git-index check:** if a wave's stories each run `git mv` / `git rm` / `git add` on the SAME working tree, they contend on `.git/index.lock` even when their files are disjoint — disjoint files ≠ disjoint git state. Flag such a wave `git-serial`: it must execute Main-Agent-direct sequentially, NOT as parallel agents, regardless of file-overlap partitioning. (Field-proven: skill-owned-templates Wave 2, six disjoint `git mv` migrations — ran sequential to avoid index-lock races.)
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-codebase.md
+  Write findings to: docs/work/scratch/{YYYY-MM-DD}/{slug}/{HHMM}-research-codebase.md
   """,
   description: "Research codebase for {slug}"
 )
@@ -163,7 +163,7 @@ Agent(
   3. What naming conventions, file organization patterns apply?
   4. What test patterns are used (framework, structure, naming)?
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-patterns.md
+  Write findings to: docs/work/scratch/{YYYY-MM-DD}/{slug}/{HHMM}-research-patterns.md
   """,
   description: "Research patterns for {slug}"
 )
@@ -394,7 +394,7 @@ Agent(
   5. Dependencies are correct — no story depends on something in a later wave
   6. ACs don't contradict each other across stories
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-review.md
+  Write findings to: docs/work/scratch/{YYYY-MM-DD}/{slug}/{HHMM}-review.md
   DO NOT edit the TODO file.
   """,
   description: "Review TODO for {slug}"
@@ -417,7 +417,7 @@ Main Agent is the single author of the TODO — review agents advise, Main Agent
 ## /todo Complete
 
 **TODO:** {path} ({N} stories, ~{N} estimated hours)
-**Research:** `docs/.output/work/{YYYY-MM-DD}/{slug}/` ({N} files)
+**Research:** `docs/work/scratch/{YYYY-MM-DD}/{slug}/` ({N} files)
 
 ### Story Breakdown
 | Wave | Stories | Sizes | Est. Hours |
@@ -457,7 +457,7 @@ docs: /todo — create TODO for {slug} ({N} stories)
 Then run:
 
 ```bash
-git add {TODO_PATH} docs/.output/work/{YYYY-MM-DD}/{slug}/ "$HANDOFF"
+git add {TODO_PATH} docs/work/scratch/{YYYY-MM-DD}/{slug}/ "$HANDOFF"
 node .claude/core/commit.js
 ```
 

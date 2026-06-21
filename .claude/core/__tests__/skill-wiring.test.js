@@ -139,8 +139,8 @@ describe('skill-consolidation shape', () => {
 
     it('project-planning owns the folded-in assets', () => {
         const assets = path.join(SKILLS_ROOT, 'project-planning', 'assets');
-        expect(fs.existsSync(path.join(assets, '_project-context.md'))).toBe(true);
-        expect(fs.existsSync(path.join(assets, '_backlog.md'))).toBe(true);
+        expect(fs.existsSync(path.join(assets, 'context.md'))).toBe(true);
+        expect(fs.existsSync(path.join(assets, 'backlog.md'))).toBe(true);
     });
 
     it('project-planning owns the folded-in guidance references', () => {

@@ -78,7 +78,7 @@ function processEvent(parsedJson) {
         process.stderr.write(
             `\n  ⚠️  Memory guard: ${category} has ${count} entries (max ${MAX_MEMORIES_PER_CATEGORY}). Consider pruning stale memories.\n\n`
         );
-    } else if (count >= MAX_MEMORIES_PER_CATEGORY * 0.8) {
+    } else if (count >= MAX_MEMORIES_PER_CATEGORY * CONSTANTS.MEMORY_FILTERS.MEMORY_NEAR_LIMIT_PCT) {
         process.stderr.write(
             `\n  ℹ️  Memory guard: ${category} is ${Math.round(count / MAX_MEMORIES_PER_CATEGORY * 100)}% full (${count}/${MAX_MEMORIES_PER_CATEGORY}).\n\n`
         );

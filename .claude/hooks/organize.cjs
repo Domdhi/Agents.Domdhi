@@ -150,7 +150,7 @@ function updateWorkRefs(projectDir, dateFolderName, finalName, storyNumber, topi
 
     // Dynamic TODO file discovery — sorted for determinism across filesystems
     const todoFilePaths = [];
-    const todoSubDir = path.join(projectDir, 'docs', 'todo');
+    const todoSubDir = path.join(projectDir, 'docs', 'work', 'todo');
     if (fs.existsSync(todoSubDir)) {
         fs.readdirSync(todoSubDir)
             .filter(f => f.match(/TODO.*\.md$/i) || f.match(/^_.*\.md$/i))

@@ -4,7 +4,7 @@ description: Analyze backlog for dependency optimization, critical path, and par
 
 # Optimize Backlog
 
-Analyze `docs/todo/_backlog.md` for dependency optimization, critical path identification, and parallel workstream mapping. This is the analytical counterpart to `/create:project-epics` — where epic creation thinks in coverage and phasing, this command thinks in graphs, parallelism, and realistic developer workflow.
+Analyze `docs/work/backlog.md` for dependency optimization, critical path identification, and parallel workstream mapping. This is the analytical counterpart to `/create:project-epics` — where epic creation thinks in coverage and phasing, this command thinks in graphs, parallelism, and realistic developer workflow.
 
 ## Telemetry (run first)
 
@@ -29,17 +29,17 @@ node .claude/core/telemetry-log.js review:optimize-backlog
 #### Check --yolo flag
 If arguments contain `--yolo`, set YOLO_MODE = true.
 
-- **Required**: Read `docs/todo/_backlog.md` — if it doesn't exist or first line is `<!-- @@template -->`, it's not real
-- **Required**: Read `docs/_project-architecture.md` — needed for package boundary analysis
-- **Optional**: Read `docs/_project-requirements.md` — for FR priority context (only if real, not template)
+- **Required**: Read `docs/work/backlog.md` — if it doesn't exist or first line is `<!-- @@template -->`, it's not real
+- **Required**: Read `docs/architecture/overview.md` — needed for package boundary analysis
+- **Optional**: Read `docs/product/requirements.md` — for FR priority context (only if real, not template)
 
-If `_backlog.md` doesn't exist or is template-only:
+If `backlog.md` doesn't exist or is template-only:
 - If YOLO_MODE → warn and skip optimization
 - Otherwise → **STOP**: "No backlog found. Run `/create:project-epics` first. Use `--yolo` to bypass this gate."
 
 ### 2. Build Dependency Graph (main agent)
 
-Extract from `_backlog.md`:
+Extract from `backlog.md`:
 1. **All stories** with their ID, epic, phase, estimate, **Complexity score (1–10, if present)**, domain tag, and dependencies. The Complexity score (the persisted `/do` routing signal — see `/todo`'s canonical rubric) is gathered alongside the estimate and carried into the analysis below; treat it as missing-tolerant (older stories may lack it).
 2. **Build adjacency list**: For each story, list what it depends on and what depends on it
 3. **Identify**:
@@ -47,7 +47,7 @@ Extract from `_backlog.md`:
    - **Leaf nodes**: Stories nothing depends on (can finish last)
    - **High fan-out nodes**: Stories that many others depend on (bottlenecks)
    - **Cross-phase dependencies**: Stories in Phase N that depend on Phase N+2 stories (ordering problems)
-   - **Cross-package boundaries**: Stories that touch different packages/modules (identify from `docs/_project-architecture.md` component boundaries)
+   - **Cross-package boundaries**: Stories that touch different packages/modules (identify from `docs/architecture/overview.md` component boundaries)
 
 4. **Compute critical path**: The longest dependency chain from any root to any leaf. This is the minimum total time regardless of parallelism.
 
@@ -60,10 +60,10 @@ Use the Task tool with `subagent_type: "project-planner"` to analyze and optimiz
 **Task prompt must include**:
 1. The full story list with dependencies (extracted in step 2)
 2. The dependency graph summary (roots, leaves, bottlenecks, cross-phase deps)
-3. The architecture package boundaries (extracted from `docs/_project-architecture.md` component architecture)
+3. The architecture package boundaries (extracted from `docs/architecture/overview.md` component architecture)
 4. The `project-planner` agent auto-loads the `project-planning` skill via frontmatter.
-5. Instruction to read `docs/todo/_backlog.md` for the full backlog context
-6. Instruction to read `docs/_project-architecture.md` for package boundaries
+5. Instruction to read `docs/work/backlog.md` for the full backlog context
+6. Instruction to read `docs/architecture/overview.md` for package boundaries
 
 **The agent must produce these sections**:
 
@@ -119,13 +119,13 @@ After the agent completes, verify:
 Present the optimization report to the user and ask:
 
 > **Options:**
-> 1. **Report only** — Keep the analysis as reference, don't modify `_backlog.md`
-> 2. **Apply annotations** — Add parallel workstream markers and critical path notes to `_backlog.md` without changing story order
+> 1. **Report only** — Keep the analysis as reference, don't modify `backlog.md`
+> 2. **Apply annotations** — Add parallel workstream markers and critical path notes to `backlog.md` without changing story order
 > 3. **Full rewrite** — Restructure phases and dependencies based on optimizations (delegate back to agent)
 
 If option 2 or 3: delegate the rewrite to the project-planner agent with specific instructions.
 
-> **Rewrite in place — never emit a parallel file (F12).** A "full rewrite" must update the canonical `docs/todo/_backlog.md` **in place** (overwriting it). Do NOT write a parallel `_epics.md`/`_backlog-optimized.md` and leave the human to rename it — a parallel file forces out-of-band file management and leaves stale self-references (wrong title, circular "derived from" notes, self-links, wrong counts) that then have to be hand-repaired. If the user wants to preview first, use option 1 (report only); when they choose rewrite, write the canonical file directly and re-run the count check in Step 4.
+> **Rewrite in place — never emit a parallel file (F12).** A "full rewrite" must update the canonical `docs/work/backlog.md` **in place** (overwriting it). Do NOT write a parallel `_epics.md`/`_backlog-optimized.md` and leave the human to rename it — a parallel file forces out-of-band file management and leaves stale self-references (wrong title, circular "derived from" notes, self-links, wrong counts) that then have to be hand-repaired. If the user wants to preview first, use option 1 (report only); when they choose rewrite, write the canonical file directly and re-run the count check in Step 4.
 
 ### 6. Persist Output (main agent)
 
@@ -142,7 +142,7 @@ File format:
 ```markdown
 # Backlog Optimization — {YYYY-MM-DD}
 
-**Input**: docs/todo/_backlog.md
+**Input**: docs/work/backlog.md
 **Stories analyzed**: {count}
 
 {full report content — dependency graph, critical path analysis, parallel workstreams, over-specified deps, phase optimization, developer workflow recommendation}
@@ -157,7 +157,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```markdown
 ## Backlog Optimization Complete
 
-**Input**: docs/todo/_backlog.md
+**Input**: docs/work/backlog.md
 **Stories analyzed**: {count}
 **Output**: `docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
 **Critical path**: {count} stories, ~{hours} hours ({story chain})

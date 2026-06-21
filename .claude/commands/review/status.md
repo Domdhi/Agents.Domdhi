@@ -28,7 +28,7 @@ node .claude/core/status.js $FLAGS
 ```
 
 The script:
-- Scans `docs/TODO_*.md`, `docs/todo/TODO*.md`, `docs/app/**/TODO*.md`
+- Scans `docs/TODO_*.md`, `docs/work/todo/TODO*.md`, `docs/modules/**/TODO*.md`
 - Parses checkbox markers: `[ ]`, `[x]`, `[>]`, `[!]`, `[~]`
 - Parses master index tables (Phase Map, Epic Index) if present
 - Prints a text summary to stdout

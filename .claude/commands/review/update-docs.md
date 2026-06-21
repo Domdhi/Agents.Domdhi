@@ -29,9 +29,9 @@ INPUT: $ARGUMENTS
 
 - `INPUT` (optional): Scope to update. Defaults to `all`.
   - `all` — Fix all detected drift
-  - `architecture` — Update tech stack and structure in `_project-architecture.md`
-  - `stories` — Update story statuses in TODO checklists (`docs/todo/TODO_epic*.md`)
-  - `prd` — Update requirement statuses in `_project-requirements.md`
+  - `architecture` — Update tech stack and structure in `architecture/overview.md`
+  - `stories` — Update story statuses in TODO checklists (`docs/work/todo/TODO_epic*.md`)
+  - `prd` — Update requirement statuses in `product/requirements.md`
 
 ## Workflow
 
@@ -57,7 +57,7 @@ For each drift item from the report, classify:
 | PRD requirement not yet implemented | — | No | Informational only (expected during development) |
 | New code pattern not in architecture | ADDED | Manual | Flag for manual architecture update |
 
-> **Note**: `_backlog.md` is a **read-only planning artifact** — it defines what to build but does NOT track completion status. Story status lives in per-epic TODO checklists (`docs/todo/TODO_epic*.md`). Never modify `_backlog.md` to update story markers.
+> **Note**: `backlog.md` is a **read-only planning artifact** — it defines what to build but does NOT track completion status. Story status lives in per-epic TODO checklists (`docs/work/todo/TODO_epic*.md`). Never modify `backlog.md` to update story markers.
 
 ### 3. Preview Changes (main agent)
 
@@ -70,7 +70,7 @@ Present all proposed changes to the user before applying:
 | # | File | Delta | Change | Before | After |
 |---|------|-------|--------|--------|-------|
 | 1 | TODO_epic01_*.md | ADDED | Mark story done | `[ ] Story 1.1` | `[x] Story 1.1` |
-| 2 | _project-architecture.md | ADDED | Add dependency | (missing) | `| Backend | express | 4.18 |` |
+| 2 | architecture/overview.md | ADDED | Add dependency | (missing) | `| Backend | express | 4.18 |` |
 | 3 | TODO_{Project}.md | MODIFIED | Update epic count | `2/5 done` | `3/5 done` |
 
 ### Need Confirmation ({count})
@@ -81,7 +81,7 @@ Present all proposed changes to the user before applying:
 ### Manual Action Required ({count})
 | # | File | Finding | Recommendation |
 |---|------|---------|----------------|
-| 1 | _project-architecture.md | New pattern: {name} | Add to Component Architecture |
+| 1 | architecture/overview.md | New pattern: {name} | Add to Component Architecture |
 ```
 
 ### 4. Apply Changes (main agent → doc-writer)
@@ -97,15 +97,15 @@ If user approves, use the Task tool with `subagent_type: "doc-writer"` to apply 
 4. Specific instructions for each change type:
    - `TODO_epic*.md`: update story checkbox markers, add `<!-- updated by /update-docs on YYYY-MM-DD -->` notes
    - `TODO_{Project}.md`: recalculate epic done counts if story statuses changed
-   - `_project-architecture.md`: add/remove dependencies in tech stack tables, update paths
-   - `_project-requirements.md`: only update if explicitly confirmed by user
-   - **NEVER modify `_backlog.md`** — it is a read-only planning artifact
+   - `architecture/overview.md`: add/remove dependencies in tech stack tables, update paths
+   - `product/requirements.md`: only update if explicitly confirmed by user
+   - **NEVER modify `backlog.md`** — it is a read-only planning artifact
    - Dead references: update link targets or remove broken links
 5. Instruction to NOT modify any code files — docs only
 
 ### 5. Update Project Context (main agent)
 
-If significant changes were made, update `docs/_project-context.md`:
+If significant changes were made, update `docs/product/context.md`:
 - Refresh the Stats section (epic/story counts)
 - Update Quick Reference links if any paths changed
 

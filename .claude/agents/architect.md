@@ -97,10 +97,10 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 **Write before you report.** Whatever you produce must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
 
 **Where your work goes:**
-- Architecture document → `docs/_project-architecture.md` (canonical, overwritten in place)
+- Architecture document → `docs/architecture/overview.md` (canonical, overwritten in place)
 - ADRs → `docs/.output/reviews/{YYMMDD-HHMM}-adr-{slug}.md`
 
-**Run-stamp:** when you write a fresh-each-run ADR or review under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. The canonical `_project-architecture.md` is overwritten in place, never stamped.
+**Run-stamp:** when you write a fresh-each-run ADR or review under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. The canonical `architecture/overview.md` is overwritten in place, never stamped.
 
 **Guardrails will block a bad attempt — work with them, not against them:**
 - `path-guardrail` rejects any Write/Edit outside the four-tier path schema — land output in the right directory the first time (the paths above).

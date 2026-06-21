@@ -2,7 +2,7 @@
  * Telemetry Paths — canonical path helpers for the telemetry pipeline.
  *
  * Telemetry schema enrichment (A4) adopted from gstack:
- * `docs/research/competitive/_hooks-and-core-scripts-comparison.md` A4.
+ * `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` A4.
  *
  * Extracted from duplicated inline implementations across:
  *   - .claude/core/gate.js:39-40 (GATE_DIR, LOG_DIR inline)

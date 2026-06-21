@@ -33,7 +33,7 @@ const { appendJsonl } = require('./_lib/jsonl-writer');
 // Cap source is constants.js; env override (MEMORY_MAX_PER_CATEGORY) applied here
 // with the SAME expression as memory-guard.cjs so the two sites can never diverge.
 const MAX_MEMORIES_PER_CATEGORY = parseInt(process.env.MEMORY_MAX_PER_CATEGORY, 10) || CONSTANTS.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY;
-const PRUNE_THRESHOLD_PERCENT = 0.8;
+const PRUNE_THRESHOLD_PERCENT = CONSTANTS.MEMORY_FILTERS.MEMORY_NEAR_LIMIT_PCT;
 const PRUNE_MIN_AGE_DAYS = 30;
 const PRUNE_MIN_CONFIDENCE = 0.3;
 // Dead-weight flagger (ME-1.1): min active-work-days since `created` for a
@@ -44,6 +44,9 @@ const EXPOSURE_MIN_ACTIVE_DAYS = parseInt(process.env.MEMORY_EXPOSURE_MIN_DAYS, 
 const IMPORTANCE_DEFAULT = parseInt(process.env.MEMORY_IMPORTANCE_DEFAULT, 10) || CONSTANTS.MEMORY_FILTERS.IMPORTANCE_DEFAULT;
 const IMPORTANCE_MIN = 1;
 const IMPORTANCE_MAX = 5;
+// Relevance scoring weights — single source for both search paths (FTS query
+// mapper + JSON-fallback calculateRelevance). Never re-hardcode these.
+const SCORING = CONSTANTS.MEMORY_SCORING;
 
 // Coerce any author-supplied importance to an integer clamped to [1,5];
 // non-numeric / missing → IMPORTANCE_DEFAULT.
@@ -678,7 +681,7 @@ class MemoryManager {
                             category: row.category,
                             id: row.id,
                             // ME-2.2 — importance term (+4..+20) mirrors the JSON path
-                            relevance: Math.abs(row.rank) * 10 + (row.confidence || 0) * 10 + (row.usage_count || 0) * 5 + importance * 4,
+                            relevance: Math.abs(row.rank) * SCORING.FTS_RANK_MULTIPLIER + (row.confidence || 0) * SCORING.CONFIDENCE_MULTIPLIER + (row.usage_count || 0) * SCORING.USAGE_MULTIPLIER + importance * SCORING.IMPORTANCE_MULTIPLIER,
                             confidence: row.confidence ?? 1.0,
                             decayed_confidence: this.calculateDecayedConfidence(mockMemory)
                         };
@@ -996,17 +999,17 @@ class MemoryManager {
         const term = searchTerm.toLowerCase();
 
         const matches = (content.match(new RegExp(term, 'g')) || []).length;
-        score += matches * 10;
+        score += matches * SCORING.MATCH_MULTIPLIER;
 
         const daysSinceUpdate = (Date.now() - new Date(memory.updated)) / (1000 * 60 * 60 * 24);
-        if (daysSinceUpdate < 7) score += 20;
-        else if (daysSinceUpdate < 30) score += 10;
+        if (daysSinceUpdate < SCORING.RECENCY_RECENT_DAYS) score += SCORING.RECENCY_RECENT_POINTS;
+        else if (daysSinceUpdate < SCORING.RECENCY_MID_DAYS) score += SCORING.RECENCY_MID_POINTS;
 
-        score += memory.usage_count * 5;
-        score += memory.metadata.confidence * 10;
+        score += memory.usage_count * SCORING.USAGE_MULTIPLIER;
+        score += memory.metadata.confidence * SCORING.CONFIDENCE_MULTIPLIER;
         // ME-2.2 — importance term (1–5 → +4..+20) so a higher-importance memory
         // scores strictly higher than an otherwise-identical lower-importance one.
-        score += clampImportance(memory.importance ?? memory.content?.importance) * 4;
+        score += clampImportance(memory.importance ?? memory.content?.importance) * SCORING.IMPORTANCE_MULTIPLIER;
 
         return score;
     }
@@ -1187,7 +1190,7 @@ class MemoryManager {
                 count,
                 cap,
                 pct_full: Number(pctFull.toFixed(3)),
-                near_limit: pctFull >= 0.8,
+                near_limit: pctFull >= PRUNE_THRESHOLD_PERCENT,
                 stale_count: stale,
                 archive_candidates: archive,
                 never_used: neverUsed,

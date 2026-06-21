@@ -59,7 +59,7 @@ git log --format="%aN" {from}..{to} | sort -u
 ```
 
 **From Epics:**
-- Read `docs/todo/_backlog.md`
+- Read `docs/work/backlog.md`
 - Find stories marked `[x]` that were completed within the scope period
 - Group by epic
 

@@ -109,7 +109,7 @@ If any condition above is not met, **persist before reporting:** Write the full 
 {- "Run `node .claude/core/memory-manager.js report` to view all memories, or `node .claude/core/memory-manager.js decay-report` to inspect stalest entries first."}
 {- "Consider archiving {archive_count} memories below 0.1 confidence using memory-manager."}
 {- "Fix lint issues: {summary of failing checks}."}
-{- "Run /review:retro to re-validate stale pattern memories from recent epics."}
+{- "Run /retro to re-validate stale pattern memories from recent epics."}
 {If nothing actionable was found beyond the silent threshold, write: "Memory system is near-healthy — monitor decay over the next few sessions."}
 ```
 

@@ -44,7 +44,7 @@ Use mcp__claude-in-chrome__computer for clicks and interactions.
 `/run-tests` is one-shot — it executes the checklist once and reports. For repeated execution (post-deploy verification, mid-day regression polling, pre-merge canary), wrap it with the built-in `/loop` primitive instead of re-implementing scheduling here:
 
 ```
-/loop 10m /run-tests docs/app/{feature}/TODO_testing.md
+/loop 10m /run-tests docs/modules/{feature}/TODO_testing.md
 ```
 
 `/loop` is session-scoped (lives until the session ends or 7 days — Claude Code 2.1.x) and fires the inner command on the chosen interval. Pick the cadence to match what you're watching for:
@@ -160,8 +160,8 @@ This is what `/loop` fires each interval. It samples **once** and persists state
 ```
 IF TODO_FILE provided → read that file
 ELSE → search:
-  1. docs/app/**/TODO*Test*.md or docs/todo/**/TODO*Test*.md
-  2. docs/app/**/*testing*.md or docs/todo/**/*testing*.md
+  1. docs/modules/**/TODO*Test*.md or docs/work/todo/**/TODO*Test*.md
+  2. docs/modules/**/*testing*.md or docs/work/todo/**/*testing*.md
 IF multiple found → ask user which one
 IF none found → ask user
 ```
@@ -231,7 +231,7 @@ Before dispatching browser agents, verify actual test selectors exist in the cod
 ```
 Agent(
   subagent_type: "general-purpose",
-  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/.output/work/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
+  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/work/scratch/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
   description: "Find test selectors for {feature}"
 )
 ```

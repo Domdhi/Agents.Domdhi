@@ -5,7 +5,7 @@ argument-hint: [topic or problem statement]
 
 # Brainstorm
 
-Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/app/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md`. Also captures ideas into `docs/todo/_feature-ideas.md` (living backlog).
+Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/modules/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md`. Also captures ideas into `docs/work/todo/feature-ideas.md` (living backlog).
 
 ## Telemetry (run first)
 
@@ -29,7 +29,7 @@ INPUT: $ARGUMENTS
 
 ### 1. Detect Mode (main agent)
 
-- If project has existing `docs/_brainstorm.md` → ask: **update** existing or **start fresh**?
+- If project has existing `docs/product/brainstorm.md` → ask: **update** existing or **start fresh**?
 - If INPUT provided → use as problem statement seed, go to Context Gathering
 - If no INPUT → start with Interview
 
@@ -54,11 +54,11 @@ Ask the user three short rounds of **free-form** questions. These expect paragra
 Determine where to write the brainstorm based on context:
 
 ```
-IF brainstorming a specific feature/module that has docs/app/{name}/:
-  OUTPUT_PATH = docs/app/{name}/brainstorm.md
+IF brainstorming a specific feature/module that has docs/modules/{name}/:
+  OUTPUT_PATH = docs/modules/{name}/brainstorm.md
 ELIF brainstorming a specific feature/module (new):
-  mkdir -p docs/app/{name}/
-  OUTPUT_PATH = docs/app/{name}/brainstorm.md
+  mkdir -p docs/modules/{name}/
+  OUTPUT_PATH = docs/modules/{name}/brainstorm.md
 ELSE (project-wide or general):
   OUTPUT_PATH = docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md
 ```
@@ -84,9 +84,9 @@ Use the Task tool with `subagent_type: "product-strategist"` to generate the bra
 
 ### 5. Capture Ideas to Feature Backlog (main agent)
 
-After the brainstorm agent completes, read the output and capture ideas into `docs/todo/_feature-ideas.md`:
+After the brainstorm agent completes, read the output and capture ideas into `docs/work/todo/feature-ideas.md`:
 
-1. **If `_feature-ideas.md` doesn't exist or contains only template placeholders** → create it from the template structure (see `.claude/skills/project-planning/assets/_feature-ideas.md`)
+1. **If `feature-ideas.md` doesn't exist or contains only template placeholders** → create it from the template structure (see `.claude/skills/project-planning/assets/feature-ideas.md`)
 2. **If it already has content** → append new ideas (don't overwrite existing ones)
 
 For each idea explored:
@@ -107,7 +107,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ## Brainstorm Complete
 
 **Output**: {OUTPUT_PATH}
-**Feature ideas captured**: docs/todo/_feature-ideas.md ({count} ideas)
+**Feature ideas captured**: docs/work/todo/feature-ideas.md ({count} ideas)
 **Ideas explored**: {count}
 **Recommended direction**: {name}
 

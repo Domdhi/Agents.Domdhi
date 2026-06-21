@@ -32,7 +32,7 @@ const {
 function makeFile(overrides = {}) {
     return {
         title: overrides.title ?? 'Test Epic',
-        path: overrides.path ?? 'docs/todo/TODO_epic01.md',
+        path: overrides.path ?? 'docs/work/todo/TODO_epic01.md',
         type: overrides.type ?? 'checklist',
         stories: {
             total: 10,
@@ -217,11 +217,11 @@ describe('status-html', () => {
 
         it('renders file cards with title, filepath, progress bar, and stat badges', () => {
             const tmpDir = makeTmpDir();
-            const files = [makeFile({ title: 'My Epic', path: 'docs/todo/TODO_epic01.md' })];
+            const files = [makeFile({ title: 'My Epic', path: 'docs/work/todo/TODO_epic01.md' })];
             try {
                 const html = generateHtml(files, null, null, tmpDir);
                 expect(html).toContain('My Epic');
-                expect(html).toContain('docs/todo/TODO_epic01.md');
+                expect(html).toContain('docs/work/todo/TODO_epic01.md');
                 // progress bar width for 4/10 = 40%
                 expect(html).toContain('width: 40%');
                 // stat badges
@@ -414,7 +414,7 @@ describe('status-html', () => {
 
         it('HTML-escapes titles and paths containing special characters', () => {
             const tmpDir = makeTmpDir();
-            const files = [makeFile({ title: 'Epic <Alpha> & "Beta"', path: 'docs/todo/TODO_epic<01>.md' })];
+            const files = [makeFile({ title: 'Epic <Alpha> & "Beta"', path: 'docs/work/todo/TODO_epic<01>.md' })];
             try {
                 const html = generateHtml(files, null, null, tmpDir);
                 expect(html).toContain('Epic &lt;Alpha&gt; &amp; &quot;Beta&quot;');
@@ -425,7 +425,7 @@ describe('status-html', () => {
 
         it('renders "N TODO files found" meta line with plural form', () => {
             const tmpDir = makeTmpDir();
-            const files = [makeFile(), makeFile({ title: 'Epic 02', path: 'docs/todo/TODO_epic02.md' })];
+            const files = [makeFile(), makeFile({ title: 'Epic 02', path: 'docs/work/todo/TODO_epic02.md' })];
             try {
                 const html = generateHtml(files, null, null, tmpDir);
                 expect(html).toContain('2 TODO files found');

@@ -20,10 +20,16 @@ describe('constants', () => {
     }
   });
 
-  it('memoryFilters_maxPerCategory_is50', () => {
+  it('memoryFilters_maxPerCategory_is100', () => {
     // Arrange / Act / Assert — the single source of truth for the per-category
-    // cap (env-overridden at call sites). Static 50 keeps require() deterministic.
-    expect(constants.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY).toBe(50);
+    // cap (env-overridden at call sites). Static 100 keeps require() deterministic.
+    expect(constants.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY).toBe(100);
+  });
+
+  it('memoryFilters_nearLimitPct_is080', () => {
+    // Single source for the prune/warn/near-limit threshold — read by
+    // memory-manager, memory-guard, and memory-lint (never re-hardcode 0.8).
+    expect(constants.MEMORY_FILTERS.MEMORY_NEAR_LIMIT_PCT).toBe(0.8);
   });
 
   it('memoryCategories_values_matchExpectedStrings', () => {
@@ -65,5 +71,37 @@ describe('constants', () => {
     expect(dc).toBeDefined();
     expect(typeof dc).toBe('object');
     expect(entriesWithFeeds.length).toBeGreaterThan(0);
+  });
+
+  it('docPaths_existsAndUsesDomainTaxonomy', () => {
+    // Arrange — the canonical docs/-relative path map (ADR 2026-06-20).
+    const dp = constants.DOC_PATHS;
+
+    // Act / Assert — each domain has its canonical entry, docs/-relative.
+    expect(dp).toBeDefined();
+    expect(dp.brief).toBe('product/brief.md');
+    expect(dp.requirements).toBe('product/requirements.md');
+    expect(dp.architecture).toBe('architecture/overview.md');
+    expect(dp.design).toBe('design/spec.md');
+    expect(dp.backlog).toBe('work/backlog.md');
+    expect(dp.timeline).toBe('work/timeline.md');
+    expect(dp.modules).toBe('modules');
+    // No value carries a leading docs/ — callers compose with docsDir.
+    for (const v of Object.values(dp)) {
+      expect(v.startsWith('docs/')).toBe(false);
+      expect(v.startsWith('/')).toBe(false);
+    }
+  });
+
+  it('docChain_referencesDomainPaths_notLegacyProjectNames', () => {
+    // The chain now flows through domain paths; the legacy flat `_project-*`
+    // names must be gone from feeds (brainstorm/research keys are exempt — they
+    // are ideation inputs not yet assigned a domain).
+    const dc = constants.DOC_CHAIN;
+    const allFeeds = Object.values(dc).flatMap((e) => e.feeds);
+    for (const f of allFeeds) {
+      expect(f).not.toMatch(/_project-/);
+    }
+    expect(dc['product/requirements.md'].feeds).toContain('work/backlog.md');
   });
 });

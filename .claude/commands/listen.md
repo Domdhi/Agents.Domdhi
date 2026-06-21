@@ -83,8 +83,8 @@ Run every applicable source. A source that yields nothing writes its header with
 - Read the newest few day-files in `docs/.output/agent-updates/` (`{YYYY-MM-DD}.md`; fall back to legacy flat `agent-updates.md`). Surface misalignments/decisions that have **not** yet been folded into a command or agent (i.e., still actionable). These are the `/optimize-agents` candidates that haven't been picked up.
 
 **2d. `backlog` — plan drift**
-- Grep `docs/todo/TODO_*.md` for deferred `[~]` and blocked `[!]` items — work that fell out of waves and never came back.
-- Read `docs/todo/_design-notes.md` open items (un-promoted gaps).
+- Grep `docs/work/todo/TODO_*.md` for deferred `[~]` and blocked `[!]` items — work that fell out of waves and never came back.
+- Read `docs/work/todo/_design-notes.md` open items (un-promoted gaps).
 - Scan recent `docs/.output/plans/*.md` for "Deferred" / "Next Task" residue.
 
 **2e. `external` — bug tracker / feedback (only if configured)**

@@ -13,7 +13,12 @@
 
 const { jaccardFromText } = require('./jaccard');
 
-const DEFAULT_MAX_PER_CATEGORY = 50;
+// Single source of truth — no local duplicate of the cap value or the near-limit
+// fraction (constants.js is zero-dep, so this stays portable). Callers may still
+// override the cap via opts.maxPerCategory.
+const { MEMORY_FILTERS } = require('../constants');
+const DEFAULT_MAX_PER_CATEGORY = MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY;
+const NEAR_LIMIT_PCT = MEMORY_FILTERS.MEMORY_NEAR_LIMIT_PCT;
 
 const POSITIVE_SIGNALS = ['always', 'must', 'should', 'require', 'use', 'do'];
 const NEGATIVE_SIGNALS = ["don't", 'never', 'avoid', 'skip', 'stop', 'remove'];
@@ -172,7 +177,7 @@ function lintMemories(allMemories, { calculateDecayedConfidence, categories, max
     findings.decay_validation.count = findings.decay_validation.findings.length;
 
     // Check 7 — Category balance (any category >= 80% of max)
-    const balanceThreshold = Math.floor(maxPerCategory * 0.8);
+    const balanceThreshold = Math.floor(maxPerCategory * NEAR_LIMIT_PCT);
     for (const category of categories) {
         const count = (byCategory[category] || []).length;
         if (count >= balanceThreshold) {

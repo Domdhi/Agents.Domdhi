@@ -136,7 +136,7 @@ Two patterns for the case where the thing under test is itself a *rule* (a cross
 - **Test a checker's LOGIC against fixtures, never against the live tree.** When a checker/linter script lands before the cleanup that makes the real tree pass (TDD-ordered: add-the-check, then fix-the-violations), its unit test must assert the checker's logic against *synthetic/fixture inputs*, not by scanning the real repo. A test that scans the live tree fails the instant the checker is introduced (the violations it's meant to catch still exist) and passes later for the wrong reason — it tests the tree's current state, not the checker. Fixture inputs make the test deterministic and independent of cleanup ordering.
 
 ## Cross-References
-- Reads: `docs/_project-architecture.md` (test framework), `docs/todo/_backlog.md` (acceptance criteria)
+- Reads: `docs/architecture/overview.md` (test framework), `docs/work/backlog.md` (acceptance criteria)
 - Produces: Test files in appropriate test directories
 
 ---

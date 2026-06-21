@@ -99,11 +99,11 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-a
 **Write before you report.** Whatever you produce must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
 
 **Where your work goes:**
-- Project brief → `docs/_project-brief.md`; PRD → `docs/_project-requirements.md` (canonical, overwritten in place)
-- Feature-scoped brainstorm/research → `docs/app/{feature}/`
+- Project brief → `docs/product/brief.md`; PRD → `docs/product/requirements.md` (canonical, overwritten in place)
+- Feature-scoped brainstorm/research → `docs/modules/{feature}/`
 - Project-wide research → `docs/.output/research/{YYMMDD-HHMM}-{slug}.md`
 
-**Run-stamp:** when you write a fresh-each-run research file under `.output/`, prefix it `{YYMMDD-HHMM}`. You can't run `date`; a dispatching command passes the stamp — reuse it verbatim. Invoked standalone with no stamp? Ask the main agent for one rather than inventing a placeholder or leaving the literal `{YYMMDD-HHMM}` in the filename. Canonical `_project-*.md` docs are overwritten in place, never stamped.
+**Run-stamp:** when you write a fresh-each-run research file under `.output/`, prefix it `{YYMMDD-HHMM}`. You can't run `date`; a dispatching command passes the stamp — reuse it verbatim. Invoked standalone with no stamp? Ask the main agent for one rather than inventing a placeholder or leaving the literal `{YYMMDD-HHMM}` in the filename. Canonical planning docs are overwritten in place, never stamped.
 
 **Guardrails will block a bad attempt — work with them, not against them:**
 - `path-guardrail` rejects any Write/Edit outside the four-tier path schema — land output in the right directory the first time (the paths above).

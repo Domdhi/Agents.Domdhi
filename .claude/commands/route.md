@@ -41,7 +41,7 @@ If the request is an existing checklist story that already carries a persisted `
 |------|--------------|-----------|-------------|---------------------------|
 | **0 — Trivial / Bugfix** | one known change, no new design | 1–3 | **`/do {task}`** | ALL planning (brief, PRD, architecture, design, epics, todo) |
 | **1 — Feature** | several stories within the *existing* architecture; no new ADRs | 4–6 | **`/todo {feature}`** → `/run-todo` (or `/do` per story) | brief, PRD, architecture, design, epics |
-| **2 — Module** | a new feature *area* inside an existing project | 4–7 | **`/create:module {name}`** | project-level brief/PRD/architecture (a module-scoped `_brief.md` replaces them) |
+| **2 — Module** | a new feature *area* inside an existing project | 4–7 | **`/create:module {name}`** | project-level brief/PRD/architecture (a module-scoped `brief.md` replaces them) |
 | **3 — Epic / Greenfield / Product** | a new product or major subsystem; needs real requirements + architecture | 7–10 | **`/create:new-project`** (greenfield) · **`/onboard`** (existing code with no docs) | none — the full planning pipeline runs |
 
 **The Complexity bands are overlapping guides, not exclusive cutoffs** — **architectural reach is the primary axis** (a Complexity-5 request is Tier 1 if it fits the existing architecture, Tier 2 if it's a new feature area). Use Complexity to *break ties within* a reach band, not to pick the band.
@@ -53,7 +53,7 @@ If the request is an existing checklist story that already carries a persisted `
 Routing is **not** gate-bypass. Consequence of getting this wrong: a request enters mid-pipeline on a missing prerequisite and downstream work is built on a stub.
 
 - **Name each skipped phase** in the report (from the table's "Phases explicitly skipped" column), with the one-line reason it's safe to skip at this tier.
-- **Downstream hard gates remain in force.** `/route` NEVER passes `--yolo` and NEVER edits gate state. If the chosen entry point has an unmet hard gate (e.g. routing a feature to `/todo` but `_backlog.md` is a stub, or `/create:project-requirements` with no brief), surface that — the downstream command's gate will (correctly) stop, and the right move is to generate the missing prerequisite, not to force past it.
+- **Downstream hard gates remain in force.** `/route` NEVER passes `--yolo` and NEVER edits gate state. If the chosen entry point has an unmet hard gate (e.g. routing a feature to `/todo` but `backlog.md` is a stub, or `/create:project-requirements` with no brief), surface that — the downstream command's gate will (correctly) stop, and the right move is to generate the missing prerequisite, not to force past it.
 - **Log the decision.** Append a one-line routing record to the daily log so the choice is durable, not just chat:
 
   ```bash

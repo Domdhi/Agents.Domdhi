@@ -43,7 +43,7 @@ IF INPUT is a description → use as the task brief
 IF INPUT is empty → infer:
   1. Current conversation (what were we just discussing?)
   2. the latest session handoff's next actions (`node .claude/core/handoff-path.js latest`)
-  3. Find next pending [ ] story in docs/todo/TODO_epic*.md (dependency order)
+  3. Find next pending [ ] story in docs/work/todo/TODO_epic*.md (dependency order)
   4. Ask user only as last resort
 ```
 
@@ -80,8 +80,8 @@ Read in parallel:
 - The story's **acceptance criteria** and **research notes** (from the TODO)
 - The story's **file list** (exact paths from the TODO)
 - The **actual current content** of each file being modified (not just paths — read them)
-- `docs/_project-architecture.md` — relevant ADRs and constraints
-- Any **module brief** if module-scoped: `docs/app/{module}/_brief.md`
+- `docs/architecture/overview.md` — relevant ADRs and constraints
+- Any **module brief** if module-scoped: `docs/modules/{module}/brief.md`
 
 **Why Main Agent reads the files:** The implementation agent needs code snippets, not file paths. Main Agent assembles the context package so Sonnet has zero ambiguity.
 

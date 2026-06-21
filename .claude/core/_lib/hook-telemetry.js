@@ -3,7 +3,7 @@
  *
  * Hook-duration telemetry is a blind-spot opportunity noted in Section D of
  * the competitive comparison; no competitor measures hook execution time.
- * See `docs/research/competitive/_hooks-and-core-scripts-comparison.md` §D.
+ * See `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` §D.
  *
  * Usage from a hook:
  *

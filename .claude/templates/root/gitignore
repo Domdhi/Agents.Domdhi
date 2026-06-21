@@ -30,7 +30,10 @@ test-results/
 playwright-report/
 
 # Ephemeral output (rebuilt from source or session-specific)
-# Tracked (NOT listed here): plans/, reviews/, research/, investigations/, work/
+# Tracked (NOT listed here): .output/plans|reviews|research|investigations, and
+# the durable docs/ domains. docs/work/scratch/ is the lone dated/ephemeral path
+# outside .output/ (task working files) — ignored so scratch never ships/commits.
+docs/work/scratch/
 .claude/.agents.docs/
 # Agent-scoped working memory (per-agent markdown the sub-agents accumulate).
 # Local/regenerable like docs/.output/memories/ — must NOT be committed (C10).

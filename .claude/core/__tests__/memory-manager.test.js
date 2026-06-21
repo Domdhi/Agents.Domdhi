@@ -14,6 +14,10 @@ import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 
 const MemoryManager = require('../memory-manager');
+const CONSTANTS = require('../constants');
+// Constant-relative so a change to the cap OR the near-limit fraction doesn't re-break these tests.
+const CAP = CONSTANTS.MEMORY_FILTERS.MEMORY_MAX_PER_CATEGORY;
+const NEAR_PCT = CONSTANTS.MEMORY_FILTERS.MEMORY_NEAR_LIMIT_PCT;
 const { createTmpDir } = require('./_helpers/tmp-dir');
 const { createGitRepo } = require('./_helpers/git-fixture');
 
@@ -781,8 +785,9 @@ describe('memory-manager', () => {
     });
 
     it('lintMemories_categoryBalance_flagsAt80Percent', async () => {
-      // Arrange — 40 patterns = 80% of 50
-      for (let i = 0; i < 40; i++) {
+      // Arrange — fill to exactly the near-limit threshold (matches memory-lint's Math.floor)
+      const threshold = Math.floor(CAP * NEAR_PCT);
+      for (let i = 0; i < threshold; i++) {
         writeFixtureMemory('patterns', `pat_${i}`, { content: { x: i } });
       }
       const manager = makeManager();
@@ -793,9 +798,9 @@ describe('memory-manager', () => {
       // Assert
       expect(result.checks.category_balance.count).toBe(1);
       const finding = result.checks.category_balance.findings[0];
-      expect(finding.count).toBe(40);
-      expect(finding.threshold).toBe(40);
-      expect(finding.limit).toBe(50);
+      expect(finding.count).toBe(threshold);
+      expect(finding.threshold).toBe(threshold);
+      expect(finding.limit).toBe(CAP);
     });
 
   }); // lintMemories
@@ -917,7 +922,7 @@ describe('memory-manager', () => {
 
   describe('category limits', () => {
 
-    it('createMemory_at51st_returnsNullAndKeepsCountAt50', async () => {
+    it('createMemory_atCapPlusOne_returnsNullAndKeepsCountAtCap', async () => {
       // Arrange — suppress console noise
       const origLog = console.log;
       console.log = () => {};
@@ -925,19 +930,19 @@ describe('memory-manager', () => {
       try {
         const manager = makeManager();
 
-        // Fill exactly 50 slots with fresh memories (so pruneStale won't remove any)
-        for (let i = 0; i < 50; i++) {
+        // Fill exactly to the cap with fresh memories (so pruneStale won't remove any)
+        for (let i = 0; i < CAP; i++) {
           const result = await manager.createMemory('patterns', `pat_fresh_${i}`, { n: i });
           expect(result).not.toBeNull();
         }
 
-        // Act — 51st write
-        const overflow = await manager.createMemory('patterns', 'pat_overflow', { n: 50 });
+        // Act — the cap+1 write
+        const overflow = await manager.createMemory('patterns', 'pat_overflow', { n: CAP });
 
         // Assert
         expect(overflow).toBeNull();
         const count = await manager.getMemoryCount('patterns');
-        expect(count).toBe(50);
+        expect(count).toBe(CAP);
       } finally {
         console.log = origLog;
       }
@@ -1001,9 +1006,9 @@ describe('memory-manager', () => {
       const a = await manager.generateAnalytics();
 
       // Assert — (a) cap utilization
-      expect(a.cap).toBe(50);
+      expect(a.cap).toBe(CAP);
       expect(a.cap_utilization.patterns.count).toBe(2);
-      expect(a.cap_utilization.patterns.cap).toBe(50);
+      expect(a.cap_utilization.patterns.cap).toBe(CAP);
       expect(a.cap_utilization.patterns.near_limit).toBe(false);
       expect(a.cap_utilization.constraints.count).toBe(1);
       // (b) decay distribution — fresh memories are not stale
@@ -1245,6 +1250,29 @@ describe('memory-manager', () => {
       const sLow = manager.calculateRelevance(mk(1), 'token');
       const sHigh = manager.calculateRelevance(mk(5), 'token');
       expect(sHigh).toBeGreaterThan(sLow);
+    });
+
+    it('calculateRelevance_weightsSingleSourcedFromConstants', () => {
+      // Sync guard (still-catches): the JSON-fallback weights must stay wired to
+      // MEMORY_SCORING. If anyone re-hardcodes a divergent multiplier, the exact
+      // expected score derived from constants no longer matches.
+      const S = CONSTANTS.MEMORY_SCORING;
+      const manager = makeManager();
+      const memory = {
+        content: { description: 'token token token' }, // 3 literal occurrences
+        updated: new Date().toISOString(),             // < RECENCY_RECENT_DAYS → recent bonus
+        usage_count: 2,
+        importance: 4,
+        metadata: { confidence: 0.5 },
+      };
+      const matches = (JSON.stringify(memory.content).toLowerCase().match(/token/g) || []).length;
+      const expected =
+        matches * S.MATCH_MULTIPLIER +
+        S.RECENCY_RECENT_POINTS +
+        memory.usage_count * S.USAGE_MULTIPLIER +
+        memory.metadata.confidence * S.CONFIDENCE_MULTIPLIER +
+        memory.importance * S.IMPORTANCE_MULTIPLIER;
+      expect(manager.calculateRelevance(memory, 'token')).toBe(expected);
     });
 
     it('searchMemories_sqlitePath_higherImportanceRelevanceStrictlyHigher', async () => {

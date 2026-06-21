@@ -306,7 +306,7 @@ describe('main()', () => {
         const mainFn = requireFreshMain();
         mainFn();
 
-        const timelinePath = path.join(tmp.root, 'docs', '_project-timeline.md');
+        const timelinePath = path.join(tmp.root, 'docs', 'work/timeline.md');
         expect(fs.existsSync(timelinePath)).toBe(true);
 
         const content = fs.readFileSync(timelinePath, 'utf8');
@@ -329,7 +329,7 @@ describe('main()', () => {
         const mainFn = requireFreshMain();
         mainFn();
 
-        const content = fs.readFileSync(path.join(tmp.root, 'docs', '_project-timeline.md'), 'utf8');
+        const content = fs.readFileSync(path.join(tmp.root, 'docs', 'work/timeline.md'), 'utf8');
         // 2 commits on 2026-05-01 (plus initial empty commit from createGitRepo, which is on today's date)
         // The day header for May 1 must report exactly "2 commits" — assert the count, not just the word.
         expect(content).toMatch(/\(2 commits, \d+ files\)/);
@@ -350,7 +350,7 @@ describe('main()', () => {
         const mainFn = requireFreshMain();
         mainFn();
 
-        const content = fs.readFileSync(path.join(tmp.root, 'docs', '_project-timeline.md'), 'utf8');
+        const content = fs.readFileSync(path.join(tmp.root, 'docs', 'work/timeline.md'), 'utf8');
         // When >5 commits/day, groupByTheme is used and bold theme headers appear
         expect(content).toMatch(/\*\*(Features|Fixes|Chores|Documentation|Refactoring)\*\*/);
     });
@@ -362,7 +362,7 @@ describe('main()', () => {
         process.argv = ['node', 'gen-timeline.js', 'full'];
         requireFreshMain()();
 
-        const timelinePath = path.join(tmp.root, 'docs', '_project-timeline.md');
+        const timelinePath = path.join(tmp.root, 'docs', 'work/timeline.md');
         const afterFull = fs.readFileSync(timelinePath, 'utf8');
         expect(afterFull).toContain('feat: week one');
 
@@ -385,7 +385,8 @@ describe('main()', () => {
 
     it.skipIf(!gitAvailable())('update mode: falls back to full when no last-hash in file', () => {
         // Create a timeline file WITHOUT the last-hash anchor
-        const timelinePath = path.join(tmp.root, 'docs', '_project-timeline.md');
+        const timelinePath = path.join(tmp.root, 'docs', 'work/timeline.md');
+        fs.mkdirSync(path.dirname(timelinePath), { recursive: true });
         fs.writeFileSync(timelinePath, '# My Project Timeline\n\n## Week of Jan 1, 2026\n\n- old entry\n');
 
         repo.addCommitOnDate('fix: fresh fix', '2026-05-01T10:00:00');
@@ -407,7 +408,7 @@ describe('main()', () => {
         const mainFn = requireFreshMain();
         mainFn();
 
-        const timelinePath = path.join(tmp.root, 'docs', '_project-timeline.md');
+        const timelinePath = path.join(tmp.root, 'docs', 'work/timeline.md');
         expect(fs.existsSync(timelinePath)).toBe(true);
         const content = fs.readFileSync(timelinePath, 'utf8');
         expect(content).toContain('chore: initial chore');
@@ -421,7 +422,7 @@ describe('main()', () => {
         process.argv = ['node', 'gen-timeline.js', 'full'];
         requireFreshMain()();
 
-        const timelinePath = path.join(tmp.root, 'docs', '_project-timeline.md');
+        const timelinePath = path.join(tmp.root, 'docs', 'work/timeline.md');
         expect(fs.existsSync(timelinePath)).toBe(true);
 
         // Add another commit
@@ -442,7 +443,7 @@ describe('main()', () => {
         process.argv = ['node', 'gen-timeline.js', 'full'];
         requireFreshMain()();
 
-        const content = fs.readFileSync(path.join(tmp.root, 'docs', '_project-timeline.md'), 'utf8');
+        const content = fs.readFileSync(path.join(tmp.root, 'docs', 'work/timeline.md'), 'utf8');
         const hashMatch = content.match(/<!-- last:([a-f0-9]{40}) -->/);
         expect(hashMatch).not.toBeNull();
         // Hash is 40 hex chars

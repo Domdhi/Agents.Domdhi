@@ -18,7 +18,7 @@ const { readHookInput } = require('../core/_lib/hook-input');
 
 const CANONICAL_PATTERNS = [
     /(^|\/)CLAUDE\.md$/,
-    /\/docs\/_project-architecture\.md$/,
+    /\/docs\/architecture\/overview\.md$/,
     /\/\.claude\/skills\/[^/]+\/SKILL\.md$/
 ];
 

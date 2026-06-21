@@ -91,8 +91,8 @@ function parseMemory(content, category, filename) {
     const usage_count = Math.max(1, rawUsage);
 
     // ME-4.2: importance (1–5) is the PRIMARY ranking signal — top-level, then
-    // content, default 3. raw_usage (unfloored) is the tiebreaker input.
-    let importance = 3;
+    // content, default IMPORTANCE_DEFAULT. raw_usage (unfloored) is the tiebreaker input.
+    let importance = IMPORTANCE_DEFAULT;
     if (Number.isFinite(json.importance)) importance = json.importance;
     else if (json.content && Number.isFinite(json.content.importance)) importance = json.content.importance;
 

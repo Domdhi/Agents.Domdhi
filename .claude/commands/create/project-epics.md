@@ -5,7 +5,7 @@ argument-hint: [project name or architecture path] [--yolo]
 
 # Create Epics
 
-Break product requirements into implementable epics and stories. Produces `docs/todo/_backlog.md`.
+Break product requirements into implementable epics and stories. Produces `docs/work/backlog.md`.
 
 ## Telemetry (run first)
 
@@ -35,22 +35,22 @@ If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INP
 #### 1b. Hard Gate: Require real PRD AND Architecture
 Read the first line of each file. Check that both exist AND neither contains `<!-- @@template -->`.
 
-- `docs/_project-requirements.md` — source of functional requirements
-- `docs/_project-architecture.md` — source of technical structure
+- `docs/product/requirements.md` — source of functional requirements
+- `docs/architecture/overview.md` — source of technical structure
 
 **If either is missing or template-only:**
 - If YOLO_MODE → warn: "{missing file(s)} not found. Proceeding in yolo mode." → continue with whatever context is available
 - Otherwise → **STOP**: "`{missing file}` has not been created yet. Run `/{command}` first. Use `--yolo` to bypass this gate."
-  - If `_project-requirements.md` missing → suggest `/create:project-requirements`
-  - If `_project-architecture.md` missing → suggest `/create:project-architecture`
+  - If `product/requirements.md` missing → suggest `/create:project-requirements`
+  - If `architecture/overview.md` missing → suggest `/create:project-architecture`
 
 > **Gate posture (F3) — the default is to SATISFY the gate, not bypass it.** When you stop at a hard gate, the right next action is to **generate the missing prerequisite** (run the suggested `/create:*` command), then resume. If you surface a choice to the user via `AskUserQuestion`, the **Recommended** option must be "create the missing doc first" — **never** present "proceed off the stale/stub doc" or `--yolo` as the recommended path. Bypass is an explicit user override, not a nudge. Quietly building epics off a leftover `_prd.md` or a template stub is the failure mode this gate exists to prevent.
 
-- **Optional**: Read `docs/_project-design.md` for UI-specific stories (only if real, not template)
+- **Optional**: Read `docs/design/spec.md` for UI-specific stories (only if real, not template)
 
 ### 2. Check for Existing Output (main agent)
 
-- If `docs/todo/_backlog.md` exists → ask: **update** (add new epics) or **replace**?
+- If `docs/work/backlog.md` exists → ask: **update** (add new epics) or **replace**?
 - If replacing, confirm with user (this is destructive if implementation is in progress)
 
 ### 3. Analyze Requirements (main agent)
@@ -67,7 +67,7 @@ Synthesize a planning brief from upstream docs:
 Use the Task tool with `subagent_type: "project-planner"` to generate epics and stories.
 
 **Task prompt must include**:
-1. What to produce (`docs/todo/_backlog.md`)
+1. What to produce (`docs/work/backlog.md`)
 2. Full list of FRs with their MoSCoW priorities and acceptance criteria
 3. Architecture component list and boundaries
 4. FR-to-component mapping
@@ -95,14 +95,14 @@ After the agent completes, verify the output:
 
 ### 6. Detect File Overlap (main agent)
 
-Run the epic-overlap CLI against the new `_backlog.md` to surface any inadvertent file-ownership overlaps between epics. The wave-based execution model in `/run-todo` requires zero file overlap within a wave — overlaps that aren't explicitly acknowledged will produce silent merge conflicts during parallel dispatch.
+Run the epic-overlap CLI against the new `backlog.md` to surface any inadvertent file-ownership overlaps between epics. The wave-based execution model in `/run-todo` requires zero file overlap within a wave — overlaps that aren't explicitly acknowledged will produce silent merge conflicts during parallel dispatch.
 
 ```bash
-node .claude/core/_lib/epic-overlap.js docs/todo/_backlog.md
+node .claude/core/_lib/epic-overlap.js docs/work/backlog.md
 ```
 
 - Exit 0 (no overlaps) → continue to commit step
-- Exit 1 (overlaps found) → surface in the report as a warning. Overlaps may be intentional (shared interface, cross-cutting refactor); if intentional, the user should add a `## Acknowledged Overlaps` section to `_backlog.md` listing each pair and the rationale. `/review:check-readiness` will then accept the overlap as documented.
+- Exit 1 (overlaps found) → surface in the report as a warning. Overlaps may be intentional (shared interface, cross-cutting refactor); if intentional, the user should add a `## Acknowledged Overlaps` section to `backlog.md` listing each pair and the rationale. `/review:check-readiness` will then accept the overlap as documented.
 
 This is a warning, not a failure — `/create:project-epics` does not block on overlaps.
 
@@ -111,7 +111,7 @@ This is a warning, not a failure — `/create:project-epics` does not block on o
 Strip the `<!-- @@template -->` marker from the generated backlog so downstream gates (`isRealDoc`, `/review:check-readiness`) see it as a real doc rather than an unfilled stub:
 
 ```bash
-node -e "require('./.claude/core/_lib/doc-drift.js').stripTemplateMarker(require('path').resolve('docs/todo/_backlog.md'))"
+node -e "require('./.claude/core/_lib/doc-drift.js').stripTemplateMarker(require('path').resolve('docs/work/backlog.md'))"
 ```
 
 ### 7. Commit (main agent)
@@ -123,7 +123,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```markdown
 ## Epics Complete
 
-**Output**: docs/todo/_backlog.md
+**Output**: docs/work/backlog.md
 **Phases**: {count}
 **Epics**: {count}
 **Stories**: {count} ({S count} S, {M count} M, {L count} L, {XL count} XL)

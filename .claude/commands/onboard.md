@@ -5,7 +5,7 @@ argument-hint: "[--yolo]"
 
 # Onboard
 
-Bootstrap the Domdhi.Agents doc chain from an existing codebase. Produces `docs/_project-architecture.md` and `docs/_project-context.md` from reality — no brief required, no templates to fill, no vision interview. Chains `/review:specialize` once the architecture doc exists.
+Bootstrap the Domdhi.Agents doc chain from an existing codebase. Produces `docs/architecture/overview.md` and `docs/product/context.md` from reality — no brief required, no templates to fill, no vision interview. Chains `/review:specialize` once the architecture doc exists.
 
 Intended as the FIRST command when dropping this template into a project that already has code. Where `/create:new-project` starts with a blank slate and interviews the user forward, `/onboard` starts with the codebase and reads backward.
 
@@ -104,7 +104,7 @@ Mark each skipped question in the internal codebase map so the architecture doc 
 
 #### 4a. Persist scan results (BEFORE delegation)
 
-Write the codebase map to `docs/.output/work/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
+Write the codebase map to `docs/work/scratch/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
 
 ```markdown
 # Onboard Scan — {project name inferred from git or directory} ({YYYY-MM-DD})
@@ -137,7 +137,7 @@ Write the codebase map to `docs/.output/work/{YYYY-MM-DD}/onboard-scan.md` so a 
 
 ### 5. Generate Architecture Doc
 
-Delegate to the `architect` agent to write `docs/_project-architecture.md` from the scanned reality.
+Delegate to the `architect` agent to write `docs/architecture/overview.md` from the scanned reality.
 
 **Delegation via Task tool with `subagent_type: "architect"`.**
 
@@ -149,10 +149,10 @@ The `architect` agent auto-loads the `architecture` skill via frontmatter — do
 3. Codebase map (from Step 3 / onboard-scan.md) — entry points, dependency graph, test layout
 4. Forcing question answers (from Step 4)
 5. Instruction to mark every ADR as `Status: Inferred` rather than `Status: Accepted` — these are reverse-engineered decisions, not conscious decisions being documented for the first time
-6. Path: `docs/_project-architecture.md`
+6. Path: `docs/architecture/overview.md`
 7. Mode: **Reverse-Engineering Mode** — document what exists, not what is ideal
 
-**Validate** after delegation: read `docs/_project-architecture.md` and check that:
+**Validate** after delegation: read `docs/architecture/overview.md` and check that:
 - The `## Tech Stack` section is present and populated
 - At least one ADR exists (even if inferred)
 - No unfilled `{placeholder}` values remain
@@ -161,7 +161,7 @@ If validation fails and YOLO_MODE is false, ask the user for the missing detail 
 
 ### 6. Generate Project Context
 
-Delegate to the `doc-writer` agent to write `docs/_project-context.md` from the scan data and the freshly written architecture doc.
+Delegate to the `doc-writer` agent to write `docs/product/context.md` from the scan data and the freshly written architecture doc.
 
 **Delegation via Task tool with `subagent_type: "doc-writer"`.**
 
@@ -170,8 +170,8 @@ The `doc-writer` agent auto-loads `project-planning` and `documentation` skills 
 **Task prompt must include:**
 1. Detected stack and build/test commands (from Step 2)
 2. Entry points and key paths (from Thread A)
-3. Path to the completed architecture doc (`docs/_project-architecture.md`)
-4. Path to output: `docs/_project-context.md`
+3. Path to the completed architecture doc (`docs/architecture/overview.md`)
+4. Path to output: `docs/product/context.md`
 5. Instruction to write current state, not aspirational state — this is a quick-reference for the next agent that opens the repo
 
 **Context doc structure the delegate should produce:**
@@ -184,7 +184,7 @@ The `doc-writer` agent auto-loads `project-planning` and `documentation` skills 
 **Tech Stack**: {one-line from architecture doc}
 
 ## Quick Reference
-- **Architecture**: [docs/_project-architecture.md](_project-architecture.md)
+- **Architecture**: [docs/architecture/overview.md](architecture/overview.md)
 - **Context**: this file
 
 ## Entry Points
@@ -215,7 +215,7 @@ The `doc-writer` agent auto-loads `project-planning` and `documentation` skills 
 
 ### 6b. Reconcile Legacy Docs & Stray Tracked Files
 
-Brownfield repos often already have planning docs under OLD names (`_architecture.md`, `_prd.md`), a root `_backlog.md` beside `todo/_backlog.md`, or duplicate `_feature-ideas.md`. The create-chain is blind to these and they silently become drift (two PRDs, two backlogs). **Reconcile them now** — do not leave both the legacy reals and the new `_project-*` files in place (F2).
+Brownfield repos often already have planning docs under OLD names (`_architecture.md`, `_prd.md`), a root `_backlog.md` beside `work/backlog.md`, or duplicate `_feature-ideas.md`. The create-chain is blind to these and they silently become drift (two PRDs, two backlogs). **Reconcile them now** — do not leave both the legacy reals and the new domain docs (`product/`, `architecture/`, `work/`, …) in place (F2). <!-- migrate:keep (legacy-name examples retain the old underscore form) -->
 
 **1. Detect:**
 ```bash
@@ -277,14 +277,14 @@ This step is **self-contained** — it does NOT call the built-in `/init` comman
 
 ### 8. Specialize Agents
 
-Now that `docs/_project-architecture.md` exists, chain `/review:specialize` to customize the generic agents for this stack.
+Now that `docs/architecture/overview.md` exists, chain `/review:specialize` to customize the generic agents for this stack.
 
 ```bash
 # Invoked as a sub-command, not a bash command — triggers the specialize workflow
 /review:specialize --fix
 ```
 
-`/onboard` deliberately defers the backlog to the create-chain, so at this point `docs/todo/_backlog.md` is still a template stub. That is expected: `/review:specialize` runs in **architecture-only mode** (C7) and specializes the agents from the architecture doc — it does NOT abort on the missing backlog. Once the backlog exists (after `/create:project-epics`), re-running `/review:specialize` incorporates epic boundaries into the risk map.
+`/onboard` deliberately defers the backlog to the create-chain, so at this point `docs/work/backlog.md` is still a template stub. That is expected: `/review:specialize` runs in **architecture-only mode** (C7) and specializes the agents from the architecture doc — it does NOT abort on the missing backlog. Once the backlog exists (after `/create:project-epics`), re-running `/review:specialize` incorporates epic boundaries into the risk map.
 
 Show the specialization report summary to the user (full report is in the output file).
 
@@ -295,9 +295,9 @@ After specialization completes, mention optionally running `/review:personalize`
 Follow the **Post-Command Commit Convention** in CLAUDE.md.
 
 Stage the files created or modified by this run specifically:
-- `docs/_project-architecture.md`
-- `docs/_project-context.md`
-- `docs/.output/work/{date}/onboard-scan.md`
+- `docs/architecture/overview.md`
+- `docs/product/context.md`
+- `docs/work/scratch/{date}/onboard-scan.md`
 - `CLAUDE.md` (only if it was modified in Step 7)
 
 Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
@@ -334,8 +334,8 @@ This is what flows onboard-performance signal back to the maintainer for every p
 ### Documents Created
 | Document | Path | Status |
 |----------|------|--------|
-| Architecture | docs/_project-architecture.md | Created (reverse-engineered) |
-| Project Context | docs/_project-context.md | Created |
+| Architecture | docs/architecture/overview.md | Created (reverse-engineered) |
+| Project Context | docs/product/context.md | Created |
 | CLAUDE.md | CLAUDE.md | {Created / Merged / Unchanged} |
 
 ### Specialization: {summary from /review:specialize}
@@ -348,7 +348,7 @@ Recommended next commands:
 
 1. **`/prime`** — in a new session, reload context from the docs just created.
 2. **`/create:project-brief`** — when ready to capture vision and goals (deferred from onboard intentionally).
-3. **`/create:project-epics`** — break work into implementable stories once the architecture doc is reviewed and `_project-requirements.md` exists.
+3. **`/create:project-epics`** — break work into implementable stories once the architecture doc is reviewed and `product/requirements.md` exists.
 4. **`/do {story-id}`** — start implementing once the backlog is defined.
 5. **`/review:personalize`** — give the specialized agents names and personality.
 
@@ -364,7 +364,7 @@ Recommended next commands:
 - **DO NOT interview vision or goals** — that's `/create:project-brief` territory; `/onboard` defers it
 - **DO NOT clobber an existing CLAUDE.md** — always propose an additive merge, never overwrite
 - **DO NOT call the built-in `/init`** — this command is self-contained
-- **DO NOT generate `_project-brief.md`** — `/onboard` produces architecture + context only; the brief is a user decision
+- **DO NOT generate `product/brief.md`** — `/onboard` produces architecture + context only; the brief is a user decision
 - **DO NOT use `git add .` in the commit** — stage specific files; the adopter may have unrelated changes in their working tree
 - **DO NOT mark ADRs as `Status: Accepted`** when reverse-engineering — use `Status: Inferred` to signal these are reconstructed decisions, not original ones
 - **DO NOT ask more than 3 forcing questions** — the whole point is that code answers most questions; humans fill only the gaps code genuinely cannot

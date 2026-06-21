@@ -5,7 +5,7 @@ argument-hint: [project name or project-brief path] [--yolo]
 
 # Create PRD
 
-Create a comprehensive Product Requirements Document. Produces `docs/_project-requirements.md`.
+Create a comprehensive Product Requirements Document. Produces `docs/product/requirements.md`.
 
 ## Telemetry (run first)
 
@@ -34,10 +34,10 @@ If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INP
 
 #### 1b. Hard Gate: Require at least one Phase 1 artifact
 Check that at least ONE of these files exists AND does not contain `<!-- @@template -->` on its first line:
-- `docs/_project-brief.md`
-- `docs/_brainstorm.md`
-- Any file matching `docs/app/*/research.md` or `docs/.output/research/**`
-- `docs/_project-architecture.md` — **brownfield exit (C8):** a real reverse-engineered architecture from `/onboard` is a valid upstream artifact. `/onboard` deliberately produces architecture (not a brief), so without this a brownfield repo dead-ends here with no onboard-native path to requirements. When this is the only real artifact, draw requirements from it in Reverse-Engineering Mode.
+- `docs/product/brief.md`
+- `docs/product/brainstorm.md`
+- Any file matching `docs/modules/*/research.md` or `docs/.output/research/**`
+- `docs/architecture/overview.md` — **brownfield exit (C8):** a real reverse-engineered architecture from `/onboard` is a valid upstream artifact. `/onboard` deliberately produces architecture (not a brief), so without this a brownfield repo dead-ends here with no onboard-native path to requirements. When this is the only real artifact, draw requirements from it in Reverse-Engineering Mode.
 
 **If NONE of them are real (all missing or all template-only):**
 - If YOLO_MODE → warn: "No Phase 1 artifacts found (brief, brainstorm, research, or architecture). Proceeding in yolo mode with Interview Mode." → go to Interview Mode
@@ -45,15 +45,15 @@ Check that at least ONE of these files exists AND does not contain `<!-- @@templ
 
 **If at least one is real** → read whichever exist for context and proceed to mode detection.
 
-- **Optional**: Read `docs/todo/_feature-ideas.md` — if it has captured ideas from brainstorming, use them as input for functional requirements
+- **Optional**: Read `docs/work/todo/feature-ideas.md` — if it has captured ideas from brainstorming, use them as input for functional requirements
 
 ### 2. Check for Existing Output (main agent)
 
-- If `docs/_project-requirements.md` exists → ask: **update** (add/modify sections) or **replace** (start fresh)?
+- If `docs/product/requirements.md` exists → ask: **update** (add/modify sections) or **replace** (start fresh)?
 
 ### 3. Detect Mode (main agent)
 
-- If `_project-brief.md` exists with substantive content → **Context Mode**
+- If `product/brief.md` exists with substantive content → **Context Mode**
 - If no brief or user wants fresh start → **Interview Mode**
 - For existing codebases → **Reverse-Engineering Mode** (read code to extract requirements)
 
@@ -68,17 +68,17 @@ Synthesize a requirements brief from upstream docs:
 - Extract feature areas from Key Features
 - Extract constraints from Constraints section
 - Extract success criteria from brief
-- Gather feature ideas from `_feature-ideas.md` if available
+- Gather feature ideas from `feature-ideas.md` if available
 
 ### 5. Delegate to Agent
 
 Use the Task tool with `subagent_type: "product-strategist"` to generate the PRD.
 
 **Task prompt must include**:
-1. Project name and what to produce (`docs/_project-requirements.md`)
+1. Project name and what to produce (`docs/product/requirements.md`)
 2. Summary of upstream context (brief vision, personas, features, constraints)
 3. User's answers from interview rounds (if any)
-4. Feature ideas from `_feature-ideas.md` (if available)
+4. Feature ideas from `feature-ideas.md` (if available)
 5. Mode (Context/Interview/Reverse-Engineering)
 
 The `product-strategist` agent auto-loads the `project-planning` skill via frontmatter — do NOT tell it to read the skill file.
@@ -87,7 +87,7 @@ The `product-strategist` agent auto-loads the `project-planning` skill via front
 
 The first draft is where ambiguity hides — an FR with an unstated edge case, a persona goal the draft glossed, an NFR with no target. Run one clarify pass to resolve the gaps **into the doc**, so the answers live in the spec and survive compaction (interview answers that stay in chat evaporate — the failure `/interview` Step 6b also fixes).
 
-1. After the Step-5 agent has completed and `docs/_project-requirements.md` exists as a real draft, read it. (Do not run this pass while the draft is still being generated.)
+1. After the Step-5 agent has completed and `docs/product/requirements.md` exists as a real draft, read it. (Do not run this pass while the draft is still being generated.)
 2. Identify up to **5** genuine gaps or ambiguities a downstream implementer would have to guess at — missing acceptance criteria, an unscoped NFR, an undecided priority, an unstated assumption. Skip anything the brief or codebase already answers.
 3. If there are no real gaps, skip this step — do not invent questions.
 4. Ask them with `AskUserQuestion` (concrete options, recommendation first — same rules as `/interview`). One round; don't interrogate.
@@ -97,12 +97,12 @@ Then proceed to validate the now-clarified doc.
 
 ### 6. Validate (main agent)
 
-After the agent completes, read `docs/_project-requirements.md` and validate against the **Required Sections Checklist** in `.claude/skills/project-planning/references/project-requirements.md`. Also verify MoSCoW is used (not everything Must Have) and NFRs have measurable targets. If anything is missing, delegate back to the agent to fill it.
+After the agent completes, read `docs/product/requirements.md` and validate against the **Required Sections Checklist** in `.claude/skills/project-planning/references/project-requirements.md`. Also verify MoSCoW is used (not everything Must Have) and NFRs have measurable targets. If anything is missing, delegate back to the agent to fill it.
 
 Then run the deterministic quality gate over the doc:
 
 ```bash
-node .claude/core/_lib/doc-drift.js grade docs/_project-requirements.md
+node .claude/core/_lib/doc-drift.js grade docs/product/requirements.md
 ```
 
 - Exit 0 → the doc has no leftover placeholders and passes the structural checks; proceed to step 7.
@@ -117,7 +117,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```markdown
 ## PRD Complete
 
-**Output**: docs/_project-requirements.md
+**Output**: docs/product/requirements.md
 **Modules**: {count}
 **Functional Requirements**: {count} ({must-have count} Must Have)
 **Non-Functional Requirements**: {count}

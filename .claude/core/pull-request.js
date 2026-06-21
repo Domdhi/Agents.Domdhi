@@ -35,6 +35,49 @@ const path = require('node:path');
 
 const DEFAULT_BODY_FILE = path.join('docs', '.output', '.pr-body');
 
+// ── External-CLI spawn (az/gh are .cmd shims on Windows) ─────────────────────
+// Node >= the CVE-2024-27980 fix refuses to spawn .cmd/.bat files without a shell:
+// spawnSync('az', …) returns { status: null, error: ENOENT } and explicit 'az.cmd'
+// returns EINVAL. (git is a real .exe, so it was unaffected — which is why `git push`
+// succeeded while every `az` step "failed exit null".) Fix: on win32 spawn through the
+// shell AND quote args ourselves — `shell:true` does NOT escape (DEP0190), so an
+// unquoted "a b c" would re-split into three args (mangling the PR title). POSIX keeps
+// the safe array form (no shell, no quoting).
+const IS_WIN = process.platform === 'win32';
+
+/** cmd.exe-quote an arg iff it contains whitespace or shell metacharacters. */
+function winQuote(a) {
+  const s = String(a);
+  return /[\s"&()<>|^@%!]/.test(s) ? `"${s.replace(/"/g, '\\"')}"` : s;
+}
+
+/** spawnSync a CLI safely across platforms. On win32: shell:true + per-arg quoting. */
+function runTool(bin, args, opts = {}) {
+  return IS_WIN
+    ? spawnSync(bin, args.map(winQuote), { shell: true, ...opts })
+    : spawnSync(bin, args, opts);
+}
+
+/** Exit with a spawn result's status. A failed spawn (status null) becomes exit 1, NOT 0 —
+ *  `res.status || 0` would have masked an ENOENT as success (the old runStatus silent-pass bug). */
+function exitFromSpawn(res) {
+  if (res.status == null) {
+    if (res.error) console.error(`[pr] command failed to launch: ${res.error.code || res.error.message}`);
+    process.exit(1);
+  }
+  process.exit(res.status);
+}
+
+/** runTool + capture stdout; throws a clear error (incl. spawn ENOENT) on non-zero/failed spawn. */
+function captureTool(bin, args) {
+  const r = runTool(bin, args, { encoding: 'utf8' });
+  if (r.status !== 0) {
+    const code = r.error ? ` (${r.error.code})` : '';
+    throw new Error(`${bin} ${args[0] || ''} failed${code}: ${(r.stderr || '').trim() || 'no stderr'}`);
+  }
+  return r.stdout;
+}
+
 // ── Pure helpers (exported for unit tests; no side effects) ──────────────────
 
 /**
@@ -224,9 +267,10 @@ function runCreate(opts, remote) {
   // ── Live path ──
   for (const step of plan) {
     console.log(`[pr] ${step.label}: ${step.bin} ${step.args.join(' ')}`);
-    const res = spawnSync(step.bin, step.args, { stdio: 'inherit' });
+    const res = runTool(step.bin, step.args, { stdio: 'inherit' });
     if (res.status !== 0) {
-      console.error(`[pr] step failed (${step.label}), exit ${res.status}. Aborting.`);
+      const code = res.error ? `${res.status} (${res.error.code})` : `${res.status}`;
+      console.error(`[pr] step failed (${step.label}), exit ${code}. Aborting.`);
       process.exit(res.status || 1);
     }
   }
@@ -238,7 +282,7 @@ function runCreate(opts, remote) {
 /** Re-query the PR and assert auto-merge/auto-complete is set. Loud failure if not. */
 function verifyAutoComplete(remote, branch) {
   if (remote.host === 'github') {
-    const out = execFileSync('gh', ['pr', 'view', branch, '--json', 'number,state,autoMergeRequest'], { encoding: 'utf8' });
+    const out = captureTool('gh', ['pr', 'view', branch, '--json', 'number,state,autoMergeRequest']);
     let json;
     try { json = JSON.parse(out); } catch { json = {}; }
     if (!json.autoMergeRequest) {
@@ -249,7 +293,7 @@ function verifyAutoComplete(remote, branch) {
     return;
   }
   // azure — find the PR for this branch, then assert autoCompleteSetBy.
-  const showOut = execFileSync('az', ['repos', 'pr', 'list', '--source-branch', branch, '--output', 'json'], { encoding: 'utf8' });
+  const showOut = captureTool('az', ['repos', 'pr', 'list', '--source-branch', branch, '--output', 'json']);
   let list;
   try { list = JSON.parse(showOut); } catch { list = []; }
   const pr = Array.isArray(list) && list.length ? list[0] : null;
@@ -268,16 +312,16 @@ function runStatus(opts, remote) {
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
   if (remote.host === 'github') {
     const ref = opts.id ? String(opts.id) : branch;
-    const res = spawnSync('gh', ['pr', 'view', ref, '--json', 'number,state,mergeStateStatus,autoMergeRequest,title', '--template',
+    const res = runTool('gh', ['pr', 'view', ref, '--json', 'number,state,mergeStateStatus,autoMergeRequest,title', '--template',
       '{{.number}} {{.title}}\nstate: {{.state}}  merge: {{.mergeStateStatus}}\n'], { stdio: 'inherit' });
-    process.exit(res.status || 0);
+    exitFromSpawn(res);
   }
   // azure
   const args = opts.id
     ? ['repos', 'pr', 'show', '--id', String(opts.id), '--output', 'table']
     : ['repos', 'pr', 'list', '--source-branch', branch, '--output', 'table'];
-  const res = spawnSync('az', args, { stdio: 'inherit' });
-  process.exit(res.status || 0);
+  const res = runTool('az', args, { stdio: 'inherit' });
+  exitFromSpawn(res);
 }
 
 function runWatch(opts, remote) {
@@ -285,8 +329,8 @@ function runWatch(opts, remote) {
   if (remote.host === 'github') {
     // gh's own --watch polls real state to a terminal status (no iteration counter).
     const ref = opts.id ? String(opts.id) : branch;
-    const res = spawnSync('gh', ['pr', 'checks', ref, '--watch'], { stdio: 'inherit' });
-    process.exit(res.status || 0);
+    const res = runTool('gh', ['pr', 'checks', ref, '--watch'], { stdio: 'inherit' });
+    exitFromSpawn(res);
   }
   console.error('[pr] watch for Azure DevOps is not yet implemented — use: az repos pr show --id <N>');
   process.exit(1);
@@ -315,7 +359,7 @@ function main() {
   if (opts.sub === 'watch') return runWatch(opts, remote);
 }
 
-module.exports = { parseRemoteUrl, parseArgs, buildCreatePlan, defaultBranch, main };
+module.exports = { parseRemoteUrl, parseArgs, buildCreatePlan, defaultBranch, winQuote, runTool, main };
 
 if (require.main === module) {
   main();

@@ -2,7 +2,7 @@
  * Freeze State — read/write helper for `docs/.output/freeze-state.json`.
  *
  * Freeze-state (A2) adopted from gstack's `/freeze` pattern:
- *   `docs/research/competitive/_hooks-and-core-scripts-comparison.md` §A2.
+ *   `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` §A2.
  * /investigate writes this file with a list of absolute paths the user is
  * actively investigating; the guardrail's Edit/Write path rejects mutations
  * of those paths with "File is frozen by /investigate". This module is the

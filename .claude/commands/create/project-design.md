@@ -25,11 +25,11 @@ node .claude/core/telemetry-log.js create:project-design
 
 | File | Description |
 |------|-------------|
-| `docs/_project-design.md` | Design system, principles, component inventory, interaction patterns |
-| `docs/design/_wireframes.md` | ASCII wireframes for all key pages |
-| `docs/design/_design.light.md` | Light theme color palette and tokens |
-| `docs/design/_design.dark.md` | Dark theme color palette and tokens |
-| `docs/design/_mock-layout.html` | Self-contained HTML mock of the application shell |
+| `docs/design/spec.md` | Design system, principles, component inventory, interaction patterns |
+| `docs/design/wireframes.md` | ASCII wireframes for all key pages |
+| `docs/design/theme.light.md` | Light theme color palette and tokens |
+| `docs/design/theme.dark.md` | Dark theme color palette and tokens |
+| `docs/design/mock.html` | Self-contained HTML mock of the application shell |
 | `.claude/skills/brand-guidelines/SKILL.md` | Brand identity skill populated from UX spec |
 
 ## Variables
@@ -44,13 +44,13 @@ INPUT: $ARGUMENTS
 If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INPUT before continuing.
 
 #### 1b. Hard Gate: Require real PRD
-Read the first line of `docs/_project-requirements.md`. Check that it exists AND does not contain `<!-- @@template -->`.
+Read the first line of `docs/product/requirements.md`. Check that it exists AND does not contain `<!-- @@template -->`.
 
-**If `docs/_project-requirements.md` is missing or template-only:**
+**If `docs/product/requirements.md` is missing or template-only:**
 - If YOLO_MODE → warn: "No PRD found. Proceeding in yolo mode with Interview Mode." → go to Interview Mode
-- Otherwise → **STOP**: "`docs/_project-requirements.md` has not been created yet. Run `/project-requirements` first. Use `--yolo` to bypass this gate."
+- Otherwise → **STOP**: "`docs/product/requirements.md` has not been created yet. Run `/project-requirements` first. Use `--yolo` to bypass this gate."
 
-- **Optional**: Read `docs/_project-brief.md` for brand/vision context (only if real, not template)
+- **Optional**: Read `docs/product/brief.md` for brand/vision context (only if real, not template)
 - **Optional**: Read existing design files in `docs/design/` for reference
 
 ### 2. Check for Existing Output (main agent)
@@ -68,7 +68,7 @@ Read the first line of `docs/_project-requirements.md`. Check that it exists AND
 
 The full output suite (spec + wireframes + light/dark themes + mock HTML + personas) is right for an app with real surface area. For a **small UI** — a browser-extension popup, a single options page, a CLI, a one-screen tool — it massively over-produces. Before generating, gauge the surface from the PRD/architecture/asset inventory and, if it's small, **ask the user** which scope they want:
 
-- **Lightweight** (recommended for small UIs): a single `docs/_project-design.md` capturing layout, sizing, color/typography tokens, and component notes — skip separate wireframes/theme files/mock HTML/personas.
+- **Lightweight** (recommended for small UIs): a single `docs/design/spec.md` capturing layout, sizing, color/typography tokens, and component notes — skip separate wireframes/theme files/mock HTML/personas.
 - **Full suite**: all output files below.
 
 Do not default a 300px popup into the full persona-and-mock pipeline. When in doubt for anything larger than a few screens, full suite is fine.
@@ -94,17 +94,17 @@ Use the Task tool with `subagent_type: "ux-designer"` for each artifact.
 
 1. **UX Spec** — `Task(ux-designer)`: MUST complete first (other files depend on it)
    - Prompt includes: PRD summary, design brief, user interview answers
-   - Output: `docs/_project-design.md`
+   - Output: `docs/design/spec.md`
    - Agent auto-loads `ux-design` skill for template/quality criteria
 
 2. **Wireframes + Themes** — Run in parallel after UX spec completes:
-   - `Task(ux-designer)`: Create wireframes → `docs/design/_wireframes.md`
+   - `Task(ux-designer)`: Create wireframes → `docs/design/wireframes.md`
      - Prompt includes: reference to the UX spec just created, PRD user flows
-   - `Task(ux-designer)`: Create light + dark themes → `docs/design/_design.light.md` and `docs/design/_design.dark.md`
+   - `Task(ux-designer)`: Create light + dark themes → `docs/design/theme.light.md` and `docs/design/theme.dark.md`
      - Prompt includes: reference to the UX spec color system section
 
 3. **HTML Mock** — `Task(ux-designer)`: After themes complete
-   - Output: `docs/design/_mock-layout.html`
+   - Output: `docs/design/mock.html`
    - Prompt includes: reference to UX spec layout + dark theme tokens
    - Must be self-contained (inline CSS, no external dependencies)
 
@@ -126,7 +126,7 @@ If any file fails validation, delegate back to the agent to fix.
 
 ### 6b. Sync Brand Guidelines Skill (main agent)
 
-After all design artifacts pass validation, extract brand data from the generated `docs/_project-design.md` and write it into `.claude/skills/brand-guidelines/SKILL.md`.
+After all design artifacts pass validation, extract brand data from the generated `docs/design/spec.md` and write it into `.claude/skills/brand-guidelines/SKILL.md`.
 
 **Extract from the UX spec:**
 - Color palettes for all theme modes (light, dark) — name, HEX, RGB, usage
@@ -144,7 +144,7 @@ After all design artifacts pass validation, extract brand data from the generate
 ```markdown
 ---
 
-> **Source**: Auto-populated from `docs/_project-design.md` by `/create:project-design` on {YYYY-MM-DD}.
+> **Source**: Auto-populated from `docs/design/spec.md` by `/create:project-design` on {YYYY-MM-DD}.
 > Re-run `/create:project-design` to update. Do not edit this file manually.
 ```
 
@@ -159,11 +159,11 @@ node -e "
 const { stripTemplateMarker } = require('./.claude/core/_lib/doc-drift.js');
 const path = require('path');
 [
-  'docs/_project-design.md',
-  'docs/design/_wireframes.md',
-  'docs/design/_design.light.md',
-  'docs/design/_design.dark.md',
-  'docs/design/_mock-layout.html',
+  'docs/design/spec.md',
+  'docs/design/wireframes.md',
+  'docs/design/theme.light.md',
+  'docs/design/theme.dark.md',
+  'docs/design/mock.html',
 ].forEach(f => stripTemplateMarker(path.resolve(f)));
 "
 ```
@@ -180,11 +180,11 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ### Files Created
 | File | Status |
 |------|--------|
-| `docs/_project-design.md` | Created |
-| `docs/design/_wireframes.md` | Created |
-| `docs/design/_design.light.md` | Created |
-| `docs/design/_design.dark.md` | Created |
-| `docs/design/_mock-layout.html` | Created |
+| `docs/design/spec.md` | Created |
+| `docs/design/wireframes.md` | Created |
+| `docs/design/theme.light.md` | Created |
+| `docs/design/theme.dark.md` | Created |
+| `docs/design/mock.html` | Created |
 | `.claude/skills/brand-guidelines/SKILL.md` | Updated |
 
 **Design philosophy**: {1 sentence}

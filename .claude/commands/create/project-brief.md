@@ -5,7 +5,7 @@ argument-hint: [project name or description]
 
 # Create Project Brief
 
-Create a strategic project brief. Produces `docs/_project-brief.md`.
+Create a strategic project brief. Produces `docs/product/brief.md`.
 
 ## Telemetry (run first)
 
@@ -29,13 +29,13 @@ INPUT: $ARGUMENTS
 
 ### 1. Check Upstream (main agent)
 
-- Read `docs/_brainstorm.md` if it exists (use as input context)
-- Read `docs/app/*/research.md` or `docs/.output/research/**` if any research exists (use as input context)
+- Read `docs/product/brainstorm.md` if it exists (use as input context)
+- Read `docs/modules/*/research.md` or `docs/.output/research/**` if any research exists (use as input context)
 - If neither exists, that's fine — we'll interview from scratch
 
 ### 2. Check for Existing Output (main agent)
 
-- If `docs/_project-brief.md` exists → ask: **update** or **replace**?
+- If `docs/product/brief.md` exists → ask: **update** or **replace**?
 
 ### 3. Detect Mode (main agent)
 
@@ -59,7 +59,7 @@ Synthesize a context brief from upstream docs:
 Use the Task tool with `subagent_type: "product-strategist"` to generate the brief.
 
 **Task prompt must include**:
-1. Project name and what to produce (`docs/_project-brief.md`)
+1. Project name and what to produce (`docs/product/brief.md`)
 2. Summary of upstream context (brainstorm direction, research findings)
 3. User's answers from interview rounds (if any)
 4. Mode (Context/Interview)
@@ -81,7 +81,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```markdown
 ## Project Brief Complete
 
-**Output**: docs/_project-brief.md
+**Output**: docs/product/brief.md
 **Vision**: {1-sentence vision}
 **Key features**: {count} identified ({must-have count} must-have)
 

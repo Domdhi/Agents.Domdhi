@@ -18,11 +18,11 @@ node .claude/core/telemetry-log.js create:project-todo
 ## Relationship to Other Commands
 
 ```
-/create:project-epics       →  docs/todo/_backlog.md          (raw epic definitions — source of truth)
+/create:project-epics       →  docs/work/backlog.md          (raw epic definitions — source of truth)
   ↓
 /create:project-todo       →  docs/TODO_{Project}.md       (master index — epic-level status)
   ↓
-/create:project-epics-todo          →  docs/todo/TODO_epicNN.md     (per-epic checklists — story-level tasks)
+/create:project-epics-todo          →  docs/work/todo/TODO_epicNN.md     (per-epic checklists — story-level tasks)
   ↓
 /do | /run-todo     →  picks next story, implements, updates checklist
 ```
@@ -45,39 +45,39 @@ INPUT: $ARGUMENTS
 If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INPUT before continuing.
 
 #### 1b. Hard Gate: Require real Epics
-Read the first line of `docs/todo/_backlog.md`. Check that it exists AND does not contain `<!-- @@template -->`.
+Read the first line of `docs/work/backlog.md`. Check that it exists AND does not contain `<!-- @@template -->`.
 
-**If `_backlog.md` is missing or template-only:**
+**If `backlog.md` is missing or template-only:**
 - If YOLO_MODE → warn: "No backlog found. Proceeding in yolo mode." → continue (index will be minimal)
-- Otherwise → **STOP**: "`docs/todo/_backlog.md` has not been created yet. Run `/create:project-epics` first. Use `--yolo` to bypass this gate."
+- Otherwise → **STOP**: "`docs/work/backlog.md` has not been created yet. Run `/create:project-epics` first. Use `--yolo` to bypass this gate."
 
 #### 1c. Optional reads
-- `docs/_project-architecture.md` — for package boundaries and tech stack (only if real, not template)
-- `docs/_project-requirements.md` — for project name fallback
+- `docs/architecture/overview.md` — for package boundaries and tech stack (only if real, not template)
+- `docs/product/requirements.md` — for project name fallback
 
 ### 2. Discover Project Name (main agent)
 
 Determine project name from (in priority order):
 1. INPUT argument (if provided and not `--yolo`)
-2. `docs/_project-context.md` — look for "Project Name" field
-3. `docs/_project-brief.md` — look for "Project Name" field
+2. `docs/product/context.md` — look for "Project Name" field
+3. `docs/product/brief.md` — look for "Project Name" field
 4. Git repo directory name (fallback)
 
 Use PascalCase for the filename (e.g., "Visual Cockpit" → `TODO_VisualCockpit.md`).
 
 ### 3. Check for Existing Index (main agent)
 
-- Glob for `docs/TODO_*.md` (at docs root, not in `docs/todo/`)
-- If a master index already exists → ask: **update** (refresh from current `_backlog.md`) or **replace**?
+- Glob for `docs/TODO_*.md` (at docs root, not in `docs/work/todo/`)
+- If a master index already exists → ask: **update** (refresh from current `backlog.md`) or **replace**?
 - If replacing, confirm with user (this is destructive if implementation is in progress)
 
 #### 3a. Structural-mismatch guard (F16)
 
-"Update" runs the **lightweight patch protocol** (Step 11) — it patches per-epic status in place; it does NOT regenerate structure. That is only safe when the existing index and the current `_backlog.md` describe the **same plan**. If the backlog has been re-planned since the index was written (e.g. a 5-epic/14-story March index against a 9-epic/40-story current backlog), patching one onto the other silently corrupts the index.
+"Update" runs the **lightweight patch protocol** (Step 11) — it patches per-epic status in place; it does NOT regenerate structure. That is only safe when the existing index and the current `backlog.md` describe the **same plan**. If the backlog has been re-planned since the index was written (e.g. a 5-epic/14-story March index against a 9-epic/40-story current backlog), patching one onto the other silently corrupts the index.
 
-Before offering update-vs-replace, compare the **shape** of the existing index against `_backlog.md`:
-- **Epic count** — number of epics in the index's Epic Index table vs epics in `_backlog.md`
-- **Story count** — total stories in the index vs total stories in `_backlog.md`
+Before offering update-vs-replace, compare the **shape** of the existing index against `backlog.md`:
+- **Epic count** — number of epics in the index's Epic Index table vs epics in `backlog.md`
+- **Story count** — total stories in the index vs total stories in `backlog.md`
 - **Phase set** — the Phase Map's phase IDs vs the backlog's `## Phase` headings
 - **Epic ID overlap** — do the index's epic IDs still exist in the backlog?
 
@@ -88,7 +88,7 @@ If any of these differ materially (epic/story counts off by more than a rounding
 
 ### 4. Extract Epic Data (main agent)
 
-Read `docs/todo/_backlog.md` and extract:
+Read `docs/work/backlog.md` and extract:
 1. **All phases** with their names and goals
 2. **All epics** with: number, name, objective, story count, total estimate
 3. **Per-story status**: count `[ ]` vs `[x]` per epic to compute completion
@@ -97,7 +97,7 @@ Read `docs/todo/_backlog.md` and extract:
 
 ### 5. Check for Optimization Data (main agent)
 
-Look for optimization annotations in `_backlog.md` (added by `/review:optimize-backlog`):
+Look for optimization annotations in `backlog.md` (added by `/review:optimize-backlog`):
 - Critical path markers
 - Parallel workstream markers
 - Bottleneck annotations
@@ -113,9 +113,9 @@ Use the Task tool with `subagent_type: "project-planner"`.
 2. Output path: `docs/TODO_{ProjectName}.md`
 3. All extracted epic data from Step 4
 4. Optimization data from Step 5 (if available)
-5. Architecture package boundaries (if `_project-architecture.md` exists)
+5. Architecture package boundaries (if `architecture/overview.md` exists)
 6. The `project-planner` agent auto-loads the `project-planning` skill via frontmatter.
-7. Instruction to read `docs/todo/_backlog.md` for full context
+7. Instruction to read `docs/work/backlog.md` for full context
 
 **The agent must produce an index with these sections:**
 
@@ -123,7 +123,7 @@ Use the Task tool with `subagent_type: "project-planner"`.
 # TODO: {Project Name}
 
 > Master implementation index. Generated by `/create:project-todo`.
-> Source of truth for story content: `docs/todo/_backlog.md`
+> Source of truth for story content: `docs/work/backlog.md`
 > Last updated: {YYYY-MM-DD}
 
 ---
@@ -208,7 +208,7 @@ Epic 2 (Story 2.1) → Epic 3 (Story 3.2) → Epic 5 (Story 5.1) → ... → tot
 
 After the agent completes, verify:
 - Phase Map totals are correct (spot-check against extracted data)
-- Epic Index has entries for every epic in `_backlog.md`
+- Epic Index has entries for every epic in `backlog.md`
 - Checklist links use correct naming: `TODO_epicNN_{slug}.md`
 - Cross-Epic Dependencies are real (not invented)
 - If issues found, delegate back to agent to fix
@@ -241,7 +241,7 @@ Other commands update the master index after epic-level changes. This is the lig
 
 After completing a story:
 
-1. **Find the master index**: Glob for `docs/TODO_*.md` (at docs root, not `docs/todo/`)
+1. **Find the master index**: Glob for `docs/TODO_*.md` (at docs root, not `docs/work/todo/`)
 2. **If no index exists**: Skip — the user hasn't run `/create:project-todo` yet
 3. **Update the Epic Index row**: Increment "Done" count in the Stories column for the epic. If all stories in the epic are done, change status from `[>]` to `[x]`.
 4. **Update Phase Map**: Recalculate "Done" count for the phase. If all epics in the phase are `[x]`, update Phase status to COMPLETE and check the Phase Gate.

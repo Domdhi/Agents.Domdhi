@@ -30,13 +30,13 @@ MODE: $ARGUMENTS (default: `--fix`)
 
 Verify the project is ready for specialization:
 
-- Read `docs/_project-architecture.md` — **REQUIRED**: must exist and NOT be a template (`<!-- @@template -->`). The architecture doc is the load-bearing input — specialization extracts the tech stack, components, and risk map from it.
-- Read `docs/todo/_backlog.md` — **OPTIONAL**: if it exists and is real, the risk map can use epic/story boundaries; if it is missing or a template, proceed in **architecture-only mode**.
+- Read `docs/architecture/overview.md` — **REQUIRED**: must exist and NOT be a template (`<!-- @@template -->`). The architecture doc is the load-bearing input — specialization extracts the tech stack, components, and risk map from it.
+- Read `docs/work/backlog.md` — **OPTIONAL**: if it exists and is real, the risk map can use epic/story boundaries; if it is missing or a template, proceed in **architecture-only mode**.
 
-**If `_project-architecture.md` is missing or a template:**
+**If `architecture/overview.md` is missing or a template:**
 
 ```
-ABORT: /specialize requires a real docs/_project-architecture.md.
+ABORT: /specialize requires a real docs/architecture/overview.md.
 Run /onboard (brownfield) or /create:project-architecture (greenfield) first.
 ```
 
@@ -44,7 +44,7 @@ Run /onboard (brownfield) or /create:project-architecture (greenfield) first.
 
 ### 1. Extract Project Tech Stack
 
-Read `docs/_project-architecture.md` and dynamically extract the full tech stack. **Nothing is hardcoded** — parse whatever the architecture document contains.
+Read `docs/architecture/overview.md` and dynamically extract the full tech stack. **Nothing is hardcoded** — parse whatever the architecture document contains.
 
 **1a. Backend** — Parse `## Tech Stack > ### Backend` table:
 ```
@@ -89,7 +89,7 @@ Extract for each tier (Unit, Integration, E2E).
 - Title, Status, Date
 - Context, Decision, Alternatives, Consequences
 
-**1i. Project Identity** — Read `docs/_project-brief.md` for:
+**1i. Project Identity** — Read `docs/product/brief.md` for:
 - Project name (from `# Project Brief: {name}` heading)
 - Organization (if present)
 
@@ -149,7 +149,7 @@ For each agent in `.claude/agents/*.md`:
 - ...
 ```
 
-**Rationale sourcing:** All "why", "solves", and "consequence" annotations MUST be drawn from the architecture document (`docs/_project-architecture.md`) — specifically the Rationale columns, Component Architecture descriptions, and ADR Consequences sections. Do NOT invent rationale. If the architecture doc doesn't provide a rationale for a given item, use "—" instead of guessing.
+**Rationale sourcing:** All "why", "solves", and "consequence" annotations MUST be drawn from the architecture document (`docs/architecture/overview.md`) — specifically the Rationale columns, Component Architecture descriptions, and ADR Consequences sections. Do NOT invent rationale. If the architecture doc doesn't provide a rationale for a given item, use "—" instead of guessing.
 
 **Idempotency and Soul Zone preservation:**
 - Before appending, check if `## Project Context` already exists in the markdown body (after the `---` frontmatter)
@@ -194,7 +194,7 @@ Analyze the extracted tech stack and architecture to determine which **additiona
 #### Frontend Skills Selection
 
 When creating `frontend-specialist`:
-- Always include `brand-guidelines` if `docs/_project-design.md` exists
+- Always include `brand-guidelines` if `docs/design/spec.md` exists
 - Add `tailwind-css-patterns` if the project uses Tailwind CSS
 - Add other relevant skills from `.claude/skills/` that match the frontend stack
 
@@ -470,7 +470,7 @@ node .claude/core/memory-manager.js create decisions "adr-{NNN}" '{
   "decision": "{Decision text}",
   "rationale": "{Context text}",
   "consequence": "{Consequences text}",
-  "source": "docs/_project-architecture.md",
+  "source": "docs/architecture/overview.md",
   "tags": ["{dynamically extracted tags}"],
   "confidence": 0.9
 }'
@@ -487,7 +487,7 @@ node .claude/core/memory-manager.js create patterns "{component-slug}" '{
   "title": "{Component Name}",
   "description": "{Responsibility}",
   "technology": "{Technology}",
-  "source": "docs/_project-architecture.md",
+  "source": "docs/architecture/overview.md",
   "tags": ["{relevant tech tags}"],
   "confidence": 0.9
 }'
@@ -530,7 +530,7 @@ Check each implementation command for proper memory API usage:
 | `/do` | `commands/do.md` | Yes (planning + pre-delegation) | Yes (post-implementation patterns) |
 | `/run-todo` | `commands/run-todo.md` | Yes (wave planning) | Yes (post-wave patterns) |
 | `/review:code-review` | `commands/review/code-review.md` | Yes (load standards) | No |
-| `/review:retro` | `commands/review/retro.md` | Yes (gather data) | Yes (extract patterns) |
+| `/retro` | `commands/retro.md` | Yes (gather data) | Yes (extract patterns) |
 | `/prime` | `commands/prime.md` | Yes (load context) | No |
 | `/end` | `commands/end.md` | Yes (memory summary) | No |
 
@@ -671,7 +671,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 | /do | {API / Glob / None} | {API / None} | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
 | /run-todo | {API / None} | {API / None} | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
 | /review:code-review | {API / None} | N/A | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
-| /review:retro | {API / None} | {API / None} | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
+| /retro | {API / None} | {API / None} | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
 | /prime | {API / None} | N/A | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
 | /end | {API / None} | N/A | {INTEGRATED / PARTIAL / NOT_INTEGRATED} |
 

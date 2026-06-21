@@ -53,7 +53,7 @@ Glob: package.json, *.csproj, *.sln, *.slnx, requirements.txt, Cargo.toml, go.mo
 Glob: src/**/*, lib/**/*, app/**/*
 
 # TODO checklists
-Glob: docs/todo/TODO_epic*.md
+Glob: docs/work/todo/TODO_epic*.md
 Glob: docs/TODO_*.md
 ```
 
@@ -64,7 +64,7 @@ Launch applicable agents **in parallel** based on scope. Each agent auto-loads i
 **2a. Architecture sync** (if scope is `all` or `architecture`) — `subagent_type: "architect"`
 
 Task prompt:
-1. Read `docs/_project-architecture.md` — extract tech stack, project structure, key directories, dependency list
+1. Read `docs/architecture/overview.md` — extract tech stack, project structure, key directories, dependency list
 2. Read the actual package/dependency files: {list files found in Step 1}
 3. Scan actual project structure: run Glob on `src/**/*`, `lib/**/*`, `app/**/*`
 4. Compare and flag drift:
@@ -89,12 +89,12 @@ Task prompt:
 6. Return structured report: story ID, doc status, git evidence, sync status
 7. Rate overall: SYNCED, MINOR_DRIFT, or MAJOR_DRIFT
 
-> **Note**: `docs/todo/_backlog.md` is a **read-only planning artifact** — it defines what to build but does NOT track completion status. Status lives in per-epic TODO checklists and the master index.
+> **Note**: `docs/work/backlog.md` is a **read-only planning artifact** — it defines what to build but does NOT track completion status. Status lives in per-epic TODO checklists and the master index.
 
 **2c. PRD coverage sync** (if scope is `all` or `prd`) — `subagent_type: "product-strategist"`
 
 Task prompt:
-1. Read `docs/_project-requirements.md` — extract functional requirements list
+1. Read `docs/product/requirements.md` — extract functional requirements list
 2. For each requirement: search the codebase for related implementations (by keyword, module name, route, component)
 3. Note whether each requirement appears implemented, partial, or missing
 4. This is **informational** — PRD drift is expected during early phases, so flag but don't alarm
@@ -112,7 +112,7 @@ Scan all docs for broken internal references yourself:
 
 ### 3b. Legacy / Duplicate Doc Check (main agent) — F2
 
-Run the drift detector for legacy-named and duplicated planning docs the create-chain is blind to (e.g. `_architecture.md` beside `_project-architecture.md`, a root `_backlog.md` beside `todo/_backlog.md`), **plus misplaced TODO files** outside the canonical `docs/` root and `docs/todo/` homes (e.g. a stale `docs/work/TODO_epic00.md` left by an older plan — F17):
+Run the drift detector for legacy-named and duplicated planning docs the create-chain is blind to (e.g. `_architecture.md` beside `architecture/overview.md`, a root `_backlog.md` beside `work/backlog.md`), **plus misplaced TODO files** outside the canonical `docs/` root and `docs/work/todo/` homes (e.g. a stale `docs/work/TODO_epic00.md` left by an older plan — F17): <!-- migrate:keep (legacy-name examples retain the old underscore form) -->
 
 ```bash
 node .claude/core/_lib/doc-drift.js

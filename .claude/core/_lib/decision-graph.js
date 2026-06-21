@@ -222,7 +222,7 @@ function parseGitLog({ projectRoot, cutoffDate, execSync = childProcess.execSync
 function parseADRs({ projectRoot }) {
   const adrs = [];
   const archPaths = [
-    path.join(projectRoot, 'docs', '_project-architecture.md'),
+    path.join(projectRoot, 'docs', 'architecture/overview.md'),
   ];
 
   let content = null;

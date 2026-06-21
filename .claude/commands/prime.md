@@ -43,7 +43,7 @@ Read $HANDOFF        # the resolved handoff (skip if empty — none yet)
 git log --oneline -20
 git status --short
 ```
-The handoff has decisions, intent, blockers, and next actions from the previous session. Git is the source of truth — do NOT trust the handoff over git. If `$HANDOFF` is empty (no handoff exists yet), scan `docs/todo/_backlog.md` instead.
+The handoff has decisions, intent, blockers, and next actions from the previous session. Git is the source of truth — do NOT trust the handoff over git. If `$HANDOFF` is empty (no handoff exists yet), scan `docs/work/backlog.md` instead.
 
 ### Step 2: Read the handoff's Key Files (parallel)
 
@@ -74,7 +74,7 @@ The SessionStart hook injects a generic top-8 by decayed confidence × usage. Th
 
 Compare the handoff against git reality:
 - If handoff says "next: implement X" but `git log` shows X was already committed → **flag as stale**, ignore that action
-- If handoff is missing or completely stale → scan `docs/todo/_backlog.md` for pending work
+- If handoff is missing or completely stale → scan `docs/work/backlog.md` for pending work
 - If a Key File's current contents contradict the handoff's description of it → trust the file, flag the drift
 
 ## Report
@@ -129,7 +129,7 @@ Provide a substantive summary (**30-60 lines**) that gives enough context to sta
 - **Optional sections are explicitly optional.** Only Handoff drift and Blockers may be omitted, and only when there is genuinely nothing to report.
 
 ## What NOT to Do
-- Do NOT read `_project-architecture.md` or `_project-context.md` — CLAUDE.md already has this
+- Do NOT read `architecture/overview.md` or `product/context.md` — CLAUDE.md already has this
 - Do NOT read CLAUDE.md — it auto-loads, reading it again wastes tokens
 - Do NOT load full planning docs unless the handoff is stale/missing
 - Do NOT produce a report under 20 lines — that's too sparse to cold-start from

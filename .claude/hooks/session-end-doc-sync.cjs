@@ -68,7 +68,7 @@ function runDocSync(projectRoot) {
             lines.push(`    • duplicate ${d.root} vs ${d.canonical} (keep canonical)`);
         }
         for (const m of misplacedTodos) {
-            lines.push(`    • misplaced TODO ${m.file} (move to docs/todo/)`);
+            lines.push(`    • misplaced TODO ${m.file} (move to docs/work/todo/)`);
         }
         lines.push('  Run /review:check-sync or /onboard to reconcile. (Set CLAUDE_NO_DOC_SYNC=1 to silence.)', '');
         process.stderr.write(lines.join('\n') + '\n');

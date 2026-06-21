@@ -46,7 +46,7 @@ class DailyLog {
      * Find in-progress [>] and blocked [!] items from TODO files.
      */
     findInProgressTodos() {
-        const todoDir = path.join(this.projectRoot, 'docs', 'todo');
+        const todoDir = path.join(this.projectRoot, 'docs', 'work', 'todo');
         const docsDir = path.join(this.projectRoot, 'docs');
         const results = [];
 

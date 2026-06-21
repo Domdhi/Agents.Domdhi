@@ -139,9 +139,9 @@ All interactive components must define: Default, Hover, Active, Focus, Disabled,
 ---
 
 ## Related Documents
-- PRD: [../_project-requirements.md](../_project-requirements.md)
-- Wireframes: [_wireframes.md](_wireframes.md)
-- Light Theme: [_design.light.md](_design.light.md)
-- Dark Theme: [_design.dark.md](_design.dark.md)
-- Mock Layout: [_mock-layout.html](_mock-layout.html)
-- Architecture: [../_project-architecture.md](../_project-architecture.md)
+- PRD: [../product/requirements.md](../product/requirements.md)
+- Wireframes: [wireframes.md](wireframes.md)
+- Light Theme: [theme.light.md](theme.light.md)
+- Dark Theme: [theme.dark.md](theme.dark.md)
+- Mock Layout: [mock.html](mock.html)
+- Architecture: [../architecture/overview.md](../architecture/overview.md)

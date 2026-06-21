@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 // regenerateMasterIndex AC→source map (S-PI.9):
 //   - AC: reusable regen reuses status.js projection logic, idempotent + offline
 //       → 'idempotent — second regen byte-identical', 'no network' (pure fs, asserted by offline fixtures)
-//   - AC: regen refreshes TODO_{Project}.md from _backlog.md + per-epic checklists + git
+//   - AC: regen refreshes TODO_{Project}.md from backlog.md + per-epic checklists + git
 //       → 'flips an epic to [x] when its checklist is fully done',
 //         'Phase Map Done + Total recomputed from checklists'
 //   - AC: never hand-edits master as independent source / leaves unresolvable rows untouched
@@ -312,11 +312,11 @@ describe('status', () => {
         // Build a synthetic project: master index + per-epic checklists + backlog.
         const makeProject = ({ master, epic01, epic02, backlog } = {}) => {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-regen-'));
-            fs.mkdirSync(path.join(root, 'docs', 'todo'), { recursive: true });
+            fs.mkdirSync(path.join(root, 'docs', 'work', 'todo'), { recursive: true });
             if (master !== undefined) fs.writeFileSync(path.join(root, 'docs', 'TODO_MyProj.md'), master, 'utf8');
-            if (epic01 !== undefined) fs.writeFileSync(path.join(root, 'docs', 'todo', 'TODO_epic01_alpha.md'), epic01, 'utf8');
-            if (epic02 !== undefined) fs.writeFileSync(path.join(root, 'docs', 'todo', 'TODO_epic02_beta.md'), epic02, 'utf8');
-            if (backlog !== undefined) fs.writeFileSync(path.join(root, 'docs', 'todo', '_backlog.md'), backlog, 'utf8');
+            if (epic01 !== undefined) fs.writeFileSync(path.join(root, 'docs', 'work', 'todo', 'TODO_epic01_alpha.md'), epic01, 'utf8');
+            if (epic02 !== undefined) fs.writeFileSync(path.join(root, 'docs', 'work', 'todo', 'TODO_epic02_beta.md'), epic02, 'utf8');
+            if (backlog !== undefined) fs.writeFileSync(path.join(root, 'docs', 'work', 'backlog.md'), backlog, 'utf8');
             return root;
         };
 
@@ -801,7 +801,7 @@ describe('status', () => {
             const { printTextSummary } = require('../status');
             const files = [{
                 title: 'My Epic',
-                path: 'docs/todo/TODO_epic01.md',
+                path: 'docs/work/todo/TODO_epic01.md',
                 type: 'checklist',
                 stories: { total: 10, done: 4, inProgress: 2, blocked: 0, deferred: 1, pending: 3 },
                 epics: [],
@@ -851,7 +851,7 @@ describe('status', () => {
             const { printTextSummary } = require('../status');
             const files = [{
                 title: 'Epic 01',
-                path: 'docs/todo/TODO_epic01.md',
+                path: 'docs/work/todo/TODO_epic01.md',
                 type: 'checklist',
                 stories: { total: 5, done: 3, inProgress: 1, blocked: 0, deferred: 0, pending: 1 },
                 epics: [],
@@ -885,7 +885,7 @@ describe('status', () => {
             const { printTextSummary } = require('../status');
             const files = [{
                 title: 'Epic 01',
-                path: 'docs/todo/TODO_epic01.md',
+                path: 'docs/work/todo/TODO_epic01.md',
                 type: 'checklist',
                 stories: { total: 2, done: 1, inProgress: 0, blocked: 0, deferred: 0, pending: 1 },
                 epics: [],
@@ -922,12 +922,12 @@ describe('status', () => {
             const { printTextSummary } = require('../status');
             const files = [
                 {
-                    title: 'Epic 01', path: 'docs/todo/TODO_epic01.md', type: 'checklist',
+                    title: 'Epic 01', path: 'docs/work/todo/TODO_epic01.md', type: 'checklist',
                     stories: { total: 5, done: 5, inProgress: 0, blocked: 0, deferred: 0, pending: 0 },
                     epics: [], phases: [],
                 },
                 {
-                    title: 'Epic 02', path: 'docs/todo/TODO_epic02.md', type: 'checklist',
+                    title: 'Epic 02', path: 'docs/work/todo/TODO_epic02.md', type: 'checklist',
                     stories: { total: 5, done: 0, inProgress: 0, blocked: 0, deferred: 0, pending: 5 },
                     epics: [], phases: [],
                 },

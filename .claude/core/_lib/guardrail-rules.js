@@ -10,7 +10,7 @@
  *   A3 — four-tier path schema from PI Agent damage-control.
  *   D1 — Schema validation at hook load time is a blind-spot opportunity;
  *        no competitor does this (see
- *        `docs/research/competitive/_hooks-and-core-scripts-comparison.md` §D1).
+ *        `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` §D1).
  *
  * Four-tier schema semantics:
  *   dangerousPatterns : bash command regex — hard block (alongside block_patterns)

@@ -1,5 +1,5 @@
 /**
- * Generate _project-timeline.md from git history.
+ * Generate work/timeline.md from git history.
  *
  * Usage:
  *   node .claude/core/gen-timeline.js [full|update]
@@ -73,7 +73,7 @@ function groupByTheme(dayCommits) {
 
 function main() {
     const projectDir = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-    const timelinePath = path.join(projectDir, 'docs', '_project-timeline.md');
+    const timelinePath = path.join(projectDir, 'docs', 'work/timeline.md');
     const mode = process.argv[2] || (fs.existsSync(timelinePath) ? 'update' : 'full');
 
     // ── Gather git data ─────────────────────────────────────────────────────
@@ -192,6 +192,7 @@ function main() {
         }
     }
 
+    fs.mkdirSync(path.dirname(timelinePath), { recursive: true });  // work/ may not exist yet
     fs.writeFileSync(timelinePath, output);
 
     console.log(JSON.stringify({

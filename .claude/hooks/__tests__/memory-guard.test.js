@@ -21,6 +21,9 @@ const fs = require('fs');
 const path = require('path');
 const { processEvent, countMemoriesInCategory } = require('../memory-guard.cjs');
 const { createTmpDir } = require('../../core/__tests__/_helpers/tmp-dir');
+// Constant-relative so a change to the cap OR the near-limit fraction doesn't re-break these tests.
+const { MEMORY_MAX_PER_CATEGORY: CAP, MEMORY_NEAR_LIMIT_PCT: NEAR_PCT } = require('../../core/constants').MEMORY_FILTERS;
+const NEAR = Math.round(CAP * NEAR_PCT);   // near-limit warning threshold
 
 // ─── countMemoriesInCategory ──────────────────────────────────────────────────
 
@@ -138,10 +141,10 @@ describe('memory-guard', () => {
             tmp.cleanup();
         });
 
-        it('processEvent_count39_noWarning', () => {
-            // Arrange — 39 files (below 80% threshold of 50 = 40)
+        it('processEvent_belowThreshold_noWarning', () => {
+            // Arrange — one below the 80% threshold
             const catDir = tmp.mkdir('memories/patterns');
-            for (let i = 0; i < 39; i++) {
+            for (let i = 0; i < NEAR - 1; i++) {
                 tmp.write(`memories/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -158,10 +161,10 @@ describe('memory-guard', () => {
             }
         });
 
-        it('processEvent_count40_mildWarning', () => {
-            // Arrange — 40 files (exactly at 80% threshold)
+        it('processEvent_atThreshold_mildWarning', () => {
+            // Arrange — exactly at the 80% threshold
             const catDir = tmp.mkdir('memories/patterns');
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < NEAR; i++) {
                 tmp.write(`memories/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -174,16 +177,16 @@ describe('memory-guard', () => {
                 // Assert — mild warning fired (80% full message)
                 expect(stderrSpy).toHaveBeenCalled();
                 const message = stderrSpy.mock.calls[0][0];
-                expect(message).toMatch(/80%|40\/50/);
+                expect(message).toMatch(new RegExp(`80%|${NEAR}\\/${CAP}`));
             } finally {
                 stderrSpy.mockRestore();
             }
         });
 
-        it('processEvent_count50_strongWarning', () => {
-            // Arrange — 50 files (at max)
+        it('processEvent_atMax_strongWarning', () => {
+            // Arrange — at the cap (max)
             const catDir = tmp.mkdir('memories/patterns');
-            for (let i = 0; i < 50; i++) {
+            for (let i = 0; i < CAP; i++) {
                 tmp.write(`memories/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -196,7 +199,7 @@ describe('memory-guard', () => {
                 // Assert — strong warning (pruning message)
                 expect(stderrSpy).toHaveBeenCalled();
                 const message = stderrSpy.mock.calls[0][0];
-                expect(message).toMatch(/prune|max|50/i);
+                expect(message).toMatch(/prune|max/i);
             } finally {
                 stderrSpy.mockRestore();
             }

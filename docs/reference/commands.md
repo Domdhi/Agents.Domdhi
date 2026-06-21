@@ -43,7 +43,7 @@ Each entry below gives the command's purpose, the agent(s) it dispatches, and �
 | Fix the drift `/review:check-sync` found | [`/review:update-docs`](#reviewupdate-docs) |
 | Audit the `.claude/` system itself | [`/review:check-templates`](#reviewcheck-templates) |
 | Find the critical path across the backlog | [`/review:optimize-backlog`](#reviewoptimize-backlog) |
-| Run an epic retrospective | [`/review:retro`](#reviewretro) |
+| Run an epic retrospective | [`/retro`](#retro) |
 | Write release notes | [`/review:changelog`](#reviewchangelog) |
 | Customize this template for your tech stack | [`/review:specialize`](#reviewspecialize) |
 | Re-align agents mid-project | [`/review:optimize-agents`](#reviewoptimize-agents) |
@@ -73,11 +73,11 @@ Thirteen commands for project initialization — from brainstorm through per-epi
 
 ## /brainstorm
 
-Guided ideation session. Writes `docs/_brainstorm.md` (always) plus topic-driven satellites as warranted (e.g., `_feature-ideas.md`). Dispatches `product-strategist` with the `project-planning` skill.
+Guided ideation session. Writes `docs/product/brainstorm.md` (always) plus topic-driven satellites as warranted (e.g., `feature-ideas.md`). Dispatches `product-strategist` with the `project-planning` skill.
 
 ```mermaid
 flowchart TD
-    START(["/brainstorm"]) --> CHK{docs/_brainstorm.md\nexists?}
+    START(["/brainstorm"]) --> CHK{docs/product/brainstorm.md\nexists?}
     CHK -->|Yes| ASK_MODE{Ask user:\nUpdate or Fresh?}
     CHK -->|No| CHK_INPUT{INPUT\nprovided?}
     ASK_MODE -->|Update| CHK_INPUT
@@ -96,13 +96,13 @@ flowchart TD
     GATHER --> DELEGATE["Agent: product-strategist\n(auto-loads project-planning skill)"]
     DELEGATE --> AGENT_WORK["Frame problem\nExplore 3-5 directions\nEvaluate: Feasibility/Impact/Effort/Risk\nCreate evaluation matrix\nRecommend direction"]
 
-    AGENT_WORK --> FEATURE{docs/todo/_feature-ideas.md\nexists with content?}
+    AGENT_WORK --> FEATURE{docs/work/todo/feature-ideas.md\nexists with content?}
     FEATURE -->|No/Template| CREATE_FI[Create from template]
     FEATURE -->|Yes| APPEND_FI[Append new ideas]
     CREATE_FI --> POPULATE[Populate ideas:\ncategorize, prioritize,\nstatus=Idea, source=brainstorm]
     APPEND_FI --> POPULATE
 
-    POPULATE --> COMMIT["Commit:\ndocs/_brainstorm.md\ndocs/todo/_feature-ideas.md"]
+    POPULATE --> COMMIT["Commit:\ndocs/product/brainstorm.md\ndocs/work/todo/feature-ideas.md"]
     COMMIT --> REPORT(["Report:\nOutput file, feature count,\ncommit hash"])
 
     style START fill:#4a9eff,color:#fff
@@ -115,11 +115,11 @@ flowchart TD
 
 ## /research
 
-Validate market, technical, domain, or competitive assumptions. Writes `docs/_research.md` plus raw outputs under `docs/.output/research/{YYYY-MM-DD}/`. Dispatches `product-strategist` (single or parallel Tasks).
+Validate market, technical, domain, or competitive assumptions. Writes `docs/product/research.md` plus raw outputs under `docs/.output/research/{YYYY-MM-DD}/`. Dispatches `product-strategist` (single or parallel Tasks).
 
 ```mermaid
 flowchart TD
-    START(["/research"]) --> CHK{docs/_research.md\nexists?}
+    START(["/research"]) --> CHK{docs/product/research.md\nexists?}
     CHK -->|Yes| ASK_MODE{Ask user:\nAppend or Fresh?}
     CHK -->|No| CHK_INPUT{INPUT\nprovided?}
     ASK_MODE --> CHK_INPUT
@@ -138,8 +138,8 @@ flowchart TD
     SINGLE --> RAW[Write raw output to\ndocs/.output/research/\nYYYY-MM-DD/HHMM-slug.md]
     PARALLEL --> RAW
 
-    RAW --> CONSOLIDATE[Consolidate into\ndocs/_research.md]
-    CONSOLIDATE --> COMMIT["Commit:\ndocs/_research.md\n+ raw output files"]
+    RAW --> CONSOLIDATE[Consolidate into\ndocs/product/research.md]
+    CONSOLIDATE --> COMMIT["Commit:\ndocs/product/research.md\n+ raw output files"]
     COMMIT --> REPORT(["Report:\nOutput file, questions\ninvestigated, key findings"])
 
     style START fill:#4a9eff,color:#fff
@@ -186,13 +186,13 @@ flowchart TD
 
 ## /create:project-brief
 
-Strategic vision doc. Writes `docs/_project-brief.md`. Dispatches `product-strategist` with the `project-planning` skill. Runs in Context Mode (if brainstorm/research exists) or Interview Mode.
+Strategic vision doc. Writes `docs/product/brief.md`. Dispatches `product-strategist` with the `project-planning` skill. Runs in Context Mode (if brainstorm/research exists) or Interview Mode.
 
 ```mermaid
 flowchart TD
-    START(["/create:project-brief"]) --> READ_UP["Read upstream (optional):\ndocs/_brainstorm.md\ndocs/_research.md"]
+    START(["/create:project-brief"]) --> READ_UP["Read upstream (optional):\ndocs/product/brainstorm.md\ndocs/product/research.md"]
 
-    READ_UP --> EXIST{docs/_project-brief.md\nexists?}
+    READ_UP --> EXIST{docs/product/brief.md\nexists?}
     EXIST -->|Yes| ASK_EXIST{Ask user:\nUpdate or Replace?}
     EXIST -->|No| MODE
     ASK_EXIST --> MODE
@@ -205,7 +205,7 @@ flowchart TD
     INTERVIEW_MODE --> DELEGATE
 
     DELEGATE --> VALIDATE{Validate against\nproject-planning\nchecklist?}
-    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/_project-brief.md"]
+    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/product/brief.md"]
     VALIDATE -->|Fail| RE_DELEGATE[Re-delegate to agent\nto fill gaps]
     RE_DELEGATE --> VALIDATE
 
@@ -221,7 +221,7 @@ flowchart TD
 
 ## /create:project-requirements
 
-PRD with FRs, NFRs, MoSCoW priorities. Writes `docs/_project-requirements.md`. Dispatches `product-strategist` with the `project-planning` skill. **Hard gate:** needs at least one of `_project-brief.md`, `_brainstorm.md`, or `_research.md` (bypass with `--yolo`).
+PRD with FRs, NFRs, MoSCoW priorities. Writes `docs/product/requirements.md`. Dispatches `product-strategist` with the `project-planning` skill. **Hard gate:** needs at least one of `product/brief.md`, `product/brainstorm.md`, or `product/research.md` (bypass with `--yolo`).
 
 ```mermaid
 flowchart TD
@@ -229,14 +229,14 @@ flowchart TD
     YOLO -->|Yes| STRIP[Strip flag,\nset YOLO_MODE]
     YOLO -->|No| GATE
 
-    STRIP --> GATE{At least ONE exists\n& not template?\n_project-brief.md OR\n_brainstorm.md OR\n_research.md}
+    STRIP --> GATE{At least ONE exists\n& not template?\nproduct/brief.md OR\nproduct/brainstorm.md OR\nproduct/research.md}
 
     GATE -->|None exist| YOLO_CHK{YOLO_MODE?}
     YOLO_CHK -->|No| STOP(["STOP: Run Phase 1\ncommands first"])
     YOLO_CHK -->|Yes| WARN[Warn and continue\nto Interview Mode]
     GATE -->|At least one| READ_CTX[Read available\nupstream docs]
 
-    READ_CTX --> EXIST{_project-requirements.md\nexists?}
+    READ_CTX --> EXIST{product/requirements.md\nexists?}
     WARN --> EXIST
     EXIST -->|Yes| ASK{Ask user:\nUpdate or Replace?}
     EXIST -->|No| MODE
@@ -252,7 +252,7 @@ flowchart TD
     REV --> DELEGATE
 
     DELEGATE --> VALIDATE{Validate:\nAll sections present?\nMoSCoW used?\nNFRs measurable?}
-    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/_project-requirements.md"]
+    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/product/requirements.md"]
     VALIDATE -->|Fail| RE_DELEGATE[Re-delegate to fix]
     RE_DELEGATE --> VALIDATE
 
@@ -269,7 +269,7 @@ flowchart TD
 
 ## /create:project-architecture
 
-Tech stack, ADRs, system design. Writes `docs/_project-architecture.md`. Dispatches `architect` with the `architecture` skill. **Hard gate:** needs `_project-requirements.md`.
+Tech stack, ADRs, system design. Writes `docs/architecture/overview.md`. Dispatches `architect` with the `architecture` skill. **Hard gate:** needs `product/requirements.md`.
 
 ```mermaid
 flowchart TD
@@ -278,16 +278,16 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{_project-requirements.md\nexists & not template?}
+    GATE{product/requirements.md\nexists & not template?}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run\n/project-requirements first"])
     YOLO_CHK -->|Yes| WARN[Warn, continue]
     GATE -->|Yes| READ[Read PRD]
 
-    READ --> OPT["Optional reads:\n_project-design.md\n_project-brief.md\n_research.md"]
+    READ --> OPT["Optional reads:\ndesign/spec.md\nproduct/brief.md\nproduct/research.md"]
     WARN --> OPT
 
-    OPT --> EXIST{_project-architecture.md\nexists?}
+    OPT --> EXIST{architecture/overview.md\nexists?}
     EXIST -->|Yes| ASK{Update or Replace?}
     EXIST -->|No| MODE
     ASK --> MODE
@@ -302,7 +302,7 @@ flowchart TD
     REV --> DELEGATE
 
     DELEGATE --> VALIDATE{Validate against\narchitecture\nchecklist?}
-    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/_project-architecture.md"]
+    VALIDATE -->|Pass| COMMIT["Commit:\ndocs/architecture/overview.md"]
     VALIDATE -->|Fail| FIX[Re-delegate to fix]
     FIX --> VALIDATE
 
@@ -319,7 +319,7 @@ flowchart TD
 
 ## /create:project-design
 
-UX spec, wireframes, themes, mock layout. Writes 5 files under `docs/design/` (spec, wireframes, light theme, dark theme, mock HTML) plus syncs the `brand-guidelines` skill. Dispatches `ux-designer` (with parallel Tasks for wireframes + themes). **Hard gate:** needs `_project-requirements.md`.
+UX spec, wireframes, themes, mock layout. Writes 5 files under `docs/design/` (spec, wireframes, light theme, dark theme, mock HTML) plus syncs the `brand-guidelines` skill. Dispatches `ux-designer` (with parallel Tasks for wireframes + themes). **Hard gate:** needs `product/requirements.md`.
 
 ```mermaid
 flowchart TD
@@ -328,7 +328,7 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{_project-requirements.md\nexists & not template?}
+    GATE{product/requirements.md\nexists & not template?}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run\n/project-requirements first"])
     YOLO_CHK -->|Yes| WARN[Warn, continue]
@@ -349,15 +349,15 @@ flowchart TD
     INT --> T1
     REV --> T1
 
-    T1["Task 1 (sequential):\nAgent: ux-designer\nOutput: _project-design.md"]
+    T1["Task 1 (sequential):\nAgent: ux-designer\nOutput: design/spec.md"]
 
     T1 --> PAR["Tasks 2 & 3 (parallel):"]
-    PAR --> T2["Agent: ux-designer\nOutput: _wireframes.md"]
-    PAR --> T3["Agent: ux-designer\nOutput: _design.light.md\n+ _design.dark.md"]
+    PAR --> T2["Agent: ux-designer\nOutput: wireframes.md"]
+    PAR --> T3["Agent: ux-designer\nOutput: theme.light.md\n+ theme.dark.md"]
 
     T2 --> T4
     T3 --> T4
-    T4["Task 4 (sequential):\nAgent: ux-designer\nOutput: _mock-layout.html\n(self-contained)"]
+    T4["Task 4 (sequential):\nAgent: ux-designer\nOutput: mock.html\n(self-contained)"]
 
     T4 --> VALIDATE{Validate all:\nUX spec sections?\nWireframes 2+ pages?\nWCAG contrast?\nHTML responsive?}
     VALIDATE -->|Fail| FIX[Re-delegate to fix]
@@ -381,7 +381,7 @@ flowchart TD
 
 ## /create:project-epics
 
-Break requirements into phases → epics → stories with acceptance criteria. Writes `docs/todo/_backlog.md`. Dispatches `project-planner` with the `project-planning` skill. **Hard gate:** needs both `_project-requirements.md` and `_project-architecture.md`.
+Break requirements into phases → epics → stories with acceptance criteria. Writes `docs/work/backlog.md`. Dispatches `project-planner` with the `project-planning` skill. **Hard gate:** needs both `product/requirements.md` and `architecture/overview.md`.
 
 ```mermaid
 flowchart TD
@@ -390,14 +390,14 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{BOTH exist & not template?\n_project-requirements.md\n_project-architecture.md}
+    GATE{BOTH exist & not template?\nproduct/requirements.md\narchitecture/overview.md}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run missing\ncommand first"])
     YOLO_CHK -->|Yes| WARN[Warn, continue]
-    GATE -->|Yes| READ["Read PRD + Architecture\nOptional: _project-design.md"]
+    GATE -->|Yes| READ["Read PRD + Architecture\nOptional: design/spec.md"]
     WARN --> EXIST
 
-    READ --> EXIST{_backlog.md\nexists?}
+    READ --> EXIST{backlog.md\nexists?}
     EXIST -->|Yes| ASK{Update or Replace?\nWarn if implementation\nin progress}
     EXIST -->|No| ANALYZE
     ASK --> ANALYZE
@@ -413,7 +413,7 @@ flowchart TD
     FIX --> VALIDATE
     VALIDATE -->|Pass| OVERLAP["Run epic-overlap.js:\nDetect cross-epic shared files\nWarning, not failure"]
 
-    OVERLAP --> COMMIT["Commit:\ndocs/todo/_backlog.md"]
+    OVERLAP --> COMMIT["Commit:\ndocs/work/backlog.md"]
 
     COMMIT --> REPORT(["Report:\nPhases, epics, stories,\nsize breakdown,\nMust-Have coverage,\noverlap warnings (if any)"])
 
@@ -429,7 +429,7 @@ flowchart TD
 
 ## /create:project-todo
 
-Master implementation index. Writes `docs/TODO_{ProjectName}.md` with phase map, epic index, cross-epic deps, optimization summary, phase gates. Dispatches `project-planner`. **Hard gate:** needs `docs/todo/_backlog.md`.
+Master implementation index. Writes `docs/TODO_{ProjectName}.md` with phase map, epic index, cross-epic deps, optimization summary, phase gates. Dispatches `project-planner`. **Hard gate:** needs `docs/work/backlog.md`.
 
 ```mermaid
 flowchart TD
@@ -438,21 +438,21 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{_backlog.md\nexists & not template?}
+    GATE{backlog.md\nexists & not template?}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run\n/project-epics first"])
     YOLO_CHK -->|Yes| WARN[Warn, continue]
     GATE -->|Yes| NAME
     WARN --> NAME
 
-    NAME["Discover project name:\n1. INPUT argument\n2. _project-context.md\n3. _project-brief.md\n4. Git repo dir name\nConvert to PascalCase"]
+    NAME["Discover project name:\n1. INPUT argument\n2. product/context.md\n3. product/brief.md\n4. Git repo dir name\nConvert to PascalCase"]
 
     NAME --> EXIST{TODO_*.md\nexists?}
     EXIST -->|Yes| ASK{Update or Replace?}
     EXIST -->|No| EXTRACT
     ASK --> EXTRACT
 
-    EXTRACT["Extract from _backlog.md:\nAll phases + goals\nAll epics + story counts\nPer-story status [ ] vs [x]\nCross-epic dependencies\nPer-phase stats"]
+    EXTRACT["Extract from backlog.md:\nAll phases + goals\nAll epics + story counts\nPer-story status [ ] vs [x]\nCross-epic dependencies\nPer-phase stats"]
 
     EXTRACT --> OPT{Optimization data\nfrom /optimize-backlog?}
     OPT -->|Yes| OPT_DATA[Include critical path,\nparallel tracks, bottlenecks]
@@ -481,7 +481,7 @@ flowchart TD
 
 ## /create:project-epics-todo
 
-Per-epic story checklists. Writes one or more `docs/todo/TODO_epic{NN}_{slug}.md` files. Dispatches `project-planner` (single or parallel per epic). **Hard gate:** needs `docs/todo/_backlog.md`.
+Per-epic story checklists. Writes one or more `docs/work/todo/TODO_epic{NN}_{slug}.md` files. Dispatches `project-planner` (single or parallel per epic). **Hard gate:** needs `docs/work/backlog.md`.
 
 ```mermaid
 flowchart TD
@@ -490,7 +490,7 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{_backlog.md\nexists & not template?}
+    GATE{backlog.md\nexists & not template?}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run\n/project-epics first"])
     YOLO_CHK -->|Yes| WARN[Warn, continue]
@@ -498,7 +498,7 @@ flowchart TD
     WARN --> INPUT
 
     INPUT{INPUT type?}
-    INPUT -->|Number e.g. "3"| FIND[Find Epic 3\nin _backlog.md]
+    INPUT -->|Number e.g. "3"| FIND[Find Epic 3\nin backlog.md]
     INPUT -->|"all"| ALL["Warn: generates N files\nConfirm with user"]
     INPUT -->|None| LIST["Show epic list\nHighlight those without\nchecklists yet"]
 
@@ -511,7 +511,7 @@ flowchart TD
     CHK_EXIST -->|No| EXTRACT
     ASK --> EXTRACT
 
-    EXTRACT["Extract from _backlog.md:\nEpic metadata\nAll stories with AC\nCross-epic deps\nOptimization data"]
+    EXTRACT["Extract from backlog.md:\nEpic metadata\nAll stories with AC\nCross-epic deps\nOptimization data"]
 
     EXTRACT --> DELEGATE["Agent: project-planner\n(auto-loads project-planning skill)\nSingle or parallel per epic"]
 
@@ -544,9 +544,9 @@ No mermaid — the flow is linear and mostly interactive. The component template
 
 ## /create:new-project
 
-Master orchestrator that walks a fresh clone from zero to implementation-ready. Scaffolds `docs/` from `.claude/templates/`, runs a 3-round interview (elevator pitch → tech & scope → constraints), classifies the project as simple/medium/complex, then chains the planning pipeline (`/create:project-brief` → `/create:project-requirements` → optional `/create:project-design` → `/create:project-architecture` → `/create:project-epics` → `/review:check-readiness`), specializes the generic agents for the new stack via `/review:specialize --fix`, and writes `docs/_project-context.md` as the quick-reference. Intended as the FIRST command an adopter runs after cloning the template.
+Master orchestrator that walks a fresh clone from zero to implementation-ready. Scaffolds `docs/` from `.claude/templates/`, runs a 3-round interview (elevator pitch → tech & scope → constraints), classifies the project as simple/medium/complex, then chains the planning pipeline (`/create:project-brief` → `/create:project-requirements` → optional `/create:project-design` → `/create:project-architecture` → `/create:project-epics` → `/review:check-readiness`), specializes the generic agents for the new stack via `/review:specialize --fix`, and writes `docs/product/context.md` as the quick-reference. Intended as the FIRST command an adopter runs after cloning the template.
 
-The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `_project-context.md` and the persisted interview scratch file at `docs/.output/work/{date}/new-project-interview.md`.
+The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `product/context.md` and the persisted interview scratch file at `docs/work/scratch/{date}/new-project-interview.md`.
 
 ```mermaid
 flowchart TD
@@ -555,7 +555,7 @@ flowchart TD
     FRESH -->|Filled planning docs found,\nno --yolo| EXIT["Exit — point user to\nindividual /create:project-*\ncommands"]
     FRESH -->|Clean OR --yolo| INTERVIEW
 
-    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to .output/work/{date}/\nnew-project-interview.md"]
+    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to work/scratch/{date}/\nnew-project-interview.md"]
 
     INTERVIEW --> ROUTE{Step 4: Phase routing\nfrom interview answers}
     ROUTE -->|Simple| SIMPLE["PRD-min → Architecture → Epics"]
@@ -570,9 +570,9 @@ flowchart TD
 
     PLAN --> SPECIALIZE["Step 8: /review:specialize --fix\nAppend project context to default agents\nGenerate stack-specific agents from arch\nSeed memory with ADRs"]
 
-    SPECIALIZE --> CONTEXT["Step 9: Generate _project-context.md\nQuick-reference + implementation commands"]
+    SPECIALIZE --> CONTEXT["Step 9: Generate product/context.md\nQuick-reference + implementation commands"]
 
-    CONTEXT --> COMMIT["Step 10: Wrap-up commit\nStage _project-context.md +\ninterview scratch file only"]
+    CONTEXT --> COMMIT["Step 10: Wrap-up commit\nStage product/context.md +\ninterview scratch file only"]
 
     COMMIT --> REPORT(["Step 11: Final report\nDocs created table, specialization summary,\nreadiness verdict, recommended next commands"])
 
@@ -584,13 +584,13 @@ flowchart TD
     style REPORT fill:#888,color:#fff
 ```
 
-**Output:** `docs/_project-context.md` + the full planning chain (`_project-brief.md` per tier, `_project-requirements.md`, `_project-design.md` per UI flag, `_project-architecture.md`, `todo/_backlog.md`) + specialized `.claude/agents/*.md`. Each sub-command commits its own output; the orchestrator's wrap-up commit captures only the project-context file and the interview scratch.
+**Output:** `docs/product/context.md` + the full planning chain (`product/brief.md` per tier, `product/requirements.md`, `design/spec.md` per UI flag, `architecture/overview.md`, `work/backlog.md`) + specialized `.claude/agents/*.md`. Each sub-command commits its own output; the orchestrator's wrap-up commit captures only the project-context file and the interview scratch.
 
 ---
 
 ## /onboard
 
-Brownfield bootstrapper — reverse-engineers the doc chain from an existing codebase. The brownfield analog of `/create:new-project`: no templates, no vision interview, no blank-slate assumptions. Reads the code first, asks only 2–3 questions code cannot answer, then writes `docs/_project-architecture.md` and `docs/_project-context.md` from reality. Chains `/review:specialize` once the architecture doc exists.
+Brownfield bootstrapper — reverse-engineers the doc chain from an existing codebase. The brownfield analog of `/create:new-project`: no templates, no vision interview, no blank-slate assumptions. Reads the code first, asks only 2–3 questions code cannot answer, then writes `docs/architecture/overview.md` and `docs/product/context.md` from reality. Chains `/review:specialize` once the architecture doc exists.
 
 **Hard-gate posture:** `/onboard` has no doc prerequisites — it is the entry point. It refuses only when no source code is detectable (then points at `/create:new-project`).
 
@@ -602,11 +602,11 @@ flowchart TD
 
     DETECT --> MAP["Step 3: Map codebase\n(parallel Explore agents)\nThread A: entry points & structure\nThread B: dependency graph\nThread C: test layout\nThread D: existing docs + git log"]
 
-    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to .output/work/{date}/\nonboard-scan.md"]
+    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to work/scratch/{date}/\nonboard-scan.md"]
 
-    QUESTIONS --> ARCH["Step 5: Delegate to architect\nTask: subagent_type=architect\nReverse-Engineering Mode\nADRs marked Status: Inferred\nOutput: docs/_project-architecture.md"]
+    QUESTIONS --> ARCH["Step 5: Delegate to architect\nTask: subagent_type=architect\nReverse-Engineering Mode\nADRs marked Status: Inferred\nOutput: docs/architecture/overview.md"]
 
-    ARCH --> CTX["Step 6: Delegate to doc-writer\nTask: subagent_type=doc-writer\nCurrent-state quick-reference\nOutput: docs/_project-context.md"]
+    ARCH --> CTX["Step 6: Delegate to doc-writer\nTask: subagent_type=doc-writer\nCurrent-state quick-reference\nOutput: docs/product/context.md"]
 
     CTX --> CLAUDEMD{CLAUDE.md\nexists?}
     CLAUDEMD -->|No| GEN["Step 7A: Generate lean CLAUDE.md\nfrom scan — project desc,\nstack, build/test, key paths"]
@@ -617,7 +617,7 @@ flowchart TD
 
     SPECIALIZE["Step 8: /review:specialize --fix\nCustomize agents for detected stack\nSeed memory with inferred ADRs"]
 
-    SPECIALIZE --> COMMIT["Step 9: Commit\n_project-architecture.md\n_project-context.md\nonboard-scan.md\nCLAUDE.md (if modified)"]
+    SPECIALIZE --> COMMIT["Step 9: Commit\narchitecture/overview.md\nproduct/context.md\nonboard-scan.md\nCLAUDE.md (if modified)"]
 
     COMMIT --> REPORT(["Step 10: Final report\nDocs created, specialization summary,\ncommit hash, next commands"])
 
@@ -631,7 +631,7 @@ flowchart TD
     style REPORT fill:#888,color:#fff
 ```
 
-**Output:** `docs/_project-architecture.md` + `docs/_project-context.md` + `docs/.output/work/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
+**Output:** `docs/architecture/overview.md` + `docs/product/context.md` + `docs/work/scratch/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
 
 ---
 
@@ -664,7 +664,7 @@ flowchart TD
     S3 --> COMPARE{Handoff vs\ngit reality?}
     COMPARE -->|Handoff says 'next: X'\nbut X already committed| STALE[Flag as stale,\nignore that action]
     COMPARE -->|Handoff fresh| USE_HANDOFF[Use handoff\nnext actions]
-    COMPARE -->|Handoff missing/stale| SCAN["Scan\ndocs/todo/_backlog.md\nfor pending work"]
+    COMPARE -->|Handoff missing/stale| SCAN["Scan\ndocs/work/backlog.md\nfor pending work"]
 
     STALE --> REPORT
     USE_HANDOFF --> REPORT
@@ -681,13 +681,13 @@ flowchart TD
 
 ## /todo
 
-Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/todo/TODO_{slug}.md` (or `docs/app/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/.output/work/{date}/`. No commit (chat-only).
+Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/work/todo/TODO_{slug}.md` (or `docs/modules/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/work/scratch/{date}/`. No commit (chat-only).
 
 ```mermaid
 flowchart TD
     START(["/todo"]) --> INPUT{INPUT type?}
     INPUT -->|File path| READ_FILE[Read file]
-    INPUT -->|Module name| READ_MOD["Read\ndocs/app/{name}/_brief.md"]
+    INPUT -->|Module name| READ_MOD["Read\ndocs/modules/{name}/brief.md"]
     INPUT -->|Description| USE_DESC[Use as-is]
     INPUT -->|None| INFER["Infer from:\nconversation → handoff →\ngit log → ask user"]
 
@@ -696,7 +696,7 @@ flowchart TD
     USE_DESC --> GATHER
     INFER --> GATHER
 
-    GATHER["Gather context (parallel):\nCLAUDE.md\n_project-architecture.md\nModule briefs"]
+    GATHER["Gather context (parallel):\nCLAUDE.md\narchitecture/overview.md\nModule briefs"]
 
     GATHER --> ESTIMATE{Estimate\nstory count?}
 
@@ -736,7 +736,7 @@ Execute one task end-to-end: plan-first → TDD → size-aware implementation (M
 
 ```mermaid
 flowchart TD
-    START(["/do"]) --> LOCATE["Locate TODO:\n1. Explicit path arg\n2. docs/app/**/TODO*.md\n3. docs/todo/TODO*.md\n4. Ask user"]
+    START(["/do"]) --> LOCATE["Locate TODO:\n1. Explicit path arg\n2. docs/modules/**/TODO*.md\n3. docs/work/todo/TODO*.md\n4. Ask user"]
 
     LOCATE --> SELECT["Select task:\nUser-specified or\nnext pending by order + deps"]
 
@@ -879,7 +879,7 @@ flowchart TD
 
 ## /end
 
-Save session context for the next conversation. Reads plans for unfinished items, runs `organize.cjs`, refreshes `_project-timeline.md` if stale, gathers live git state, writes this session's handoff (`docs/.output/handoffs/{stamp}-{caller}-{branch}.md`, via the session-handoff skill), and commits the handoff.
+Save session context for the next conversation. Reads plans for unfinished items, runs `organize.cjs`, refreshes `work/timeline.md` if stale, gathers live git state, writes this session's handoff (`docs/.output/handoffs/{stamp}-{caller}-{branch}.md`, via the session-handoff skill), and commits the handoff.
 
 ```mermaid
 flowchart TD
@@ -889,7 +889,7 @@ flowchart TD
 
     READ_PLANS --> ORGANIZE["Run organize:\nnode .claude/hooks/organize.cjs"]
 
-    ORGANIZE --> TIMELINE{_project-timeline.md\nstale or missing?}
+    ORGANIZE --> TIMELINE{work/timeline.md\nstale or missing?}
     TIMELINE -->|Yes| UPDATE_TL["Run /review:timeline"]
     TIMELINE -->|No| GATHER
     UPDATE_TL --> GATHER
@@ -928,14 +928,14 @@ Flow: find TODO files → parse status markers (`[ ]`, `[>]`, `[x]`, `[~]`, `[!]
 
 ## /create:module
 
-Add a new feature area to an existing project. Runs a 5-phase flow: context gathering → stakeholder brainstorm (4 parallel agents) → decision → documentation → TODO generation. Writes `docs/app/{module}/_brief.md` plus `docs/todo/TODO_{ModuleName}.md`; may update PRD or architecture if scope warrants.
+Add a new feature area to an existing project. Runs a 5-phase flow: context gathering → stakeholder brainstorm (4 parallel agents) → decision → documentation → TODO generation. Writes `docs/modules/{module}/brief.md` plus `docs/work/todo/TODO_{ModuleName}.md`; may update PRD or architecture if scope warrants.
 
 ```mermaid
 flowchart TD
-    START(["/create:module {name}"]) --> P1["Phase 1: Context Gathering\nRead _project-context.md\n_project-architecture.md\n_project-requirements.md\nCLAUDE.md"]
+    START(["/create:module {name}"]) --> P1["Phase 1: Context Gathering\nRead product/context.md\narchitecture/overview.md\nproduct/requirements.md\nCLAUDE.md"]
 
     P1 --> PLACE{Placement?}
-    PLACE -->|New module| NEW["docs/app/{name}/"]
+    PLACE -->|New module| NEW["docs/modules/{name}/"]
     PLACE -->|Extend existing| EXT[Existing module]
     PLACE -->|Cross-cutting| CROSS[Multiple modules]
 
@@ -960,7 +960,7 @@ flowchart TD
     P3["Phase 3: Decision\nPresent 4 opinions\nHighlight tensions\nAsk user direction"]
 
     P3 --> P4["Phase 4: Documentation"]
-    P4 --> BRIEF["Create module brief:\ndocs/app/{module}/_brief.md"]
+    P4 --> BRIEF["Create module brief:\ndocs/modules/{module}/brief.md"]
     P4 --> PRD_UPD["Update PRD\n(if scope warrants)"]
     P4 --> ARCH_UPD["Update Architecture\n(if infra changes)"]
 
@@ -1031,7 +1031,7 @@ The first **post-MVP lifecycle** command. When the initial backlog drains, the h
 
 The second **post-MVP lifecycle** command — the decision half of `/listen`. Reads the newest intake file and converts signals into ranked backlog stories. Built on two best-practice axes: (1) **Severity ≠ Priority** — it scores each signal's technical Severity objectively (engineering-led, no user input), then decides Priority separately as the *disposition*; (2) **auto-decide the obvious** — using the same Mechanical / Taste / User-Challenge model as `/do` Step 6c, it silently resolves mechanical calls and interviews **only** the genuine judgment calls (`AskUserQuestion`, ≤4/round, ≤3 rounds, like `/interview`).
 
-Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoSCoW tag), **defer**, **kill** (reason recorded), **research** (→ spike). Kills and defers land in an append-only ledger (`docs/.output/triage/_decisions.md`, borrowed from Paperclip's durable issue state) so the next `/listen` sweep doesn't make you re-adjudicate them. Writes promoted stories to `docs/todo/_backlog.md`, a day-rotated run record to `docs/.output/triage/{date}.md`, and annotates the source intake inline. `--dry-run` classifies without writing.
+Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoSCoW tag), **defer**, **kill** (reason recorded), **research** (→ spike). Kills and defers land in an append-only ledger (`docs/.output/triage/_decisions.md`, borrowed from Paperclip's durable issue state) so the next `/listen` sweep doesn't make you re-adjudicate them. Writes promoted stories to `docs/work/backlog.md`, a day-rotated run record to `docs/.output/triage/{date}.md`, and annotates the source intake inline. `--dry-run` classifies without writing.
 
 **Use when:** a `/listen` intake file has accumulated and you want to turn it into prioritized backlog work. Then `/review:optimize-backlog` to slot the new stories, or `/do` the top one.
 
@@ -1058,7 +1058,7 @@ flowchart TD
     GIT_DIFF --> STANDARDS
     AUTO --> STANDARDS
 
-    STANDARDS["Load standards:\n_project-architecture.md\nCLAUDE.md\nDomain skills (.ts/.cs/Tailwind)\nMemory: constraints, decisions"]
+    STANDARDS["Load standards:\narchitecture/overview.md\nCLAUDE.md\nDomain skills (.ts/.cs/Tailwind)\nMemory: constraints, decisions"]
 
     STANDARDS --> RISK["Classify risk tiers\nper file using Risk Map\n(from code-reviewer agent)\nHIGH / MEDIUM / LOW"]
 
@@ -1099,7 +1099,7 @@ flowchart TD
     GIT_DIFF --> CTX
     AUTO --> CTX
 
-    CTX["Gather security context:\n_project-architecture.md\n_project-requirements.md\nGlob: *.env*, auth/*, middleware/*\nMemory: security constraints"]
+    CTX["Gather security context:\narchitecture/overview.md\nproduct/requirements.md\nGlob: *.env*, auth/*, middleware/*\nMemory: security constraints"]
 
     CTX --> DELEGATE["Agent: security-auditor\n(auto-loads code-review skill)\n\nOWASP Top 10 assessment\nSecret/credential scan\nAuthorization audit\nInput validation check\nAttack chain analysis\n\nSeverity: CRITICAL > HIGH >\nMEDIUM > LOW"]
 
@@ -1119,7 +1119,7 @@ Generate tests for existing code using acceptance criteria from stories. Support
 ```mermaid
 flowchart TD
     START(["/review:qa"]) --> SCOPE{INPUT type?}
-    SCOPE -->|Story number| STORY["Read story from\n_backlog.md\nGet AC + impl files"]
+    SCOPE -->|Story number| STORY["Read story from\nwork/backlog.md\nGet AC + impl files"]
     SCOPE -->|File path| FILE["Read file\nCheck if tests exist"]
     SCOPE -->|Module name| MODULE["Find all module files\nIdentify untested ones"]
     SCOPE -->|None| COVERAGE["Coverage analysis:\nbusiness logic > data >\nAPI > UI"]
@@ -1150,16 +1150,16 @@ flowchart TD
 
 ## /review:check-readiness
 
-Gate check before implementation begins. Verifies required docs exist (PRD, architecture, backlog), runs the epic file-overlap detector against `_backlog.md` (with `## Acknowledged Overlaps` escape hatch), checks completeness against skill checklists, cross-document consistency, and scans for ambiguity. Produces a PASS / CONCERNS / FAIL verdict. Read-only — no commit.
+Gate check before implementation begins. Verifies required docs exist (PRD, architecture, backlog), runs the epic file-overlap detector against `backlog.md` (with `## Acknowledged Overlaps` escape hatch), checks completeness against skill checklists, cross-document consistency, and scans for ambiguity. Produces a PASS / CONCERNS / FAIL verdict. Read-only — no commit.
 
 ```mermaid
 flowchart TD
-    START(["/review:check-readiness"]) --> DOCS["Check required docs exist:\n_project-requirements.md (REQ)\n_project-architecture.md (REQ)\ntodo/_backlog.md (REQ)\n_project-brief.md (REC)\n_project-design.md (if UI)\ndesign/* files (if UI)"]
+    START(["/review:check-readiness"]) --> DOCS["Check required docs exist:\nproduct/requirements.md (REQ)\narchitecture/overview.md (REQ)\nwork/backlog.md (REQ)\nproduct/brief.md (REC)\ndesign/spec.md (if UI)\ndesign/* files (if UI)"]
 
     DOCS --> MISSING{Any required\ndoc missing?}
     MISSING -->|Yes| FAIL_FAST(["FAIL:\nMissing docs listed\nInstructions to create"])
 
-    MISSING -->|No| OVERLAP["Run epic-overlap.js on _backlog.md:\nflag any cross-epic shared files"]
+    MISSING -->|No| OVERLAP["Run epic-overlap.js on backlog.md:\nflag any cross-epic shared files"]
 
     OVERLAP --> ACK{Overlaps found?}
     ACK -->|No| COMPLETE
@@ -1202,7 +1202,7 @@ flowchart TD
     ALL --> ARCH
     ARCH_ONLY --> ARCH
 
-    ARCH["Architecture Sync:\nRead _project-architecture.md\nGlob actual project files\nFlag: deps not in packages,\nnon-existent paths,\nunlisted dependencies,\npattern mismatches"]
+    ARCH["Architecture Sync:\nRead architecture/overview.md\nGlob actual project files\nFlag: deps not in packages,\nnon-existent paths,\nunlisted dependencies,\npattern mismatches"]
 
     ALL --> STORIES
     STORY_ONLY --> STORIES
@@ -1212,7 +1212,7 @@ flowchart TD
     ALL --> PRD
     PRD_ONLY --> PRD
 
-    PRD["PRD Sync (informational):\nRead _project-requirements.md\nSearch codebase per FR\nNote: implemented/partial/missing"]
+    PRD["PRD Sync (informational):\nRead product/requirements.md\nSearch codebase per FR\nNote: implemented/partial/missing"]
 
     ALL --> DEAD
 
@@ -1248,9 +1248,9 @@ flowchart TD
 
     PREVIEW --> ASK{"Apply N\nauto-fixable\nchanges?"}
     ASK -->|No| MANUAL_ONLY(["Manual actions listed\nNo changes applied"])
-    ASK -->|Yes| DELEGATE["Agent: doc-writer\nApply approved changes:\nUpdate TODO checkboxes\nRecalculate index counts\nAdd/remove arch deps\nNEVER modify _backlog.md"]
+    ASK -->|Yes| DELEGATE["Agent: doc-writer\nApply approved changes:\nUpdate TODO checkboxes\nRecalculate index counts\nAdd/remove arch deps\nNEVER modify backlog.md"]
 
-    DELEGATE --> CTX_UPD["Update _project-context.md\nstats if significant changes"]
+    DELEGATE --> CTX_UPD["Update product/context.md\nstats if significant changes"]
 
     CTX_UPD --> COMMIT["Commit:\nAll modified docs"]
     COMMIT --> REPORT(["Report:\nChanges applied,\nstill out of sync,\ncommit hash"])
@@ -1300,7 +1300,7 @@ flowchart TD
 
 ## /review:optimize-backlog
 
-Build dependency graph, compute critical path, identify parallel workstreams and bottlenecks. Dispatches `project-planner`. Optionally annotates or rewrites `_backlog.md`; can also run report-only. **Hard gate:** needs `docs/todo/_backlog.md`.
+Build dependency graph, compute critical path, identify parallel workstreams and bottlenecks. Dispatches `project-planner`. Optionally annotates or rewrites `backlog.md`; can also run report-only. **Hard gate:** needs `docs/work/backlog.md`.
 
 ```mermaid
 flowchart TD
@@ -1309,11 +1309,11 @@ flowchart TD
     YOLO -->|No| GATE
     STRIP --> GATE
 
-    GATE{_backlog.md\nexists & not template?}
+    GATE{backlog.md\nexists & not template?}
     GATE -->|No| YOLO_CHK{YOLO?}
     YOLO_CHK -->|No| STOP(["STOP: Run\n/project-epics first"])
     YOLO_CHK -->|Yes| WARN[Warn, skip optimization]
-    GATE -->|Yes| READ["Read _backlog.md\n+ _project-architecture.md"]
+    GATE -->|Yes| READ["Read backlog.md\n+ architecture/overview.md"]
 
     READ --> GRAPH["Build dependency graph:\nRoot nodes (no deps)\nLeaf nodes (nothing depends)\nHigh fan-out (bottlenecks)\nCross-phase deps\nCross-package boundaries"]
 
@@ -1325,10 +1325,10 @@ flowchart TD
 
     VALIDATE --> ASK{Apply\noptimizations?}
     ASK -->|Report only| REPORT
-    ASK -->|Annotations| ANNOTATE["Add parallel workstream\nmarkers to _backlog.md"]
+    ASK -->|Annotations| ANNOTATE["Add parallel workstream\nmarkers to backlog.md"]
     ASK -->|Full rewrite| REWRITE["Restructure\nphases/dependencies"]
 
-    ANNOTATE --> COMMIT["Commit:\n_backlog.md"]
+    ANNOTATE --> COMMIT["Commit:\nwork/backlog.md"]
     REWRITE --> COMMIT
 
     COMMIT --> REPORT(["Report:\nStories analyzed,\ncritical path, parallel tracks,\noptimizations found,\ncommit hash (if applied)"])
@@ -1390,14 +1390,14 @@ flowchart TD
 
 ## /review:specialize
 
-Customize the template for your tech stack. Extracts tech stack from `_project-architecture.md`, specializes each default agent's `## Project Context` section, creates stack-specific agents (e.g., `db-architect`, `auth-builder`) as warranted, generates missing framework skills, wires skills into agent frontmatter, seeds memory with ADRs, and verifies build/test gate detection.
+Customize the template for your tech stack. Extracts tech stack from `architecture/overview.md`, specializes each default agent's `## Project Context` section, creates stack-specific agents (e.g., `db-architect`, `auth-builder`) as warranted, generates missing framework skills, wires skills into agent frontmatter, seeds memory with ADRs, and verifies build/test gate detection.
 
 ```mermaid
 flowchart TD
     START(["/review:specialize"]) --> PHASE{Phase 3+?\nArch + epics exist?}
     PHASE -->|No| ABORT(["ABORT:\nMissing artifacts"])
 
-    PHASE -->|Yes| EXTRACT["Extract from _project-architecture.md:\nBackend, Frontend, Database,\nInfrastructure, Auth, Testing,\nCross-Cutting, all ADRs,\nProject Identity"]
+    PHASE -->|Yes| EXTRACT["Extract from architecture/overview.md:\nBackend, Frontend, Database,\nInfrastructure, Auth, Testing,\nCross-Cutting, all ADRs,\nProject Identity"]
 
     EXTRACT --> PLACEHOLDER{Unfilled\nplaceholders?}
     PLACEHOLDER -->|Yes| ABORT2(["ABORT:\nRun /project-architecture first"])
@@ -1482,14 +1482,14 @@ flowchart TD
 
 ---
 
-## /review:retro
+## /retro
 
 Run a retrospective after completing an epic. Runs a **code-review pass over the epic's commits first** (`code-reviewer`, risk-routed — its findings feed the retro); `--skip-review` skips it when the epic was already reviewed (e.g. inside `/sweep`, whose Phase 1 satisfies it). Gathers commits, TODO state, work docs, and memory patterns from the epic's window; runs `/review:check-sync` alongside. Dispatches `doc-writer` to write `docs/.output/reviews/retro-{epic-slug}.md` (the code-review findings land in its **Code Review Findings** section — no separate file). Extracts patterns to memory (confidence 0.8 new, promotes 0.6 → 0.8+ existing).
 
 ```mermaid
 flowchart TD
-    START(["/review:retro"]) --> INPUT{INPUT\nprovided?}
-    INPUT -->|Yes| MATCH["Match against epic\nnames/numbers in\n_backlog.md"]
+    START(["/retro"]) --> INPUT{INPUT\nprovided?}
+    INPUT -->|Yes| MATCH["Match against epic\nnames/numbers in\nwork/backlog.md"]
     INPUT -->|No| FIND{Most recently\ncompleted epic?}
     FIND -->|Found| MATCH
     FIND -->|None complete| ASK["Ask user which\nepic to review"]
@@ -1624,11 +1624,11 @@ flowchart TD
 
 ## /review:timeline
 
-Generate or update `docs/_project-timeline.md` with weekly commit history. Runs `node .claude/core/gen-timeline.js` which reads `git log`, groups commits by ISO week, and writes a running ledger. Commits the updated timeline file.
+Generate or update `docs/work/timeline.md` with weekly commit history. Runs `node .claude/core/gen-timeline.js` which reads `git log`, groups commits by ISO week, and writes a running ledger. Commits the updated timeline file.
 
 **Use when:** `/end` flags the timeline as stale, or when you want a retrospective view of what shipped when. The timeline is also consumed by `/review:changelog` as one of its upstream data sources.
 
-**Output:** overwritten `docs/_project-timeline.md` + commit `docs: /review:timeline — update {N} weeks`.
+**Output:** overwritten `docs/work/timeline.md` + commit `docs: /review:timeline — update {N} weeks`.
 
 ---
 
@@ -1703,9 +1703,9 @@ Which commands dispatch which agents. Use this when deciding where a change in a
 | `ux-designer` | `/create:project-design`, `/create:module`, `/review:check-readiness` |
 | `project-planner` | `/create:project-epics`, `/create:project-todo`, `/create:project-epics-todo`, `/todo`, `/review:optimize-backlog`, `/review:check-readiness`, `/review:check-sync` |
 | `general-purpose` | `/do` (implementation), `/run-todo` (dev agents), `/create:module`, `/run-tests` (code checks) |
-| `code-reviewer` | `/review:code-review`, `/review:retro` (code-review pass), `/todo` (large review), `/run-todo` (wave review) |
+| `code-reviewer` | `/review:code-review`, `/retro` (code-review pass), `/todo` (large review), `/run-todo` (wave review) |
 | `qa-engineer` | `/review:qa`, `/run-todo` (QA agents), `/do` (Path B TDD delegation) |
-| `doc-writer` | `/review:update-docs`, `/review:personalize`, `/review:retro`, `/review:changelog`, `/do` (TODO update sub-task) |
+| `doc-writer` | `/review:update-docs`, `/review:personalize`, `/retro`, `/review:changelog`, `/do` (TODO update sub-task) |
 | `security-auditor` | `/review:security`, `/review:check-readiness` (architecture security context) |
 | `playwright` | `/run-tests` (browser testing) |
 | `shadow` | (available for ad-hoc ghostwriting; not invoked directly by any command) |
@@ -1718,7 +1718,7 @@ Commands also dispatch the built-in `Explore` agent (not a custom agent in `.cla
 
 | Commits | Commands |
 |---------|----------|
-| **Yes — on completion** | `/brainstorm`, `/research`, `/create:*` (all 11), `/end`, `/review:qa`, `/review:update-docs`, `/review:optimize-backlog` (if apply), `/review:optimize-agents` (if `--fix`), `/review:specialize`, `/review:personalize`, `/review:retro`, `/review:changelog`, `/review:promote-memories` (if accepted), `/review:timeline` |
+| **Yes — on completion** | `/brainstorm`, `/research`, `/create:*` (all 11), `/end`, `/review:qa`, `/review:update-docs`, `/review:optimize-backlog` (if apply), `/review:optimize-agents` (if `--fix`), `/review:specialize`, `/review:personalize`, `/retro`, `/review:changelog`, `/review:promote-memories` (if accepted), `/review:timeline` |
 | **Yes — per task or wave** | `/do` (per task), `/run-todo` (per wave) |
 | **No — read-only or chat-only** | `/interview`, `/prime`, `/todo`, `/run-tests`, `/organize`, `/status`, `/remember`, `/review:code-review`, `/review:security`, `/review:check-readiness`, `/review:check-sync`, `/review:check-templates`, `/review:memory-health` |
 | **Conditional** | `/investigate` — commits only if a fix is proposed and approved |

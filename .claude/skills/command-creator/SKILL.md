@@ -124,7 +124,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md.
 
 ### Commands That Commit vs Read-Only
 
-- **Commits**: All `/create:*`, `/brainstorm`, `/research`, `/review:optimize-*`, `/review:specialize`, `/review:retro`, `/review:changelog`, `/review:update-docs`, `/review:qa`
+- **Commits**: All `/create:*`, `/brainstorm`, `/research`, `/review:optimize-*`, `/review:specialize`, `/retro`, `/review:changelog`, `/review:update-docs`, `/review:qa`
 - **Read-only**: `/prime`, `/review:check-readiness`, `/review:check-sync`, `/review:code-review`, `/review:memory-health`, `/todo`, `/review:organize`, `/review:status`
 - **Own commit logic**: `/do`, `/run-todo`
 

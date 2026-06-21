@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 function writeBacklog(body) {
-    const p = path.join(dir, '_backlog.md');
+    const p = path.join(dir, 'backlog.md');
     fs.writeFileSync(p, body);
     return p;
 }

@@ -4,14 +4,27 @@
  */
 
 module.exports = {
-    // Memory scoring weights
+    // Memory relevance scoring weights — points each signal contributes to a
+    // search result's relevance score. SINGLE SOURCE for both search paths in
+    // memory-manager.js: the SQLite FTS query mapper and the JSON-fallback
+    // calculateRelevance(). The shared weights (usage/confidence/importance) are
+    // identical across both paths so a memory scores comparably whichever backend
+    // runs; never re-hardcode these multipliers.
     MEMORY_SCORING: {
-        RECENCY_MAX_POINTS: 30,           // Maximum points for recent memories
-        RECENCY_DAYS_THRESHOLD: 1,        // Days for max recency bonus
-        USAGE_MULTIPLIER: 5,              // Points per usage
-        CONFIDENCE_MULTIPLIER: 20,        // Maximum confidence points
-        RELEVANCE_MULTIPLIER: 50,         // Maximum relevance points
-        MIN_WORD_LENGTH: 3                // Minimum word length for relevance matching
+        // Shared across both paths
+        USAGE_MULTIPLIER: 5,              // points per usage_count
+        CONFIDENCE_MULTIPLIER: 10,        // points per 1.0 confidence
+        IMPORTANCE_MULTIPLIER: 4,         // points per importance step (1–5 → +4..+20)
+        // FTS path only — weight on the |bm25 rank| the engine returns
+        FTS_RANK_MULTIPLIER: 10,
+        // JSON-fallback path only — literal term match + recency tiers (the FTS
+        // engine folds recency/frequency into its own rank, so these apply only
+        // to the linear-scan fallback)
+        MATCH_MULTIPLIER: 10,             // points per literal term occurrence
+        RECENCY_RECENT_POINTS: 20,        // bonus when updated within RECENCY_RECENT_DAYS
+        RECENCY_RECENT_DAYS: 7,
+        RECENCY_MID_POINTS: 10,           // bonus when updated within RECENCY_MID_DAYS
+        RECENCY_MID_DAYS: 30,
     },
 
     // Memory filtering thresholds
@@ -24,7 +37,12 @@ module.exports = {
         // require('./constants') deterministic). The env override
         // (MEMORY_MAX_PER_CATEGORY) is applied at the two call sites
         // (memory-manager.js, memory-guard.cjs) with an identical expression.
-        MEMORY_MAX_PER_CATEGORY: 50,
+        MEMORY_MAX_PER_CATEGORY: 100,
+        // Fraction of the cap at which a category counts as "near limit" — the
+        // single source for the prune trigger, the guard warning, the analytics
+        // near_limit flag, and the lint category-balance check (memory-manager,
+        // memory-guard, memory-lint all read this; never re-hardcode 0.8).
+        MEMORY_NEAR_LIMIT_PCT: 0.8,
         // Min active-work-days since `created` for a never-recalled memory to
         // appear in the dead-weight review queue (decay-independent flagger).
         // Static here; env override (MEMORY_EXPOSURE_MIN_DAYS) applied at the
@@ -180,23 +198,77 @@ module.exports = {
         IMPLEMENTATION: 4,
     },
 
+    // ── Canonical docs/ paths — the single runtime source of truth ──────────────
+    //
+    // Domain-taxonomy layout (ADR 2026-06-20 "docs/ Domain Taxonomy"): docs/ is
+    // organized by CONCERN, not artifact type. Every value here is docs/-relative
+    // (no leading `docs/`), so callers compose `path.join(docsDir, DOC_PATHS.x)`.
+    // Code/tests import these instead of hardcoding string literals, so a future
+    // layout change touches one map, not N call sites. The one-shot migration of
+    // the EXISTING literals is `migrate-docs-domains.js` (REF_REWRITES); this map
+    // is the GOING-FORWARD source the chain/phase tables below now reference.
+    //
+    // NOTE: `work/todo/feature-ideas.md` (the living idea inbox) rides the `todo/` →
+    // `work/todo/` dir move to `work/todo/feature-ideas.md`; brainstorm/research
+    // seeds are assigned to product/ below (the discovery inputs that feed brief).
+    DOC_PATHS: {
+        // product/ — why does this exist & what must it do?
+        brief:        'product/brief.md',
+        requirements: 'product/requirements.md',
+        context:      'product/context.md',
+        brainstorm:   'product/brainstorm.md',           // /brainstorm seed
+        research:     'product/research.md',             // /research validated assumptions
+        // architecture/ — how is it built & why these choices?
+        architecture: 'architecture/overview.md',
+        api:          'architecture/api.md',
+        dataModel:    'architecture/data-model.md',
+        decisions:    'architecture/decisions',          // dir — ADRs (NNNN-*.md)
+        // design/ — how is it experienced?
+        design:       'design/spec.md',
+        wireframes:   'design/wireframes.md',
+        themeLight:   'design/theme.light.md',
+        themeDark:    'design/theme.dark.md',
+        mock:         'design/mock.html',
+        // engineering/ — how do we work on it?
+        setup:        'engineering/setup.md',
+        conventions:  'engineering/conventions.md',
+        testing:      'engineering/testing.md',
+        // operations/ — how do we ship & run it?
+        deploy:       'operations/deploy.md',
+        observability:'operations/observability.md',
+        security:     'operations/security.md',
+        runbooks:     'operations/runbooks',             // dir
+        // work/ — what now & next? (the living plan)
+        backlog:      'work/backlog.md',
+        roadmap:      'work/roadmap.md',
+        timeline:     'work/timeline.md',
+        todo:         'work/todo',                        // dir (+ _archive/)
+        scratch:      'work/scratch',                     // dir — {date}/{task}/
+        // reference/ — how do I find my way?
+        onboarding:   'reference/onboarding.md',
+        glossary:     'reference/glossary.md',
+        links:        'reference/links.md',
+        // fractal axis (not a domain) — per-feature zoom
+        modules:      'modules',                          // dir — {name}/brief.md
+    },
+
     // Artifacts produced by each phase
     PHASE_ARTIFACTS: {
-        1: ['_brainstorm.md', '_research.md', '_project-brief.md'],
-        2: ['_project-requirements.md', '_project-design.md'],
-        3: ['_project-architecture.md', 'todo/_backlog.md'],
+        1: ['product/brainstorm.md', 'product/research.md', 'product/brief.md'],
+        2: ['product/requirements.md', 'design/spec.md'],
+        3: ['architecture/overview.md', 'work/backlog.md'],
         4: ['source code', 'tests'],
     },
 
     // Document dependency chain (upstream → downstream)
     DOC_CHAIN: {
-        '_brainstorm.md': { feeds: ['_project-brief.md'] },
-        '_research.md': { feeds: ['_project-brief.md', '_project-requirements.md'] },
-        '_project-brief.md': { feeds: ['_project-requirements.md'] },
-        '_project-requirements.md': { feeds: ['_project-architecture.md', '_project-design.md', 'todo/_backlog.md'] },
-        '_project-design.md': { feeds: ['_project-architecture.md'] },
-        '_project-architecture.md': { feeds: ['todo/_backlog.md'] },
-        'todo/_backlog.md': { feeds: ['implementation'] },
+        'product/brainstorm.md': { feeds: ['product/brief.md'] },
+        'product/research.md': { feeds: ['product/brief.md', 'product/requirements.md'] },
+        'product/brief.md': { feeds: ['product/requirements.md'] },
+        'product/requirements.md': { feeds: ['architecture/overview.md', 'design/spec.md', 'work/backlog.md'] },
+        'design/spec.md': { feeds: ['architecture/overview.md'] },
+        'architecture/overview.md': { feeds: ['work/backlog.md'] },
+        'work/backlog.md': { feeds: ['implementation'] },
     },
 
     // Agent system (official Claude Code subagent format)

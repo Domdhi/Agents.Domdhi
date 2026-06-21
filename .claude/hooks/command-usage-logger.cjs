@@ -53,7 +53,7 @@
  *   System Improvements row "Telemetry coverage".
  *
  * Event schema (A4 enrichment — adopted from gstack:
- *   docs/research/competitive/_hooks-and-core-scripts-comparison.md A4):
+ *   docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md A4):
  *
  * @typedef {Object} TelemetryEvent
  * @property {string} timestamp - ISO 8601

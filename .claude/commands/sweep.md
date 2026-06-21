@@ -5,7 +5,7 @@ argument-hint: "[PR range / epic names — e.g. '109-128' or 'Auth,Billing,Searc
 
 # Maintenance Sweep
 
-Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise ten separate interactive commands (`/review:code-review`, `/review:check-sync`, `/review:retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:evolve-skills`, `/review:memory-defrag`, `/review:memory-health`, `/review:check-templates`, `/review:timeline`).
+Run the **entire post-work maintenance lifecycle** as one autonomous, auto-approved pass. This is the orchestrator for what are otherwise ten separate interactive commands (`/review:code-review`, `/review:check-sync`, `/retro`, `/review:promote-memories`, `/review:optimize-agents`, `/review:evolve-skills`, `/review:memory-defrag`, `/review:memory-health`, `/review:check-templates`, `/review:timeline`).
 
 Use it after cranking out a batch of work (a string of merged PRs, a finished epic, a sprint) when you want the system to review, learn, propagate the learnings, re-align the agents, and clean up — without babysitting per-proposal Accept/Reject prompts.
 
@@ -61,7 +61,7 @@ node .claude/core/telemetry-log.js sweep
 INPUT: $ARGUMENTS — optional scope hint. Two forms:
 - A **PR range** (`109-128`) → resolve to merge commits via `git log --oneline main`, classify into themes for code review, infer epics for retro.
 - A **comma-separated epic list** (`Auth,Billing,Search`) → run a retro per epic; derive the code-review scope from each epic's PRs.
-- **Empty** → sweep the most recent completed epic (per `docs/todo/_backlog.md`) + the commits since the last sweep marker.
+- **Empty** → sweep the most recent completed epic (per `docs/work/backlog.md`) + the commits since the last sweep marker.
 
 **Flags:**
 - `--review-scope <high-risk|systemic|all>` — code-review depth (default: `high-risk` — security/auth/data-integrity changes only; cheapest high-ROI on already-merged code).
@@ -96,7 +96,7 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 
 ## Phase 2 — Retro
 
-Reuses `/review:retro` — **as if invoked with `--skip-review`**, because Phase 1 already ran the code-review pass that `/review:retro` would otherwise run itself. Do NOT re-review here; feed the Phase 1 findings in instead. One retro per epic in scope (or one consolidated retro if INPUT was a single PR range with no clear epic split).
+Reuses `/retro` — **as if invoked with `--skip-review`**, because Phase 1 already ran the code-review pass that `/retro` would otherwise run itself. Do NOT re-review here; feed the Phase 1 findings in instead. One retro per epic in scope (or one consolidated retro if INPUT was a single PR range with no clear epic split).
 
 1. Gather data IN THE MAIN AGENT (agents have no Bash): git stats for the epic's commits, TODO Execution Log, work-doc plans, telemetry (`docs/.output/telemetry/command-usage.jsonl` if present), **and the Phase 1 code-review findings** (these populate the retro's *Code Review Findings* section — no second review).
 2. Run `/review:check-sync` for doc drift; capture findings.
@@ -126,7 +126,7 @@ Auto-apply the retro's concrete outputs. This is the step that turns a retro fro
 Reuses `/review:promote-memories` in **auto-approve** mode.
 
 1. `node .claude/core/memory-promoter.js scan --top 15`.
-2. For each candidate with **promotion score ≥ 0.9 AND decayed confidence ≥ 0.7** (the auto-promote threshold — high bar, since this writes into skills/CLAUDE.md unattended): apply the promotion to its suggested target (decisions→CLAUDE.md, patterns→relevant SKILL.md, constraints→`_project-architecture.md`/template, workflows→agent frontmatter), then `node .claude/core/memory-promoter.js mark <slug> <target>`.
+2. For each candidate with **promotion score ≥ 0.9 AND decayed confidence ≥ 0.7** (the auto-promote threshold — high bar, since this writes into skills/CLAUDE.md unattended): apply the promotion to its suggested target (decisions→CLAUDE.md, patterns→relevant SKILL.md, constraints→`architecture/overview.md`/template, workflows→agent frontmatter), then `node .claude/core/memory-promoter.js mark <slug> <target>`.
 3. Candidates **below** the auto-threshold are listed in the report as "manual-review promotion candidates" — surfaced, not applied.
 4. Commit: `docs: /sweep p4 — promoted {N} concepts`.
 
@@ -183,7 +183,7 @@ Phases 3 and 5 edited agents/skills/commands. Run the `check-templates` audit to
 3. **Anything CRITICAL that this sweep introduced** (a skill edit that broke conformance, an agent edit that orphaned a skill) → fix it in place and re-verify, since it's the sweep's own damage. Pre-existing issues unrelated to this sweep → log as residual follow-ups, don't auto-fix.
 
 ### 7c — Timeline refresh (housekeeping, committed)
-1. `node .claude/core/gen-timeline.js` → regenerate/update `docs/_project-timeline.md` with the latest weekly commit history (now including this sweep's commits).
+1. `node .claude/core/gen-timeline.js` → regenerate/update `docs/work/timeline.md` with the latest weekly commit history (now including this sweep's commits).
 2. Commit: `docs: /sweep p7 — timeline refresh`. (Skip the commit if `gen-timeline.js` produced no change.)
 
 ---
@@ -220,7 +220,7 @@ Display (and persist to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md`):
 | 6 Defrag | {M} merges / {Sp} splits / {X} cross-refs | {hash} |
 | 7a Memory health | lint {before}→{after}, {stale} stale | — |
 | 7b Templates audit | {conformance pass/fail}; {orphans} orphaned agents, {unused} unused skills, {broken} broken skill refs | {hash if fixed} |
-| 7c Timeline | refreshed `_project-timeline.md` | {hash} |
+| 7c Timeline | refreshed `work/timeline.md` | {hash} |
 
 **Memory store:** {total_before} → {total_after} (per-category deltas)
 **Lint:** {lint_before} → {lint_after}
@@ -243,4 +243,4 @@ Display (and persist to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md`):
 
 ## Relationship to the Sub-Commands
 
-This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:check-sync` (in retro) → `/review:retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:evolve-skills --auto` (propose-only) → `/review:memory-defrag` → `/review:memory-health` → `/review:check-templates` → `/review:timeline`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/sweep` when you want the whole lifecycle hands-off.
+This command *is* the auto-approved orchestration of: `/review:code-review` → `/review:check-sync` (in retro) → `/retro` → (implement) → `/review:promote-memories` → `/review:optimize-agents` → `/review:evolve-skills --auto` (propose-only) → `/review:memory-defrag` → `/review:memory-health` → `/review:check-templates` → `/review:timeline`. Run a sub-command directly when you want the interactive, single-purpose version. Run `/sweep` when you want the whole lifecycle hands-off.

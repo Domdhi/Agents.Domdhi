@@ -27,8 +27,9 @@ function write(rel, content = '# real doc\n') {
 
 describe('detectDocDrift', () => {
     it('cleanRepo_noDrift', () => {
-        write('docs/_project-architecture.md');
-        write('docs/todo/_backlog.md');
+        // Canonical domain-taxonomy paths — no legacy/duplicate drift.
+        write('docs/architecture/overview.md');
+        write('docs/work/backlog.md');
         const r = detectDocDrift(root);
         expect(r.hasDrift).toBe(false);
         expect(r.legacy).toEqual([]);
@@ -36,24 +37,32 @@ describe('detectDocDrift', () => {
     });
 
     it('flagsLegacyDoc_andWhetherCanonicalAlsoExists', () => {
-        write('docs/_architecture.md');            // legacy
-        write('docs/_project-architecture.md');    // canonical also present → BOTH
+        write('docs/_architecture.md');            // legacy short name → architecture/overview.md
+        write('docs/architecture/overview.md');    // canonical also present → BOTH
         write('docs/_prd.md');                     // legacy, no canonical
         const r = detectDocDrift(root);
         expect(r.hasDrift).toBe(true);
         const arch = r.legacy.find(l => l.file === 'docs/_architecture.md');
-        expect(arch.canonical).toBe('docs/_project-architecture.md');
+        expect(arch.canonical).toBe('docs/architecture/overview.md');
         expect(arch.canonicalExists).toBe(true);
         const prd = r.legacy.find(l => l.file === 'docs/_prd.md');
         expect(prd.canonicalExists).toBe(false);
     });
 
-    it('flagsDuplicateBasenameAcrossRootAndCanonical', () => {
-        write('docs/_backlog.md');         // root (non-canonical)
-        write('docs/todo/_backlog.md');    // canonical
+    it('flagsPreTaxonomyProjectNamesAsLegacy', () => {
+        // The flat `_project-*` layout this migration superseded is now legacy too.
+        write('docs/_project-requirements.md');
         const r = detectDocDrift(root);
-        expect(r.duplicates).toHaveLength(1);
-        expect(r.duplicates[0].name).toBe('_backlog.md');
+        const hit = r.legacy.find(l => l.file === 'docs/_project-requirements.md');
+        expect(hit).toBeTruthy();
+        expect(hit.canonical).toBe('docs/product/requirements.md');
+    });
+
+    it('flagsDuplicateBasenameAcrossRootAndCanonical', () => {
+        write('docs/_backlog.md');          // root (non-canonical)
+        write('docs/work/backlog.md');      // canonical
+        const r = detectDocDrift(root);
+        expect(r.duplicates.find(d => d.name === '_backlog.md')).toBeTruthy();
     });
 
     it('ignoresTemplateStubs', () => {
@@ -66,18 +75,18 @@ describe('detectDocDrift', () => {
     // ── F17: misplaced TODO files outside docs/ root and docs/todo/ ──
     it('flagsMisplacedTodoOutsideCanonicalDirs', () => {
         write('docs/TODO_Project.md');                       // canonical master (docs/ root)
-        write('docs/todo/TODO_epic01_foo.md');               // canonical per-epic
-        write('docs/work/TODO_epic00_doc-review.md');        // MISPLACED (stale plan)
+        write('docs/work/todo/TODO_epic01_foo.md');          // canonical per-epic (work/todo/)
+        write('docs/modules/TODO_epic00_doc-review.md');     // MISPLACED (stale plan)
         const r = detectDocDrift(root);
         expect(r.hasDrift).toBe(true);
         expect(r.misplacedTodos).toHaveLength(1);
-        expect(r.misplacedTodos[0].file).toBe('docs/work/TODO_epic00_doc-review.md');
+        expect(r.misplacedTodos[0].file).toBe('docs/modules/TODO_epic00_doc-review.md');
     });
 
     it('doesNotFlagCanonicalTodos', () => {
         write('docs/TODO_Project.md');
-        write('docs/todo/TODO_epic01_foo.md');
-        write('docs/todo/TODO_epic02_bar.md');
+        write('docs/work/todo/TODO_epic01_foo.md');
+        write('docs/work/todo/TODO_epic02_bar.md');
         const r = detectDocDrift(root);
         expect(r.misplacedTodos).toEqual([]);
         expect(r.hasDrift).toBe(false);
@@ -93,11 +102,11 @@ describe('detectDocDrift', () => {
 
     // ── EV7: /evolve parks closed cycles under docs/todo/_archive/ (underscore) ──
     it('ignoresTodosUnder_evolveCycleArchive', () => {
-        write('docs/TODO_Project.md');                                       // live master
-        write('docs/todo/TODO_epic01_foo.md');                              // live per-epic
-        write('docs/todo/_archive/cycle-1-260606-1214/_backlog.md');        // archived backlog
-        write('docs/todo/_archive/cycle-1-260606-1214/TODO_DomdhiCrypto.md'); // archived master
-        write('docs/todo/_archive/cycle-1-260606-1214/TODO_epic01_foo.md');  // archived per-epic
+        write('docs/TODO_Project.md');                                            // live master
+        write('docs/work/todo/TODO_epic01_foo.md');                               // live per-epic
+        write('docs/work/todo/_archive/cycle-1-260606-1214/backlog.md');          // archived backlog
+        write('docs/work/todo/_archive/cycle-1-260606-1214/TODO_DomdhiCrypto.md'); // archived master
+        write('docs/work/todo/_archive/cycle-1-260606-1214/TODO_epic01_foo.md');   // archived per-epic
         const r = detectDocDrift(root);
         expect(r.misplacedTodos).toEqual([]);   // _archive (underscore) is skipped, not flagged
         expect(r.hasDrift).toBe(false);
@@ -121,9 +130,9 @@ describe('detectDocDrift', () => {
     });
 
     it('flagsDuplicateFeatureIdeas', () => {
-        // _feature-ideas.md also has a canonical location in todo/
+        // _feature-ideas.md also has a canonical location in work/todo/
         write('docs/_feature-ideas.md');
-        write('docs/todo/_feature-ideas.md');
+        write('docs/work/todo/feature-ideas.md');
         const r = detectDocDrift(root);
         expect(r.duplicates.find(d => d.name === '_feature-ideas.md')).toBeTruthy();
     });
@@ -534,7 +543,7 @@ describe('main() — lines 154-183', () => {
 
     it('exits 1 and prints BOTH-exist message when legacy and canonical coexist — covers line 167', () => {
         write('docs/_architecture.md');
-        write('docs/_project-architecture.md');
+        write('docs/architecture/overview.md');
         process.argv = ['node', 'doc-drift.js', root];
         expect(() => freshMain()()).toThrow('process.exit(1)');
         expect(stdout()).toMatch(/BOTH exist/);
@@ -542,7 +551,7 @@ describe('main() — lines 154-183', () => {
 
     it('exits 1 and reports duplicate docs — covers lines 171-174', () => {
         write('docs/_backlog.md');
-        write('docs/todo/_backlog.md');
+        write('docs/work/backlog.md');
         process.argv = ['node', 'doc-drift.js', root];
         expect(() => freshMain()()).toThrow('process.exit(1)');
         const out = stdout();
@@ -557,7 +566,7 @@ describe('main() — lines 154-183', () => {
         const out = stdout();
         expect(out).toMatch(/Misplaced TODO files/);
         expect(out).toMatch(/TODO_stale\.md/);
-        expect(out).toMatch(/move to docs\/todo\//);
+        expect(out).toMatch(/move to docs\/work\/todo\//);
     });
 
     it('exits 1 and prints reconcile guidance — covers line 181', () => {

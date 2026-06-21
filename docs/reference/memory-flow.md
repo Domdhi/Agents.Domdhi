@@ -56,7 +56,7 @@ flowchart TD
         direction LR
         DECAY["decay<br/>base × rate^active-work-days"]
         BOOST["boost<br/>keyword echo from commits"]
-        PRUNE["prune<br/>auto at 80% of 50-cap"]
+        PRUNE["prune<br/>auto at 80% of 100-cap"]
         LINT["lint<br/>7-check health score"]
     end
     STORE -.->|read-time| MAINT
@@ -103,7 +103,7 @@ Five categories, each with its own decay rate tuned to how fast the underlying l
 | `workflows` | 0.93 | ~10 | Process sequencing that made operations safer/faster |
 | `rejected-approaches` | 0.95 | ~14 | Dead ends, so future sessions don't retry them |
 
-Per-category cap: **50 entries.** Auto-prune fires at 80% (40 entries), gated on age > 30 active days AND confidence < 0.3.
+Per-category cap: **100 entries.** Auto-prune fires at 80% (80 entries), gated on age > 30 active days AND confidence < 0.3.
 
 ## Files of interest
 
@@ -112,4 +112,4 @@ Per-category cap: **50 entries.** Auto-prune fires at 80% (40 entries), gated on
 - `.claude/skills/session-handoff/SKILL.md` Step 6 — the contract Main Agent follows when deciding what to write
 - `.claude/agents/*.md` — `memory: project` frontmatter on the native sub-agent write path
 - `docs/.output/reviews/2026-04-20-adr-memory-unification.md` — the MU ADR that retired auto-extraction and wired per-dispatch injection
-- `docs/research/memory-parity-findings.md` — why the `ingest` bridge exists (2026-04-20)
+- `docs/.output/research/memory-parity-findings.md` — why the `ingest` bridge exists (2026-04-20)

@@ -7,7 +7,7 @@
 | **Version** | 1.0 |
 | **Status** | Draft |
 | **Author** | {name} |
-| **Tech Stack** | {from _project-architecture.md} |
+| **Tech Stack** | {from architecture/overview.md} |
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## Technology Stack
 
-{Copied from _project-architecture.md for quick reference}
+{Copied from architecture/overview.md for quick reference}
 
 ---
 
@@ -102,6 +102,6 @@
 ---
 
 ## Related Documents
-- PRD: [../_project-requirements.md](../_project-requirements.md)
-- Architecture: [../_project-architecture.md](../_project-architecture.md)
-- UX Spec: [../_project-design.md](../_project-design.md)
+- PRD: [../product/requirements.md](../product/requirements.md)
+- Architecture: [../architecture/overview.md](../architecture/overview.md)
+- UX Spec: [../design/spec.md](../design/spec.md)

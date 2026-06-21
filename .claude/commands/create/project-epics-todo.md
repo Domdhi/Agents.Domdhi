@@ -5,7 +5,7 @@ argument-hint: [epic number or "all"] [--yolo]
 
 # Create TODO Epic — Per-Epic Implementation Checklist
 
-Generate `docs/todo/TODO_epicNN_{slug}.md` — the tech-lead view of a single epic. Contains story-level task checkboxes, dependency metadata, track assignments, and bottleneck annotations. This is what `/do` and `/run-todo` consume during implementation.
+Generate `docs/work/todo/TODO_epicNN_{slug}.md` — the tech-lead view of a single epic. Contains story-level task checkboxes, dependency metadata, track assignments, and bottleneck annotations. This is what `/do` and `/run-todo` consume during implementation.
 
 ## Telemetry (run first)
 
@@ -18,9 +18,9 @@ node .claude/core/telemetry-log.js create:project-epics-todo
 ## Relationship to Other Commands
 
 ```
-/create:project-epics       →  docs/todo/_backlog.md          (raw epic definitions)
+/create:project-epics       →  docs/work/backlog.md          (raw epic definitions)
 /create:project-todo       →  docs/TODO_{Project}.md       (master index — epic-level)
-/create:project-epics-todo          →  docs/todo/TODO_epicNN.md     (THIS — story-level tasks)
+/create:project-epics-todo          →  docs/work/todo/TODO_epicNN.md     (THIS — story-level tasks)
 ```
 
 ## Agent Delegation
@@ -41,24 +41,24 @@ INPUT: $ARGUMENTS
 If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INPUT before continuing.
 
 #### 1b. Hard Gate: Require real Epics
-Read the first line of `docs/todo/_backlog.md`. Check that it exists AND does not contain `<!-- @@template -->`.
+Read the first line of `docs/work/backlog.md`. Check that it exists AND does not contain `<!-- @@template -->`.
 
-**If `_backlog.md` is missing or template-only:**
+**If `backlog.md` is missing or template-only:**
 - If YOLO_MODE → warn: "No backlog found. Proceeding in yolo mode." → continue
-- Otherwise → **STOP**: "`docs/todo/_backlog.md` has not been created yet. Run `/create:project-epics` first. Use `--yolo` to bypass this gate."
+- Otherwise → **STOP**: "`docs/work/backlog.md` has not been created yet. Run `/create:project-epics` first. Use `--yolo` to bypass this gate."
 
 #### 1c. Optional reads
-- `docs/_project-architecture.md` — for tech stack and project structure context
+- `docs/architecture/overview.md` — for tech stack and project structure context
 - `docs/TODO_*.md` (master index) — for optimization data and cross-epic dependencies
 
 ### 2. Identify Target Epic(s) (main agent)
 
 **If INPUT is a number (e.g., "3"):**
-- Find Epic 3 in `_backlog.md`
+- Find Epic 3 in `backlog.md`
 - If not found → ask user to clarify
 
 **If INPUT is "all":**
-- Identify all epics in `_backlog.md`
+- Identify all epics in `backlog.md`
 - Warn: "This will generate {N} checklist files. Proceed?"
 
 **If no INPUT:**
@@ -68,10 +68,10 @@ Read the first line of `docs/todo/_backlog.md`. Check that it exists AND does no
 ### 3. Check for Existing Checklist (main agent)
 
 For each target epic:
-- Check if `docs/todo/TODO_epic{NN}_{slug}.md` already exists
-- If exists → ask: **update** (refresh from current `_backlog.md`) or **replace**?
+- Check if `docs/work/todo/TODO_epic{NN}_{slug}.md` already exists
+- If exists → ask: **update** (refresh from current `backlog.md`) or **replace**?
 
-**Also check for misplaced/superseded epic TODOs (F17).** The existence check above only looks at the canonical `docs/todo/` path, so an older plan's epic TODOs at a non-canonical path (e.g. `docs/work/TODO_epic00_*.md`, or a different slug) are invisible — generating fresh files leaves them orphaned. Before generating, run the drift detector and reconcile anything it reports:
+**Also check for misplaced/superseded epic TODOs (F17).** The existence check above only looks at the canonical `docs/work/todo/` path, so an older plan's epic TODOs at a non-canonical path (e.g. `docs/work/TODO_epic00_*.md`, or a different slug) are invisible — generating fresh files leaves them orphaned. Before generating, run the drift detector and reconcile anything it reports:
 
 ```bash
 node .claude/core/_lib/doc-drift.js
@@ -81,7 +81,7 @@ If it reports **misplaced TODO files**, tell the user and offer to remove/reloca
 
 ### 4. Extract Epic Context (main agent)
 
-From `docs/todo/_backlog.md`, extract for the target epic:
+From `docs/work/backlog.md`, extract for the target epic:
 1. **Epic metadata**: number, name, objective, phase
 2. **All stories**: ID, title, persona/capability/benefit, acceptance criteria, domain tag, estimate, dependencies
 3. **Cross-epic dependencies**: stories in this epic that depend on stories in other epics
@@ -93,7 +93,7 @@ Use the Task tool with `subagent_type: "project-planner"`.
 
 **Task prompt must include**:
 1. Epic number and name
-2. Output path: `docs/todo/TODO_epic{NN}_{slug}.md`
+2. Output path: `docs/work/todo/TODO_epic{NN}_{slug}.md`
 3. All stories with full details from Step 4
 4. Architecture context (tech stack, project structure)
 5. Optimization data (critical path, parallel tracks, bottlenecks)
@@ -202,8 +202,8 @@ with no logical dependency), and respect dependency order across waves.
 
 - **Epic**: Epic {N}: {Name}
 - **Phase**: Phase {P}: {Phase Name}
-- **Checklist location**: `docs/todo/TODO_epic{NN}_{slug}.md`
-- **Related docs**: [_backlog.md](_backlog.md), [_project-architecture.md](../_project-architecture.md)
+- **Checklist location**: `docs/work/todo/TODO_epic{NN}_{slug}.md`
+- **Related docs**: [backlog.md](backlog.md), [architecture/overview.md](../architecture/overview.md)
 - **Dependencies**: {Cross-epic dependencies}
 - **Critical Rules**: {Architecture constraints relevant to this epic}
 
@@ -265,9 +265,9 @@ with no logical dependency), and respect dependency order across waves.
 ### 6. Validate (main agent)
 
 After the agent completes, verify:
-- All stories from the epic in `_backlog.md` are present
+- All stories from the epic in `backlog.md` are present
 - Stories are in dependency-optimized order
-- Acceptance criteria match `_backlog.md` (not invented)
+- Acceptance criteria match `backlog.md` (not invented)
 - No code blocks or implementation examples (WHAT, not HOW)
 - Required sections all present (Execution Log, Key Decisions, Validation, Work Doc References)
 - If issues found, delegate back to agent to fix
@@ -281,7 +281,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage files created 
 ```markdown
 ## Epic Checklist Created
 
-**Output**: docs/todo/TODO_epic{NN}_{slug}.md
+**Output**: docs/work/todo/TODO_epic{NN}_{slug}.md
 **Epic**: {N} — {epic name}
 **Phase**: {phase name}
 **Stories**: {count} ({S count} S, {M count} M, {L count} L)
@@ -302,4 +302,4 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage files created 
 6. Include ALL sections even if empty (for consistency with `/do` and `/review:organize`)
 7. **Stories MUST be in dependency-optimized order**
 8. **Every story MUST include Dependencies, Unblocks, Track, Domain, Estimate, and Complexity metadata** (Complexity = the 1–10 routing score `/do` reads — score it per the canonical rubric in `/todo`, never restate that rubric here)
-9. Acceptance criteria MUST match `_backlog.md` exactly — do not paraphrase or invent new ones
+9. Acceptance criteria MUST match `backlog.md` exactly — do not paraphrase or invent new ones

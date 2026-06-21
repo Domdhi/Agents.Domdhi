@@ -12,7 +12,7 @@ Analyze a completed epic to extract lessons learned and patterns. Runs a **code-
 This command is user-typed, so it does not fire `PostToolUse:Skill` — without this it leaves no `command_invocation` row and fleet analytics under-count human-driven runs. Self-log the invocation before anything else (best-effort — if it fails, continue regardless):
 
 ```bash
-node .claude/core/telemetry-log.js review:retro
+node .claude/core/telemetry-log.js retro
 ```
 
 ## Agent Delegation
@@ -35,7 +35,7 @@ INPUT: $ARGUMENTS
 ### 1. Identify Epic (main agent)
 
 **If INPUT provided:**
-- Match against epic names/numbers in `docs/todo/_backlog.md`
+- Match against epic names/numbers in `docs/work/backlog.md`
 
 **If no INPUT:**
 - Find the most recently completed epic (all stories `[x]`)
@@ -53,7 +53,7 @@ Reuses the `/review:code-review` methodology, scoped to the epic. This is the re
 2. **Classify risk tiers.** If a risk map exists (`code-reviewer` agent's `## Project Context > ### Risk Map`), match each changed file to a tier (HIGH / MEDIUM / LOW); otherwise default all files to MEDIUM. Overall review depth = the highest tier present (any HIGH → Deep; all MEDIUM → Standard; all LOW → Fast-Lane).
 3. **Dispatch `code-reviewer`** via Task tool. **Model routing:** overall tier **HIGH** → pass `model: opus`; **MEDIUM or LOW** → omit `model:` (Sonnet floor). For a large multi-theme epic, dispatch one reviewer per theme in parallel and consolidate (as `/sweep` Phase 1 does). The agent auto-loads the `code-review` skill — do not paste the rubric. The task prompt must include:
    - The diff (or per-theme diffs) to review
-   - Architecture standards from `docs/_project-architecture.md` + `CLAUDE.md` (if present)
+   - Architecture standards from `docs/architecture/overview.md` + `CLAUDE.md` (if present)
    - Relevant memory patterns/constraints: `node .claude/core/memory-manager.js search "{domain}"`, `… list constraints`, `… list decisions`
    - The risk classification table (per-file tier + overall depth)
    - Instruction to evaluate Correctness, Security, Performance, Architecture Compliance, Memory Pattern Compliance, Test Coverage, and classify findings CRITICAL > MAJOR > MINOR > NIT

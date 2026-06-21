@@ -23,21 +23,34 @@
 const fs = require('fs');
 const path = require('path');
 
-// Legacy doc name → canonical `_project-*` name it was superseded by.
+// Legacy doc name → canonical domain path it was superseded by (ADR docs/ Domain
+// Taxonomy). Two generations of legacy names map to the domain layout: the
+// brownfield short names (`_architecture.md`) AND the pre-taxonomy flat
+// `_project-*` names this migration superseded.
 const LEGACY_TO_CANONICAL = {
-    '_architecture.md': '_project-architecture.md',
-    '_prd.md': '_project-requirements.md',
-    '_requirements.md': '_project-requirements.md',
-    '_brief.md': '_project-brief.md',
-    '_design.md': '_project-design.md',
-    '_context.md': '_project-context.md',
+    // brownfield short names
+    '_architecture.md': 'architecture/overview.md',
+    '_prd.md': 'product/requirements.md',
+    '_requirements.md': 'product/requirements.md',
+    '_brief.md': 'product/brief.md',
+    '_design.md': 'design/spec.md',
+    '_context.md': 'product/context.md',
+    // pre-taxonomy flat `_project-*` layout → domain paths
+    '_project-architecture.md': 'architecture/overview.md',
+    '_project-requirements.md': 'product/requirements.md',
+    '_project-brief.md': 'product/brief.md',
+    '_project-design.md': 'design/spec.md',
+    '_project-context.md': 'product/context.md',
+    '_project-timeline.md': 'work/timeline.md',
 };
 
 // Basenames that have ONE canonical home; if the same name also exists at the
 // docs/ root (the non-canonical spot), that's a duplicate. [name, canonicalRel].
 const CANONICAL_LOCATIONS = [
-    ['_backlog.md', 'todo/_backlog.md'],
-    ['_feature-ideas.md', 'todo/_feature-ideas.md'],
+    ['_backlog.md', 'work/backlog.md'],
+    ['backlog.md', 'work/backlog.md'],
+    ['_feature-ideas.md', 'work/todo/feature-ideas.md'],
+    ['feature-ideas.md', 'work/todo/feature-ideas.md'],
 ];
 
 const TEMPLATE_MARKER = '<!-- @@template -->';
@@ -53,8 +66,8 @@ const TEMPLATE_MARKER = '<!-- @@template -->';
 //     via git mv (docs/todo/_archive/cycle-N-{stamp}/). Those are intentionally
 //     retired, history-preserving copies — not misplaced live TODOs (EV7). `.archive`
 //     (dot) is kept too for any legacy hand-rolled archive dir.
-const TODO_SKIP_DIRS = new Set(['.output', '.archive', '_archive', 'node_modules', '.git', 'design']);
-const TODO_CANONICAL_DIRS = new Set(['', 'todo']); // relative to docs/
+const TODO_SKIP_DIRS = new Set(['.output', '.archive', '_archive', 'node_modules', '.git', 'design', 'scratch']);
+const TODO_CANONICAL_DIRS = new Set(['', 'work/todo']); // relative to docs/ (ADR domain taxonomy)
 
 /** True if a file exists and is NOT just an unfilled scaffold stub. */
 function isRealDoc(absPath) {
@@ -327,8 +340,8 @@ function main() {
         lines.push('');
     }
     if (misplacedTodos.length) {
-        lines.push('Misplaced TODO files (outside docs/ root and docs/todo/ — invisible to the create-chain and /status):');
-        for (const m of misplacedTodos) lines.push(`  • ${m.file}  (move to docs/todo/ or remove if superseded)`);
+        lines.push('Misplaced TODO files (outside docs/ root and docs/work/todo/ — invisible to the create-chain and /status):');
+        for (const m of misplacedTodos) lines.push(`  • ${m.file}  (move to docs/work/todo/ or remove if superseded)`);
         lines.push('');
     }
     lines.push('Reconcile via /onboard (archives/removes legacy docs) or clean up manually.');

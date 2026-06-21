@@ -49,9 +49,9 @@ const TEXT_ONLY    = process.argv.includes('--text-only');
 function findTodoFiles() {
   const patterns = [
     'docs/TODO_*.md',
-    'docs/todo/TODO_*.md',
-    'docs/todo/TODO*.md',
-    'docs/app/**/TODO*.md',
+    'docs/work/todo/TODO_*.md',
+    'docs/work/todo/TODO*.md',
+    'docs/modules/**/TODO*.md',
   ];
   const found = new Set();
   if (globSync) {
@@ -391,7 +391,7 @@ function progressBar(pct, width) {
 //
 // regenerateMasterIndex refreshes the generated projection — the master tracker
 // TODO_{Project}.md — from its SINGLE source of record: the per-epic checklists
-// (TODO_epicNN_*.md) plus _backlog.md's phase→epic grouping. It NEVER invents
+// (TODO_epicNN_*.md) plus backlog.md's phase→epic grouping. It NEVER invents
 // rows. For every EXISTING row it refreshes BOTH the numerator (Done) AND the
 // denominator (Stories) from the same checklists, so the two never diverge:
 //   • Epic Index — Stories count + Status marker (resolved epics only).
@@ -435,7 +435,7 @@ function colIndex(headerCells, name) {
 
 // Resolve an epic's per-epic checklist file from its Epic Index row.
 // Prefer the link target in the Checklist column; fall back to globbing
-// docs/todo/TODO_epic{NN}*.md. Returns an absolute path or null.
+// docs/work/todo/TODO_epic{NN}*.md. Returns an absolute path or null.
 function resolveEpicChecklist(projectRoot, epicId, checklistCell) {
   const linkMatch = checklistCell && checklistCell.match(/\(([^)]+\.md)\)/);
   if (linkMatch) {
@@ -449,7 +449,7 @@ function resolveEpicChecklist(projectRoot, epicId, checklistCell) {
   const num = String(epicId).match(/\d+/);
   if (!num) return null;
   const nn = num[0].padStart(2, '0');
-  const todoDir = path.join(projectRoot, 'docs', 'todo');
+  const todoDir = path.join(projectRoot, 'docs', 'work', 'todo');
   if (!fs.existsSync(todoDir)) return null;
   let entries;
   try { entries = fs.readdirSync(todoDir); } catch { return null; }
@@ -458,11 +458,11 @@ function resolveEpicChecklist(projectRoot, epicId, checklistCell) {
   return hit ? path.join(todoDir, hit) : null;
 }
 
-// Build a phase-number → Set(epic-id strings) map from _backlog.md's
+// Build a phase-number → Set(epic-id strings) map from backlog.md's
 // `## Phase N:` / `### Epic N:` grouping. Returns null if the backlog is
 // absent/unparseable — callers then leave per-phase Done cells unchanged.
 function buildPhaseEpicMap(projectRoot) {
-  const backlogPath = path.join(projectRoot, 'docs', 'todo', '_backlog.md');
+  const backlogPath = path.join(projectRoot, 'docs', 'work', 'backlog.md');
   if (!fs.existsSync(backlogPath)) return null;
   let content;
   try { content = fs.readFileSync(backlogPath, 'utf8'); } catch { return null; }

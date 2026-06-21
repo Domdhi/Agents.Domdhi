@@ -264,7 +264,7 @@ readOnlyPaths:
   - .editorconfig                      # EditorConfig (A6 — ECC)
 # Removed 2026-04-25:
 #   .claude/settings.json         — /update-config skill must be able to edit this
-#   docs/_project-architecture.md — /create:project-architecture + /review:update-docs write here
+#   docs/architecture/overview.md — /create:project-architecture + /review:update-docs write here
 #   vitest.config*                — test tuning during refactor work is routine; explicit handoff flag
 
 # Tier 3 — no-delete: reads/writes allowed, deletes blocked.
@@ -308,4 +308,4 @@ path_rules:
   read_only:
     - .claude/settings.json            # hook registry — only the orchestrator edits this
     - package-lock.json                # lockfile — only npm manages this
-    - docs/_project-architecture.md            # architecture source of truth
+    - docs/architecture/overview.md            # architecture source of truth

@@ -97,7 +97,7 @@ describe('loadDecisionData', () => {
   });
 
   it('loadDecisionData_withADRDoc_parsesADRsFromArchitectureFile', () => {
-    // Arrange — write minimal _project-architecture.md with one ADR section
+    // Arrange — write minimal architecture/overview.md with one ADR section
     const archContent = `# Project Architecture
 
 ## Architecture Decision Records
@@ -109,7 +109,7 @@ describe('loadDecisionData', () => {
 
 Using Node.js for portability across CI environments.
 `;
-    tmp.write('docs/_project-architecture.md', archContent);
+    tmp.write('docs/architecture/overview.md', archContent);
 
     const cutoffDate = new Date('2000-01-01');
     const result = loadDecisionData({

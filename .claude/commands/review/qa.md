@@ -30,7 +30,7 @@ INPUT: $ARGUMENTS
 ### 1. Determine Scope (main agent)
 
 **If INPUT is a story number:**
-- Read story from `docs/todo/_backlog.md` to get acceptance criteria
+- Read story from `docs/work/backlog.md` to get acceptance criteria
 - Find the implementation files (from git log or story's files-changed)
 
 **If INPUT is a file path:**
@@ -49,7 +49,7 @@ INPUT: $ARGUMENTS
 
 - Check for test projects: `*.Tests.csproj`, `jest.config.*`, `karma.conf.*`, `playwright.config.*`
 - Read existing tests to match patterns and conventions
-- Read `docs/_project-architecture.md` Testing Strategy section
+- Read `docs/architecture/overview.md` Testing Strategy section
 
 **2b. Bootstrap (if no test framework detected):**
 

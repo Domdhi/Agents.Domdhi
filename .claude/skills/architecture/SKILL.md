@@ -84,7 +84,7 @@ You will be wrong about something. Build for change: stable seams between module
 
 ### Document Template
 
-The document you produce — the canonical, scaffold-blessed template — lives in `assets/_project-architecture.md` (raw, with the `<!-- @@template -->` first-line marker). Read it to know the artifact's structure; `scaffold.js` seeds `docs/_project-architecture.md` from the same file.
+The document you produce — the canonical, scaffold-blessed template — lives in `assets/overview.md` (raw, with the `<!-- @@template -->` first-line marker). Read it to know the artifact's structure; `scaffold.js` seeds `docs/architecture/overview.md` from the same file.
 
 ### Required Sections Checklist
 
@@ -135,7 +135,7 @@ An architecture doc is COMPLETE when it has:
 10. "What's the budget envelope and who operates this in production?"
 
 ## Cross-References
-- Reads from: `docs/_project-requirements.md` (required), `docs/_project-design.md` (optional)
-- Produces: `docs/_project-architecture.md`
-- Feeds into: `docs/todo/_backlog.md` (via `/create:project-epics`)
+- Reads from: `docs/product/requirements.md` (required), `docs/design/spec.md` (optional)
+- Produces: `docs/architecture/overview.md`
+- Feeds into: `docs/work/backlog.md` (via `/create:project-epics`)
 - Self-contained discipline skill — sibling to `ux-design`; the planning-pipeline *text* docs live in `project-planning`.

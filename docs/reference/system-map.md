@@ -12,17 +12,17 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 
 | Command | Agent | Skill | Reads | Produces | Gate |
 |---------|-------|-------|-------|----------|------|
-| `/brainstorm` | product-strategist | project-planning | user input, codebase | `_brainstorm.md`, `_feature-ideas.md` | — |
-| `/research` | product-strategist | project-planning | user topic, web | `_research.md` | — |
+| `/brainstorm` | product-strategist | project-planning | user input, codebase | `product/brainstorm.md`, `feature-ideas.md` | — |
+| `/research` | product-strategist | project-planning | user topic, web | `product/research.md` | — |
 | `/interview` | — (main) | — | user input | decision summary (chat only) | — |
-| `/create:project-brief` | product-strategist | project-planning | `_brainstorm.md`, `_research.md` | `_project-brief.md` | — |
-| `/create:project-requirements` | product-strategist | project-planning | brief OR brainstorm OR research | `_project-requirements.md` | needs phase 1 artifact |
-| `/create:project-design` | ux-designer | ux-design | `_project-requirements.md` | `_project-design.md` + 4 design files | needs PRD |
-| `/create:project-architecture` | architect | architecture | `_project-requirements.md` | `_project-architecture.md` | needs PRD |
-| `/create:project-epics` | project-planner | project-planning | PRD + architecture | `todo/_backlog.md` | needs PRD + arch |
-| `/create:project-todo` | project-planner | project-planning | `_backlog.md` | `TODO_{Project}.md` | needs backlog |
-| `/create:project-epics-todo` | project-planner | project-planning | `_backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
-| `/create:new-project` | — (orchestrator) + chains all setup sub-commands | — (chains all setup skills) | user interview answers | full `docs/` scaffold + planning chain → `_project-context.md` | fresh project (no filled planning docs); `--yolo` bypass |
+| `/create:project-brief` | product-strategist | project-planning | `product/brainstorm.md`, `product/research.md` | `product/brief.md` | — |
+| `/create:project-requirements` | product-strategist | project-planning | brief OR brainstorm OR research | `product/requirements.md` | needs phase 1 artifact |
+| `/create:project-design` | ux-designer | ux-design | `product/requirements.md` | `design/spec.md` + 4 design files | needs PRD |
+| `/create:project-architecture` | architect | architecture | `product/requirements.md` | `architecture/overview.md` | needs PRD |
+| `/create:project-epics` | project-planner | project-planning | PRD + architecture | `work/backlog.md` | needs PRD + arch |
+| `/create:project-todo` | project-planner | project-planning | `backlog.md` | `TODO_{Project}.md` | needs backlog |
+| `/create:project-epics-todo` | project-planner | project-planning | `backlog.md` | `todo/TODO_epic{NN}.md` | needs backlog |
+| `/create:new-project` | — (orchestrator) + chains all setup sub-commands | — (chains all setup skills) | user interview answers | full `docs/` scaffold + planning chain → `product/context.md` | fresh project (no filled planning docs); `--yolo` bypass |
 
 ### Build Commands (daily loop)
 
@@ -61,7 +61,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/review:update-docs` | doc-writer | project-planning | Yes (fixes drift) |
 | `/review:qa` | qa-engineer | qa-engineer | Yes (generates tests) |
 | `/review:optimize-backlog` | project-planner | project-planning | Optional |
-| `/review:retro` | code-reviewer + doc-writer | code-review + project-planning | Yes (creates retro doc) |
+| `/retro` | code-reviewer + doc-writer | code-review + project-planning | Yes (creates retro doc) |
 | `/review:changelog` | doc-writer | project-planning | Yes (creates/updates CHANGELOG) |
 | `/review:specialize` | architect | tailwind (as exemplar) | Yes (updates agents, creates skills) |
 | `/review:optimize-agents` | — (main) | — | Optional (--fix mode) |
@@ -247,10 +247,10 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `status.js` | TODO progress + metrics → text + HTML dashboard |
 | `memory-health-check.js` | Headless memory health check — lint + decay report for `/review:memory-health` |
 | `cleanup-logs.js` | Prune old gate logs |
-| `gen-timeline.js` | Weekly commit history generator → `docs/_project-timeline.md` |
+| `gen-timeline.js` | Weekly commit history generator → `docs/work/timeline.md` |
 | `profile.js` | Memory profile resolver (`MEMORY_PROFILE=minimal\|standard\|strict`). Hooks call `isAtLeast()` to gate expensive work |
 | `memory-benchmark.js` | Weekly recall hit-rate benchmark — Haiku picks expected slug per daily-log entry, compared against `searchMemories()` top-5 |
-| `_lib/epic-overlap.js` | Parses `_backlog.md` for per-epic file ownership and reports cross-epic overlaps. CLI used by `/create:project-epics` (warning) and `/review:check-readiness` (gate, with `## Acknowledged Overlaps` escape hatch) |
+| `_lib/epic-overlap.js` | Parses `backlog.md` for per-epic file ownership and reports cross-epic overlaps. CLI used by `/create:project-epics` (warning) and `/review:check-readiness` (gate, with `## Acknowledged Overlaps` escape hatch) |
 
 ### Hooks (`.claude/hooks/`)
 

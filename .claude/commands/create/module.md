@@ -5,7 +5,7 @@ argument-hint: [module description]
 
 # Create Module
 
-Orchestrate the full lifecycle of a new module from idea to implementation-ready TODO checklist. Creates the `docs/app/{module}/` folder structure and generates all planning artifacts.
+Orchestrate the full lifecycle of a new module from idea to implementation-ready TODO checklist. Creates the `docs/modules/{module}/` folder structure and generates all planning artifacts.
 
 ## Telemetry (run first)
 
@@ -26,14 +26,14 @@ MODULE_DESCRIPTION: $ARGUMENTS
 ### Phase 1: Context Gathering
 
 1. **Read project context** to understand current state:
-   - `docs/_project-context.md` — quick reference hub
-   - `docs/_project-architecture.md` — tech stack, component architecture, ADRs
-   - `docs/_project-requirements.md` — existing requirements and scope
+   - `docs/product/context.md` — quick reference hub
+   - `docs/architecture/overview.md` — tech stack, component architecture, ADRs
+   - `docs/product/requirements.md` — existing requirements and scope
    - `docs/CLAUDE.md` — documentation structure conventions
    - `CLAUDE.md` — project conventions
 
 2. **Identify placement** — does this belong as:
-   - A new module in `docs/app/{name}/`?
+   - A new module in `docs/modules/{name}/`?
    - An extension of an existing module?
    - A cross-cutting concern (affects multiple modules)?
 
@@ -83,17 +83,17 @@ MODULE_DESCRIPTION: $ARGUMENTS
 
 Once the user decides, generate the module documentation.
 
-**4a. Create module brief** — `docs/app/{module}/_brief.md`
+**4a. Create module brief** — `docs/modules/{module}/brief.md`
 - Scope, key files (planned), dependencies
-- Follow the pattern established in existing `docs/app/` module briefs
+- Follow the pattern established in existing `docs/modules/` module briefs
 
 **4b. Update PRD** (if scope warrants it):
-- Add new functional requirements to `docs/_project-requirements.md`
+- Add new functional requirements to `docs/product/requirements.md`
 - Include acceptance criteria for each requirement
 - Cross-reference with existing requirements
 
 **4c. Update Architecture** (if infrastructure changes needed):
-- Add component descriptions to `docs/_project-architecture.md`
+- Add component descriptions to `docs/architecture/overview.md`
 - Add new ADR if an architectural decision was made
 - Update data model section if schema changes
 
@@ -101,7 +101,7 @@ Once the user decides, generate the module documentation.
 
 Generate a comprehensive TODO checklist following the `/todo` command format.
 
-**Save to:** `docs/todo/TODO_{ModuleName}.md`
+**Save to:** `docs/work/todo/TODO_{ModuleName}.md`
 
 **Adapt phases to module scope** — not every module needs every phase:
 
@@ -131,23 +131,23 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 
 **Module:** {Name}
 **Decision:** {What was decided and why}
-**Location:** `docs/app/{module}/`
+**Location:** `docs/modules/{module}/`
 
 ### Documentation Updated
 | Document | Action | Details |
 |----------|--------|---------|
-| docs/app/{module}/_brief.md | Created | Scope, key files, dependencies |
-| _project-requirements.md | {Updated/No change} | {N new FRs} |
-| _project-architecture.md | {Updated/No change} | {ADR added / component added} |
+| docs/modules/{module}/brief.md | Created | Scope, key files, dependencies |
+| product/requirements.md | {Updated/No change} | {N new FRs} |
+| architecture/overview.md | {Updated/No change} | {ADR added / component added} |
 
 ### TODO Checklist
-**File:** docs/todo/TODO_{ModuleName}.md
+**File:** docs/work/todo/TODO_{ModuleName}.md
 **Phases:** {count}
 **Total tasks:** {count}
 **Estimated complexity:** {Low/Medium/High}
 
 **Committed**: {hash} — `docs: /create:module — {summary}`
-**Next step:** Run `/do` to begin implementation — checklist at docs/todo/TODO_{ModuleName}.md
+**Next step:** Run `/do` to begin implementation — checklist at docs/work/todo/TODO_{ModuleName}.md
 ```
 
 ## Anti-Patterns

@@ -162,6 +162,6 @@
 ---
 
 ## Related Documents
-- Project Brief: [_project-brief.md](_project-brief.md)
-- UX Spec: [_project-design.md](_project-design.md)
-- Architecture: [_project-architecture.md](_project-architecture.md)
+- Project Brief: [product/brief.md](product/brief.md)
+- UX Spec: [design/spec.md](design/spec.md)
+- Architecture: [architecture/overview.md](architecture/overview.md)

@@ -50,7 +50,7 @@ INPUT: $ARGUMENTS
 
 ### 2. Load Standards (main agent)
 
-- Read `docs/_project-architecture.md` — Development Standards, API conventions, project structure
+- Read `docs/architecture/overview.md` — Development Standards, API conventions, project structure
 - Read `CLAUDE.md` — project-specific rules (if exists)
 - Check relevant skills for domain patterns:
   - `.css`/`.html` with Tailwind → check `tailwind-css-patterns` skill

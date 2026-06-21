@@ -219,7 +219,7 @@ describe('TODO scanning and parsing', () => {
 
     it('findTodoFiles finds TODO*.md recursively and skips ignored dirs', () => {
         writeDoc('docs/TODO_Project.md', '# master');
-        writeDoc('docs/todo/TODO_epic01.md', '# epic');
+        writeDoc('docs/work/todo/TODO_epic01.md', '# epic');
         writeDoc('docs/notes.md', '# not a todo');                 // wrong name
         writeDoc('docs/.output/TODO_should_skip.md', '# skipped'); // .output skipped
         writeDoc('docs/.archive/TODO_old.md', '# skipped');        // .archive skipped
@@ -227,7 +227,7 @@ describe('TODO scanning and parsing', () => {
         const files = findTodoFiles();
         const rels = files.map(f => path.relative(dir, f).split(path.sep).join('/'));
         expect(rels).toContain('docs/TODO_Project.md');
-        expect(rels).toContain('docs/todo/TODO_epic01.md');
+        expect(rels).toContain('docs/work/todo/TODO_epic01.md');
         expect(rels).not.toContain('docs/notes.md');
         expect(rels.some(r => r.includes('.output'))).toBe(false);
         expect(rels.some(r => r.includes('.archive'))).toBe(false);
@@ -239,7 +239,7 @@ describe('TODO scanning and parsing', () => {
     });
 
     it('parseTodoFileStories — checklist with all marker states', () => {
-        const file = writeDoc('docs/todo/TODO_epic02.md', [
+        const file = writeDoc('docs/work/todo/TODO_epic02.md', [
             '# Epic 02 Checklist',
             '',
             '- [ ] **2.1 Pending story** — todo',
@@ -261,7 +261,7 @@ describe('TODO scanning and parsing', () => {
     });
 
     it('parseTodoFileStories — table-status marker rows count too', () => {
-        const file = writeDoc('docs/todo/TODO_table.md', [
+        const file = writeDoc('docs/work/todo/TODO_table.md', [
             '# Table-style checklist',
             '',
             '| Story | Status |',
@@ -331,11 +331,11 @@ describe('TODO scanning and parsing', () => {
     });
 
     it('computeTodos aggregates across files and computes completion_rate', () => {
-        writeDoc('docs/todo/TODO_a.md', [
+        writeDoc('docs/work/todo/TODO_a.md', [
             '- [x] **1.1 Done** — x',
             '- [ ] **1.2 Pending** — p',
         ].join('\n'));
-        writeDoc('docs/todo/TODO_b.md', [
+        writeDoc('docs/work/todo/TODO_b.md', [
             '- [x] **2.1 Done** — x',
             '- [x] **2.2 Done** — x',
         ].join('\n'));
@@ -390,7 +390,7 @@ describe('buildReport → prettyReport (in-process orchestration)', () => {
                 JSON.stringify({ type: 'gate_run', command: 'gate:test', outcome: 'success' }),
             ].join('\n') + '\n');
         // TODO data
-        writeDoc('docs/todo/TODO_x.md', '- [x] **1.1 Done** — x\n- [ ] **1.2 Pending** — p\n');
+        writeDoc('docs/work/todo/TODO_x.md', '- [x] **1.1 Done** — x\n- [ ] **1.2 Pending** — p\n');
 
         const { buildReport } = loadMetrics(dir);
         const report = buildReport();
@@ -415,7 +415,7 @@ describe('buildReport → prettyReport (in-process orchestration)', () => {
                 JSON.stringify({ type: 'gate_run', command: 'gate:test', outcome: 'success' }),
                 JSON.stringify({ type: 'gate_run', command: 'gate:test', outcome: 'failure' }),
             ].join('\n') + '\n');
-        writeDoc('docs/todo/TODO_y.md', '- [x] **1.1 Done** — x\n- [ ] **1.2 Pending** — p\n');
+        writeDoc('docs/work/todo/TODO_y.md', '- [x] **1.1 Done** — x\n- [ ] **1.2 Pending** — p\n');
         // Session dirs to exercise the sessions section of prettyReport
         const sessDir = path.join(dir, 'docs', '.output', 'sessions');
         fs.mkdirSync(path.join(sessDir, '2026-06-12'), { recursive: true });

@@ -73,7 +73,7 @@ This preserves your `settings.json`, agent personalities, and any local customiz
 /onboard
 ```
 
-`/onboard` is the brownfield analog of `/create:new-project` — it reverse-engineers `_project-architecture.md` and `_project-context.md` from your existing code, merges `CLAUDE.md` additively (never clobbering your instructions), and chains `/review:specialize` to tailor the agents to your stack.
+`/onboard` is the brownfield analog of `/create:new-project` — it reverse-engineers `architecture/overview.md` and `product/context.md` from your existing code, merges `CLAUDE.md` additively (never clobbering your instructions), and chains `/review:specialize` to tailor the agents to your stack.
 
 **To update an existing install later, run the zone-aware updater — don't re-clone:** `node .claude/core/template-updater.js update /path/to/your-project --merge`.
 
@@ -119,24 +119,24 @@ If you only need a coding assistant for an in-progress feature, the first-party 
 
 ## Getting Started
 
-Full walkthrough with a concrete sample project: [**docs/getting-started.md**](./docs/getting-started.md) — about thirty minutes from clone to specialized, implementation-ready project.
+Full walkthrough with a concrete sample project: [**docs/reference/getting-started.md**](./docs/reference/getting-started.md) — about thirty minutes from clone to specialized, implementation-ready project.
 
 ## Customize for Your Stack
 
-- [`docs/guides/specialize.md`](./docs/guides/specialize.md) — `/review:specialize` reads your architecture doc, appends stack context to every baseline agent, and generates new stack-specific agents
-- [`docs/guides/personalize.md`](./docs/guides/personalize.md) — `/review:personalize` gives your agents names, personas, and soul-level identities — cosmetic until you work at scale, then it becomes how you think about the team
+- [`docs/reference/guides/specialize.md`](./docs/reference/guides/specialize.md) — `/review:specialize` reads your architecture doc, appends stack context to every baseline agent, and generates new stack-specific agents
+- [`docs/reference/guides/personalize.md`](./docs/reference/guides/personalize.md) — `/review:personalize` gives your agents names, personas, and soul-level identities — cosmetic until you work at scale, then it becomes how you think about the team
 
 ## Documentation
 
 See [`docs/README.md`](./docs/README.md) for the full index — three reading orders by role (newcomer / adopter / contributor). Highlights:
 
-- **Concepts** — [commands](./docs/concepts/commands.md), [agents](./docs/concepts/agents.md), [skills](./docs/concepts/skills.md), [memory](./docs/concepts/memory.md), [hooks](./docs/concepts/hooks.md)
+- **Concepts** — [commands](./docs/reference/concepts/commands.md), [agents](./docs/reference/concepts/agents.md), [skills](./docs/reference/concepts/skills.md), [memory](./docs/reference/concepts/memory.md), [hooks](./docs/reference/concepts/hooks.md)
 - **Reference** — [commands](./docs/reference/commands.md), [system-map](./docs/reference/system-map.md), [customization](./docs/reference/customization.md), [memory-flow](./docs/reference/memory-flow.md)
-- **Guides** — [specialize](./docs/guides/specialize.md), [personalize](./docs/guides/personalize.md), [contributing](./docs/guides/contributing.md)
+- **Guides** — [specialize](./docs/reference/guides/specialize.md), [personalize](./docs/reference/guides/personalize.md), [contributing](./docs/reference/guides/contributing.md)
 
 ## Contributing
 
-To extend the system with a new agent, command, or skill without breaking the three-tier architecture, see [`docs/guides/contributing.md`](./docs/guides/contributing.md). The decision gate at the top of that guide — *agent vs. skill vs. command* — is the highest-leverage choice in any contribution.
+To extend the system with a new agent, command, or skill without breaking the three-tier architecture, see [`docs/reference/guides/contributing.md`](./docs/reference/guides/contributing.md). The decision gate at the top of that guide — *agent vs. skill vs. command* — is the highest-leverage choice in any contribution.
 
 ## License
 

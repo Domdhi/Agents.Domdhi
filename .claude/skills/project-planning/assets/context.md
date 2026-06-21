@@ -5,7 +5,7 @@
 |-----------|-------|
 | **Initialized** | {YYYY-MM-DD} |
 | **Phase** | {current phase} |
-| **Tech Stack** | {from _project-architecture.md} |
+| **Tech Stack** | {from architecture/overview.md} |
 
 ---
 
@@ -13,16 +13,16 @@
 
 | Document | Path | Status |
 |----------|------|--------|
-| Project Brief | [_project-brief.md](_project-brief.md) | {status} |
-| PRD | [_project-requirements.md](_project-requirements.md) | {status} |
-| UX Spec | [_project-design.md](_project-design.md) | {status} |
-| Wireframes | [design/_wireframes.md](design/_wireframes.md) | {status} |
-| Light Theme | [design/_design.light.md](design/_design.light.md) | {status} |
-| Dark Theme | [design/_design.dark.md](design/_design.dark.md) | {status} |
-| Mock Layout | [design/_mock-layout.html](design/_mock-layout.html) | {status} |
-| Architecture | [_project-architecture.md](_project-architecture.md) | {status} |
-| Epics | [todo/_backlog.md](todo/_backlog.md) | {status} |
-| Feature Ideas | [todo/_feature-ideas.md](todo/_feature-ideas.md) | {status} |
+| Project Brief | [product/brief.md](product/brief.md) | {status} |
+| PRD | [product/requirements.md](product/requirements.md) | {status} |
+| UX Spec | [design/spec.md](design/spec.md) | {status} |
+| Wireframes | [design/wireframes.md](design/wireframes.md) | {status} |
+| Light Theme | [design/theme.light.md](design/theme.light.md) | {status} |
+| Dark Theme | [design/theme.dark.md](design/theme.dark.md) | {status} |
+| Mock Layout | [design/mock.html](design/mock.html) | {status} |
+| Architecture | [architecture/overview.md](architecture/overview.md) | {status} |
+| Epics | [work/backlog.md](work/backlog.md) | {status} |
+| Feature Ideas | [work/todo/feature-ideas.md](work/todo/feature-ideas.md) | {status} |
 
 ---
 

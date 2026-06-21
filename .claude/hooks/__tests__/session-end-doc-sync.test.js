@@ -74,7 +74,7 @@ describe('runDocSync — drift detected', () => {
 // ---------------------------------------------------------------------------
 describe('runDocSync — no drift', () => {
     it('writes nothing to stderr and reports clean', () => {
-        tmp.write('docs/_project-architecture.md', '# Architecture\n\nCanonical, no drift.\n');
+        tmp.write('docs/architecture/overview.md', '# Architecture\n\nCanonical, no drift.\n');
         const spy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
         const result = runDocSync(tmp.root);

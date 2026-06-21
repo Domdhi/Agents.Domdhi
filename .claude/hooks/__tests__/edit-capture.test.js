@@ -54,7 +54,7 @@ describe('isCanonicalDoc', () => {
     });
 
     it('isCanonicalDoc_architectureDoc_returnsTrue', () => {
-        expect(isCanonicalDoc('/project/docs/_project-architecture.md')).toBe(true);
+        expect(isCanonicalDoc('/project/docs/architecture/overview.md')).toBe(true);
     });
 
     it('isCanonicalDoc_skillFile_returnsTrue', () => {
@@ -102,7 +102,7 @@ describe('shouldCapture', () => {
 
     it('shouldCapture_profileStrict_architectureDoc_returnsTrue', () => {
         process.env.MEMORY_PROFILE = 'strict';
-        expect(shouldCapture('/project/docs/_project-architecture.md')).toBe(true);
+        expect(shouldCapture('/project/docs/architecture/overview.md')).toBe(true);
     });
 });
 

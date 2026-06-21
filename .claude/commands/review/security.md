@@ -44,8 +44,8 @@ INPUT: $ARGUMENTS
 
 ### 2. Gather Security Context (main agent)
 
-- Read `docs/_project-architecture.md` — Auth & Authorization section, Security ADRs, API design
-- Read `docs/_project-requirements.md` — Security requirements, NFRs related to security
+- Read `docs/architecture/overview.md` — Auth & Authorization section, Security ADRs, API design
+- Read `docs/product/requirements.md` — Security requirements, NFRs related to security
 - Search for security-relevant files:
   ```
   Glob: *.env*, .env.example, docker-compose*, Dockerfile*

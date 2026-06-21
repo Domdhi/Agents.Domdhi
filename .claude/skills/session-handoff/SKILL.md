@@ -138,7 +138,7 @@ Different callers have different information to emphasize. Fill the template wit
 
 ### `/run-todo` — after a wave commit OR final report
 - **Decisions & Context:** agent misalignments, wave-level decisions, stories blocked/deferred
-- **Next Actions:** next wave OR next epic OR `/review:retro` if all done
+- **Next Actions:** next wave OR next epic OR `/retro` if all done
 - **Last commit:** the most recent wave commit
 - If stories are blocked (`[!]`), call them out in Blockers
 - The paired plan file at `docs/.output/plans/{date}-run-todo-{slug}.md` is always a Key File
@@ -152,7 +152,7 @@ Different callers have different information to emphasize. Fill the template wit
 ### `/todo` — after TODO creation
 - **Decisions & Context:** one bullet on why this TODO was created, what it accomplishes
 - **Next Actions:** always `/run-todo {path}` as #1, `/do {first-story-id}` as #2
-- **Key Files:** the new TODO path + research files from `docs/.output/work/{date}/{slug}/`
+- **Key Files:** the new TODO path + research files from `docs/work/scratch/{date}/{slug}/`
 
 ## Key Files lifecycle (mandatory — applies to every caller)
 
@@ -330,7 +330,7 @@ Default to `/remember` for fleeting captures you want off your mental stack. Use
 - **Flag unfinished plans.** If `docs/.output/plans/` has active plans with unchecked items, call them out in Decisions & Context.
 - **No git narration.** Don't write "committed 302 tests" — git log shows that.
 - **No CLAUDE.md duplication.** Don't restate architecture, conventions, or infrastructure.
-- **No task lists.** Those live in `_backlog.md` and TODO files, not the handoff.
+- **No task lists.** Those live in `backlog.md` and TODO files, not the handoff.
 - **No test runs.** The caller has already tested. Don't waste time re-running.
 - **Decisions > descriptions.** "Rejected approach X because Y" beats "implemented feature Z."
 - **No housekeeping as next actions.** Don't list "push to origin" or "commit changes" — those already happened.

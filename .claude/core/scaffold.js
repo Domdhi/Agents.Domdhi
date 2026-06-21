@@ -17,23 +17,18 @@
  *                    Substitution applies only to NEWLY copied files; pre-existing
  *                    targets are skipped per the standard scaffold semantics.
  *
- * Output structure:
+ * Output structure (domain taxonomy — ADR docs/ Domain Taxonomy):
  *   docs/
- *   ├── _project-brief.md
- *   ├── _project-requirements.md
- *   ├── _project-architecture.md
- *   ├── _project-context.md
- *   ├── _project-design.md
- *   ├── CLAUDE.md                  (doc structure guide)
- *   ├── app/                       (module docs — mirrors codebase)
- *   ├── design/
- *   │   ├── _wireframes.md
- *   │   ├── _design.light.md
- *   │   ├── _design.dark.md
- *   │   └── _mock-layout.html
- *   ├── todo/
- *   └── .output/
- *       └── work/
+ *   ├── CLAUDE.md                  (navigation contract)
+ *   ├── product/                   (brief, requirements, context, brainstorm, research)
+ *   ├── architecture/              (overview.md, decisions/)
+ *   ├── design/                    (spec.md, wireframes.md, theme.{light,dark}.md, mock.html)
+ *   ├── engineering/               (conventions.md, …)
+ *   ├── operations/                (deploy.md, …)
+ *   ├── work/                      (backlog.md, todo/, scratch/)
+ *   ├── reference/                 (onboarding.md, …)
+ *   ├── modules/                   (per-feature docs — mirrors codebase)
+ *   └── .output/                   (generated reports)
  *   .playwright/
  *   └── cli.config.json
  */
@@ -78,17 +73,17 @@ const TEMPLATE_RENAMES = {
 // (CLAUDE.md docs-guide, root/ configs) stay in .claude/templates/.
 
 const SKILL_TEMPLATE_MANIFEST = [
-    { from: '.claude/skills/ux-design/assets/_project-design.md', to: '_project-design.md' },
-    { from: '.claude/skills/ux-design/assets/_wireframes.md', to: 'design/_wireframes.md' },
-    { from: '.claude/skills/ux-design/assets/_design.light.md', to: 'design/_design.light.md' },
-    { from: '.claude/skills/ux-design/assets/_design.dark.md', to: 'design/_design.dark.md' },
-    { from: '.claude/skills/ux-design/assets/_mock-layout.html', to: 'design/_mock-layout.html' },
-    { from: '.claude/skills/architecture/assets/_project-architecture.md', to: '_project-architecture.md' },
-    { from: '.claude/skills/project-planning/assets/_project-context.md', to: '_project-context.md' },
-    { from: '.claude/skills/project-planning/assets/_project-brief.md', to: '_project-brief.md' },
-    { from: '.claude/skills/project-planning/assets/_project-requirements.md', to: '_project-requirements.md' },
-    { from: '.claude/skills/project-planning/assets/_feature-ideas.md', to: 'todo/_feature-ideas.md' },
-    { from: '.claude/skills/project-planning/assets/_backlog.md', to: 'todo/_backlog.md' },
+    { from: '.claude/skills/ux-design/assets/spec.md', to: 'design/spec.md' },
+    { from: '.claude/skills/ux-design/assets/wireframes.md', to: 'design/wireframes.md' },
+    { from: '.claude/skills/ux-design/assets/theme.light.md', to: 'design/theme.light.md' },
+    { from: '.claude/skills/ux-design/assets/theme.dark.md', to: 'design/theme.dark.md' },
+    { from: '.claude/skills/ux-design/assets/mock.html', to: 'design/mock.html' },
+    { from: '.claude/skills/architecture/assets/overview.md', to: 'architecture/overview.md' },
+    { from: '.claude/skills/project-planning/assets/context.md', to: 'product/context.md' },
+    { from: '.claude/skills/project-planning/assets/brief.md', to: 'product/brief.md' },
+    { from: '.claude/skills/project-planning/assets/requirements.md', to: 'product/requirements.md' },
+    { from: '.claude/skills/project-planning/assets/feature-ideas.md', to: 'work/todo/feature-ideas.md' },
+    { from: '.claude/skills/project-planning/assets/backlog.md', to: 'work/backlog.md' },
 ];
 
 // ── --set <key>=<value> non-interactive template substitution ───────────────
@@ -402,9 +397,15 @@ function runScaffold(projectDir, opts) {
 
     // Create additional directories that don't have templates
     const extraDirs = [
-        'docs/app',
+        // Domain folders that aren't seeded by a stub/asset (the ADR domain tree)
+        'docs/modules',                 // per-feature docs — mirrors codebase (was app/)
+        'docs/architecture/decisions',  // ADRs — NNNN-title.md
+        'docs/operations/runbooks',
+        'docs/work',
+        'docs/work/todo',               // implementation checklists (+ _archive/)
+        'docs/work/scratch',            // task working files (the lone dated path outside .output/)
+        // Generated/operational zone
         'docs/.output',
-        'docs/.output/work',
         'docs/.output/reviews',
         'docs/.output/research',
         'docs/.output/investigations',

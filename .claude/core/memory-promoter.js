@@ -26,7 +26,7 @@ const CATEGORIES = Object.values(CONSTANTS.MEMORY_CATEGORIES);
 const TARGET_SUGGESTIONS = {
     decisions: 'CLAUDE.md',
     patterns: 'relevant SKILL.md',
-    constraints: '_project-architecture.md template',
+    constraints: 'architecture/overview.md template',
     workflows: 'agent frontmatter',
     'rejected-approaches': 'docs/.output/investigations/ or CLAUDE.md dead-ends section'
 };
@@ -378,7 +378,7 @@ Score formula:
 Target suggestions by category:
   decisions   → CLAUDE.md
   patterns    → relevant SKILL.md
-  constraints → _project-architecture.md template
+  constraints → architecture/overview.md template
   workflows   → agent frontmatter`);
     }
 }

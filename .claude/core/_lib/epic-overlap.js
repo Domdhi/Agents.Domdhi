@@ -1,5 +1,5 @@
 /**
- * epic-overlap — Detect file ownership overlaps between epics in a _backlog.md.
+ * epic-overlap — Detect file ownership overlaps between epics in a backlog.md.
  *
  * Wave-based execution in /run-todo dispatches parallel agents per wave. When two
  * epics claim the same file, concurrent agents produce silent merge conflicts.
@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Parse a _backlog.md file and return a map of epic identifiers to the set of
+ * Parse a backlog.md file and return a map of epic identifiers to the set of
  * file paths claimed by that epic across all of its stories.
  *
  * Epic headings are recognised by the pattern:
@@ -42,7 +42,7 @@ const path = require('path');
  * inside a `* **Files:**` block under a story. Only the path between the first
  * pair of backticks is kept; everything after (` — description`) is discarded.
  *
- * @param {string} backlogPath  Absolute or relative path to the _backlog.md file.
+ * @param {string} backlogPath  Absolute or relative path to the backlog.md file.
  * @returns {Map<string, Set<string>>} Keys are epic headings (e.g. "Epic 1: Authentication").
  * @throws {Error} If the file cannot be read — message contains the path.
  */
@@ -114,7 +114,7 @@ function extractEpicFiles(backlogPath) {
 }
 
 /**
- * Parse a _backlog.md and map each epic to the `## Phase` heading it lives under.
+ * Parse a backlog.md and map each epic to the `## Phase` heading it lives under.
  * Epics declared before any phase heading map to null.
  *
  * @param {string} backlogPath
@@ -251,7 +251,7 @@ function main() {
         lines.push(
             'Same-phase epics run in the same /run-todo wave → merge-conflict risk.',
             'Either split the shared files across stories, or add a ## Acknowledged Overlaps',
-            'section to _backlog.md listing each SAME-PHASE pair and rationale.',
+            'section to backlog.md listing each SAME-PHASE pair and rationale.',
             '/review:check-readiness will then accept them as documented.'
         );
     }

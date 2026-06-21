@@ -11,13 +11,13 @@
  *   - damage-control.cjs, guardrail.cjs: no timeout (pass { timeoutMs: null })
  *
  * Hook profile system (A1) adopted from ECC — source:
- *   docs/research/competitive/_hooks-and-core-scripts-comparison.md Section A1
+ *   docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md Section A1
  *   (Reference upstream: everything-claude-code §3.3, `run-with-flags.js`).
  * Ranks: minimal < standard < strict. A hook gates itself with
  * shouldRunInProfile('standard') to opt out of `minimal`.
  *
  * Frozen-snapshot pattern (A5) adopted from Hermes — source:
- *   docs/research/competitive/_hooks-and-core-scripts-comparison.md Section A5
+ *   docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md Section A5
  *   (Reference upstream: paperclip-hermes §7, memory snapshot at session start).
  * frozenRead caches file contents per absolute path for the lifetime of the
  * process. Callers should use it only for hot-path config reads whose content

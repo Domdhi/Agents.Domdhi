@@ -4,7 +4,7 @@
 //   - captureNote(note, trigger='remember') → appends ## HH:MM — {trigger} + note body
 //   - captureCommit(hash, subject, filesChanged, insertions?, deletions?) → appends post-commit entry
 //     diffstat line only when BOTH insertions and deletions are finite numbers
-//   - findInProgressTodos() → scans docs/todo/ AND docs/ for TODO*.md; [>] and [!] markers
+//   - findInProgressTodos() → scans docs/work/todo/ AND docs/ for TODO*.md; [>] and [!] markers
 //   - findKeyDecisions() → scans docs/ ONLY for TODO*.md; ## Key Decisions table (header+separator required)
 //   - All writes go to docs/.output/memories/daily/{YYYY-MM-DD}.md via appendFileSync (same-date = same file)
 
@@ -170,7 +170,7 @@ describe('DailyLog', () => {
 
     it('capture_withInProgressTodos_includesTodoText', () => {
       // Arrange: write a TODO file with an in-progress marker
-      tmp.write('docs/todo/TODO_epic01.md', '- [>] Build the widget\n- [ ] Done task\n');
+      tmp.write('docs/work/todo/TODO_epic01.md', '- [>] Build the widget\n- [ ] Done task\n');
       const log = new DailyLog();
 
       // Act
@@ -433,7 +433,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_todoFileWithInProgressMarker_returnsItem', () => {
       // Arrange
-      tmp.write('docs/todo/TODO_epic01.md', '- [>] Build widget\n- [ ] Other task\n');
+      tmp.write('docs/work/todo/TODO_epic01.md', '- [>] Build widget\n- [ ] Other task\n');
       const log = new DailyLog();
 
       // Act
@@ -447,7 +447,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_blockedMarker_returnsBlockedItem', () => {
       // Arrange
-      tmp.write('docs/todo/TODO_epic02.md', '- [!] Blocked on auth\n');
+      tmp.write('docs/work/todo/TODO_epic02.md', '- [!] Blocked on auth\n');
       const log = new DailyLog();
 
       // Act
@@ -459,8 +459,8 @@ describe('DailyLog', () => {
     });
 
     it('findInProgressTodos_scansDocsTodoAndDocs_returnsBothSources', () => {
-      // Arrange: one file in docs/todo/, one in docs/
-      tmp.write('docs/todo/TODO_epic01.md', '- [>] In todo subdir\n');
+      // Arrange: one file in docs/work/todo/, one in docs/
+      tmp.write('docs/work/todo/TODO_epic01.md', '- [>] In todo subdir\n');
       tmp.write('docs/TODO_master.md', '- [>] In docs root\n');
       const log = new DailyLog();
 
@@ -475,8 +475,8 @@ describe('DailyLog', () => {
     });
 
     it('findInProgressTodos_onlyDocsRoot_picksUpViaSecondLoop', () => {
-      // Guards against regression where only docs/todo/ is scanned.
-      // No file in docs/todo/ — only in docs/ root.
+      // Guards against regression where only docs/work/todo/ is scanned.
+      // No file in docs/work/todo/ — only in docs/ root.
       tmp.write('docs/TODO_master.md', '- [>] Only in docs root\n');
       const log = new DailyLog();
 
@@ -487,7 +487,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_multipleInProgress_returnsAllItems', () => {
       // Arrange
-      tmp.write('docs/todo/TODO_epic01.md', '- [>] Task A\n- [>] Task B\n');
+      tmp.write('docs/work/todo/TODO_epic01.md', '- [>] Task A\n- [>] Task B\n');
       const log = new DailyLog();
 
       // Act
@@ -500,7 +500,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_onlyDoneTasks_returnsNone', () => {
       // Arrange — no [>] or [!] markers
-      tmp.write('docs/todo/TODO_epic01.md', '- [x] Completed task\n- [ ] Not started\n');
+      tmp.write('docs/work/todo/TODO_epic01.md', '- [x] Completed task\n- [ ] Not started\n');
       const log = new DailyLog();
 
       // Act
@@ -512,7 +512,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_stripsLeadingBulletFromText', () => {
       // Arrange — line has leading whitespace and bullet
-      tmp.write('docs/todo/TODO_epic01.md', '  - [>]   Task with whitespace  \n');
+      tmp.write('docs/work/todo/TODO_epic01.md', '  - [>]   Task with whitespace  \n');
       const log = new DailyLog();
 
       // Act
@@ -526,7 +526,7 @@ describe('DailyLog', () => {
 
     it('findInProgressTodos_nonTodoMdFiles_ignored', () => {
       // Arrange — file not matching TODO*.md pattern
-      tmp.write('docs/todo/notes.md', '- [>] Should not appear\n');
+      tmp.write('docs/work/todo/notes.md', '- [>] Should not appear\n');
       const log = new DailyLog();
 
       // Act
@@ -577,7 +577,7 @@ describe('DailyLog', () => {
     });
 
     it('findKeyDecisions_scansDocsOnlyNotTodoSubdir', () => {
-      // Arrange — file in docs/todo/ should NOT be scanned by findKeyDecisions
+      // Arrange — file in docs/work/todo/ should NOT be scanned by findKeyDecisions
       const fixture = [
         '## Key Decisions',
         '',
@@ -586,13 +586,13 @@ describe('DailyLog', () => {
         '| Hidden decision | rationale | outcome |',
         '',
       ].join('\n');
-      tmp.write('docs/todo/TODO_epic01.md', fixture);
+      tmp.write('docs/work/todo/TODO_epic01.md', fixture);
       const log = new DailyLog();
 
       // Act
       const result = log.findKeyDecisions();
 
-      // Assert — decisions in docs/todo/ are NOT found by findKeyDecisions
+      // Assert — decisions in docs/work/todo/ are NOT found by findKeyDecisions
       expect(result).toBe('  None');
     });
 

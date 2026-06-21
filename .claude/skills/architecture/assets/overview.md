@@ -222,6 +222,6 @@
 ---
 
 ## Related Documents
-- PRD: [_project-requirements.md](_project-requirements.md)
-- UX Spec: [_project-design.md](_project-design.md)
-- Epics: [todo/_backlog.md](todo/_backlog.md)
+- PRD: [product/requirements.md](product/requirements.md)
+- UX Spec: [design/spec.md](design/spec.md)
+- Epics: [work/backlog.md](work/backlog.md)

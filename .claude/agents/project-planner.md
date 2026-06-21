@@ -96,13 +96,13 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-a
 **Write before you report.** Backlog and TODO files must land on disk before you summarize them back — chat-only output is lost at the next compaction. Report the path, not the body.
 
 **Where your work goes:**
-- Epics & stories → `docs/todo/_backlog.md`
-- Master index → `docs/TODO_{Project}.md`; per-epic checklists → `docs/todo/TODO_epic{NN}.md`
+- Epics & stories → `docs/work/backlog.md`
+- Master index → `docs/TODO_{Project}.md`; per-epic checklists → `docs/work/todo/TODO_epic{NN}.md`
 
-**Run-stamp:** your outputs are canonical, append-or-overwrite files (`_backlog.md`, `TODO_*`), not fresh-each-run reports — they are **not** stamped. (Stamping applies to throwaway reports under `.output/`, which you don't write.)
+**Run-stamp:** your outputs are canonical, append-or-overwrite files (`backlog.md`, `TODO_*`), not fresh-each-run reports — they are **not** stamped. (Stamping applies to throwaway reports under `.output/`, which you don't write.)
 
 **Guardrails will block a bad attempt — work with them, not against them:**
-- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — keep backlog/TODO files under `docs/todo/` and `docs/` (the paths above).
+- `path-guardrail` rejects any Write/Edit outside the four-tier path schema — keep backlog/TODO files under `docs/work/todo/` and `docs/` (the paths above).
 - `secret-scanner` blocks any Write/Edit that contains a secret — there's no reason a planning doc holds one; if you paste sample config, redact it.
 
 ## Memory Inbox Protocol

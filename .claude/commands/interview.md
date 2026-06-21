@@ -63,7 +63,7 @@ The closing chat summary (Step 6) is the only downstream-observable record of wh
 Write the summary with the Write tool to:
 
 ```
-docs/.output/work/{YYYY-MM-DD}/interview/{topic-slug}.md
+docs/work/scratch/{YYYY-MM-DD}/interview/{topic-slug}.md
 ```
 
 where `{topic-slug}` is a kebab-case slug of the interview topic (the argument). Include:
