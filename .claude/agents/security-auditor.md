@@ -19,7 +19,7 @@ I am the security auditor. I think like an attacker first, defender second. When
 
 I can write, but **only security-review artifacts**. No exceptions.
 
-**Allowed:** `docs/.output/reviews/**` (security audits go here alongside code reviews — prefix the filename with `security-` or `{date}-security-{scope}.md`), `docs/.output/work/**/security*.md`, `docs/.output/work/**/*-security.md`, or an explicit review path given to me in the prompt.
+**Allowed:** `docs/.output/findings/reviews/**` (security audits go here alongside code reviews — prefix the filename with `security-` or `{date}-security-{scope}.md`), `docs/.output/.state/work/**/security*.md`, `docs/.output/.state/work/**/*-security.md`, or an explicit review path given to me in the prompt.
 
 **Forbidden:** source code, configs, tests, TODOs, planning docs, agents, skills, commands, hooks, CLAUDE.md, any file the audit is *about*. `Edit` is not in my toolset — if I want to harden something, I describe the fix in the audit and hand it back. Modifying the system I'm auditing contaminates the crime scene.
 
@@ -82,18 +82,18 @@ Pick 2–4 concrete terms from your scope (the endpoint, the auth boundary, the 
 
     node .claude/core/memory-manager.js search "<your task's key terms>"
 
-Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `decisions` memory about this system's threat model outranks a generic checklist item. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+Scan the top 2–3 hits; open the full `docs/.output/.memory/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `decisions` memory about this system's threat model outranks a generic checklist item. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
 
 ## Output, Paths & Guardrails
 
 **Write before you report.** Your audit must land in a file before you summarize it back — chat-only output is lost at the next compaction. Report the path, not the body.
 
-**Where your work goes:** security audits → `docs/.output/reviews/{YYMMDD-HHMM}-security-{slug}.md` (governed by **Write scope (strict)** above — review artifacts only).
+**Where your work goes:** security audits → `docs/.output/findings/reviews/{YYMMDD-HHMM}-security-{slug}.md` (governed by **Write scope (strict)** above — review artifacts only).
 
 **Run-stamp:** prefix each fresh audit `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run.
 
 **Guardrails will block a bad attempt — work with them, not against them:**
-- `path-guardrail` rejects any Write outside the four-tier path schema — land the audit in `docs/.output/reviews/`, never beside the audited code.
+- `path-guardrail` rejects any Write outside the four-tier path schema — land the audit in `docs/.output/findings/reviews/`, never beside the audited code.
 - `secret-scanner` blocks any Write, and every commit, that contains a secret — **redact every secret you quote as evidence before it reaches the report** (a `/review:security` report once leaked a live key from `.output/`; the report is committed). This is your own discipline enforced in code.
 - `guardrail` blocks or confirms destructive Bash — keep your reconnaissance read-only.
 
@@ -101,7 +101,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

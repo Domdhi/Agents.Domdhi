@@ -158,7 +158,7 @@ Rate each category 0-10:
 
 ### 9. Report
 
-**Persist before reporting:** Write the full report below to `docs/.output/reviews/{YYMMDD-HHMM}-template-health-check.md`. Then display the same content in chat.
+**Persist before reporting:** Write the full report below to `docs/.output/findings/reviews/{YYMMDD-HHMM}-template-health-check.md`. Then display the same content in chat.
 
 ```markdown
 ## Template Health Check
@@ -204,7 +204,7 @@ Rate each category 0-10:
 
 After the report file is written, commit it:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:check-templates — {score}/50, {N} issues found
@@ -213,7 +213,7 @@ docs: /review:check-templates — {score}/50, {N} issues found
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYMMDD-HHMM}-template-health-check.md
+git add docs/.output/findings/reviews/{YYMMDD-HHMM}-template-health-check.md
 node .claude/core/commit.js
 ```
 

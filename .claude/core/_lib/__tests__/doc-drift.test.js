@@ -93,7 +93,7 @@ describe('detectDocDrift', () => {
     });
 
     it('ignoresTodosUnderOutputAndArchive', () => {
-        write('docs/.output/work/2026-01-01/task/TODO_scratch.md');  // ephemeral, skipped
+        write('docs/.output/.state/work/2026-01-01/task/TODO_scratch.md');  // ephemeral, skipped
         write('docs/.archive/TODO_old.md');                           // archive, skipped
         const r = detectDocDrift(root);
         expect(r.misplacedTodos).toEqual([]);

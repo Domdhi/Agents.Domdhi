@@ -159,7 +159,7 @@ Using Node.js for portability across CI environments.
       'pattern-b': { related: ['pattern-a'] },
     };
     tmp.write(
-      'docs/.output/memories/concepts/cross-references.json',
+      'docs/.output/.state/memory-concepts/cross-references.json',
       JSON.stringify(crossRefs, null, 2)
     );
 
@@ -187,7 +187,7 @@ Using Node.js for portability across CI environments.
 ### Recent Commits
 - abc1234 feat: something
 `;
-    tmp.write(`docs/.output/memories/daily/${today}.md`, dailyContent);
+    tmp.write(`docs/.output/.state/memory-daily/${today}.md`, dailyContent);
 
     const cutoffDate = new Date('2000-01-01');
     const result = loadDecisionData({
@@ -212,7 +212,7 @@ Using Node.js for portability across CI environments.
 
 **Branch:** main
 `;
-    tmp.write(`docs/.output/memories/daily/${oldDate}.md`, dailyContent);
+    tmp.write(`docs/.output/.state/memory-daily/${oldDate}.md`, dailyContent);
 
     // Cutoff is yesterday → old log is excluded
     const yesterday = new Date();
@@ -240,7 +240,7 @@ Using Node.js for portability across CI environments.
       content: { description: 'A test decision memory' },
     };
     tmp.write(
-      'docs/.output/memories/decisions/my-decision-record.json',
+      'docs/.output/.memory/decisions/my-decision-record.json',
       JSON.stringify(record, null, 2)
     );
 

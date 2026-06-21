@@ -5,7 +5,7 @@ argument-hint: [--text-only to skip HTML generation]
 
 # /review:status — Project Status Dashboard
 
-Parse all TODO files in `docs/` and show progress. Generates an HTML dashboard at `docs/.output/status.html`.
+Parse all TODO files in `docs/` and show progress. Generates an HTML dashboard at `docs/.output/.state/status.html`.
 
 ## Telemetry (run first)
 
@@ -32,8 +32,8 @@ The script:
 - Parses checkbox markers: `[ ]`, `[x]`, `[>]`, `[!]`, `[~]`
 - Parses master index tables (Phase Map, Epic Index) if present
 - Prints a text summary to stdout
-- Generates `docs/.output/status.html` (unless `--text-only`)
-- Also generates `docs/.output/decisions.html` — an interactive decision log visualization
+- Generates `docs/.output/.state/status.html` (unless `--text-only`)
+- Also generates `docs/.output/.state/decisions.html` — an interactive decision log visualization
   (decision-viz errors are non-fatal; status.html is always produced first)
 
 ### 2. Report
@@ -45,4 +45,4 @@ Display the text summary from the script output. If HTML was generated, mention 
 - This is a **read-only** command — no commits, no file modifications (except the generated dashboards)
 - Both HTML files are self-contained (inline CSS; `decisions.html` loads vis.js from CDN)
 - Works with both master index TODOs and per-epic checklists
-- `docs/.output/status.html` and `docs/.output/decisions.html` should be in `.gitignore` — generated artifacts
+- `docs/.output/.state/status.html` and `docs/.output/.state/decisions.html` should be in `.gitignore` — generated artifacts

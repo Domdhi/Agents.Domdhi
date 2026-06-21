@@ -41,7 +41,7 @@ Read the first line of `docs/product/requirements.md`. Check that it exists AND 
 
 - **Optional**: Read `docs/design/spec.md` for component/UI requirements (only if real, not template)
 - **Optional**: Read `docs/product/brief.md` for constraints (only if real, not template)
-- **Optional**: Read `docs/modules/*/research.md` or `docs/.output/research/**` for technical research findings
+- **Optional**: Read `docs/modules/*/research.md` or `docs/.output/findings/research/**` for technical research findings
 
 ### 2. Check for Existing Output (main agent)
 

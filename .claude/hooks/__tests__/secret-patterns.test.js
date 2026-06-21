@@ -269,7 +269,7 @@ describe('scanContent', () => {
         // it. A live CoinGecko key leaked this exact way.
         it('scanContent_coinGeckoBareToken_detected', () => {
             const content = 'leaked key CG-' + 'abcDEF123456ghiJKL789mn' + ' in config';
-            const findings = scanContent(content, 'docs/.output/reviews/audit.md');
+            const findings = scanContent(content, 'docs/.output/findings/reviews/audit.md');
             expect(findings.map(f => f.name)).toContain('CoinGecko API Key');
         });
 
@@ -363,7 +363,7 @@ describe('shouldSkipPath', () => {
         // docs/.output/ is deliberately NOT skipped — its generated reviews/
         // digests routinely quote config and are the most likely place to echo
         // a real secret (a /review:security report once leaked a live key here).
-        expect(shouldSkipPath('/project/docs/.output/reviews/x-security-audit.md')).toBe(false);
+        expect(shouldSkipPath('/project/docs/.output/findings/reviews/x-security-audit.md')).toBe(false);
         expect(shouldSkipPath('/project/docs/.output/handoffs/x-end-main.md')).toBe(false);
         expect(shouldSkipPath('/project/docs/.output/plans/my-plan.md')).toBe(false);
     });

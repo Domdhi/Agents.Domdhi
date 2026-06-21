@@ -312,8 +312,8 @@ function main() {
     const seed = parseInt(getFlag('--seed', '1337'), 10) || 1337;
 
     const projectDir = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-    const memoriesDir = path.join(projectDir, 'docs', '.output', 'memories');
-    const telemetryPath = path.join(projectDir, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+    const memoriesDir = path.join(projectDir, 'docs', '.output', '.memory');
+    const telemetryPath = path.join(projectDir, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
 
     const realConcepts = loadRealConcepts(memoriesDir);
     if (realConcepts.length === 0) {

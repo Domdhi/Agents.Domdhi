@@ -102,7 +102,7 @@ describe('shouldCapture', () => {
 
     it('shouldCapture_recentlyModifiedFile_returnsFalse', () => {
         // Create the daily log file in setupTmp with a fresh mtime (modified now)
-        const dailyDir = path.join(setupTmp.root, 'docs', '.output', 'memories', 'daily');
+        const dailyDir = path.join(setupTmp.root, 'docs', '.output', '.state', 'memory-daily');
         fs.mkdirSync(dailyDir, { recursive: true });
         const logPath = path.join(dailyDir, `${today}.md`);
         fs.writeFileSync(logPath, '# Day\n\n', 'utf8');
@@ -339,7 +339,7 @@ describe('handleBashPostToolUse_commitDetection', () => {
 describe('handleBashPostToolUse_dedup', () => {
     it('handleBashPostToolUse_hashAlreadyInLog_noExecSyncCall', () => {
         // Seed the daily log in CLAUDE_PROJECT_DIR (setupTmp.root) with the hash
-        const dailyDir = path.join(setupTmp.root, 'docs', '.output', 'memories', 'daily');
+        const dailyDir = path.join(setupTmp.root, 'docs', '.output', '.state', 'memory-daily');
         fs.mkdirSync(dailyDir, { recursive: true });
         const logPath = path.join(dailyDir, `${today}.md`);
         fs.writeFileSync(logPath, `# Day\n\nhash abc1234 already captured\n`, 'utf8');
@@ -361,7 +361,7 @@ describe('handleBashPostToolUse_dedup', () => {
     it('handleBashPostToolUse_newHash_callsExecSync', () => {
         // Daily log exists but does NOT contain the new hash.
         // Hash must be hex-only — the source regex is /([a-f0-9]{7,})/.
-        const dailyDir = path.join(setupTmp.root, 'docs', '.output', 'memories', 'daily');
+        const dailyDir = path.join(setupTmp.root, 'docs', '.output', '.state', 'memory-daily');
         fs.mkdirSync(dailyDir, { recursive: true });
         const logPath = path.join(dailyDir, `${today}.md`);
         fs.writeFileSync(logPath, `# Day\n\nhash abc1234 captured earlier\n`, 'utf8');
@@ -382,7 +382,7 @@ describe('handleBashPostToolUse_dedup', () => {
     });
 
     it('handleBashPostToolUse_duplicateHash_contentCountUnchanged', () => {
-        const dailyDir = path.join(setupTmp.root, 'docs', '.output', 'memories', 'daily');
+        const dailyDir = path.join(setupTmp.root, 'docs', '.output', '.state', 'memory-daily');
         fs.mkdirSync(dailyDir, { recursive: true });
         const logPath = path.join(dailyDir, `${today}.md`);
         const seed = '# Day\n\nhash abc1234 already captured\n';

@@ -41,7 +41,7 @@ describe('memory-guard', () => {
 
         it('countMemoriesInCategory_empty_returnsZero', () => {
             // Arrange
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
 
             // Act
             const count = countMemoriesInCategory(catDir);
@@ -52,9 +52,9 @@ describe('memory-guard', () => {
 
         it('countMemoriesInCategory_20files_returns20', () => {
             // Arrange
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < 20; i++) {
-                tmp.write(`memories/patterns/entry-${i}.json`, '{}');
+                tmp.write(`.memory/patterns/entry-${i}.json`, '{}');
             }
 
             // Act
@@ -66,9 +66,9 @@ describe('memory-guard', () => {
 
         it('countMemoriesInCategory_40files_returns40', () => {
             // Arrange
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < 40; i++) {
-                tmp.write(`memories/patterns/entry-${i}.json`, '{}');
+                tmp.write(`.memory/patterns/entry-${i}.json`, '{}');
             }
 
             // Act
@@ -80,9 +80,9 @@ describe('memory-guard', () => {
 
         it('countMemoriesInCategory_50files_returns50', () => {
             // Arrange
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < 50; i++) {
-                tmp.write(`memories/patterns/entry-${i}.json`, '{}');
+                tmp.write(`.memory/patterns/entry-${i}.json`, '{}');
             }
 
             // Act
@@ -105,11 +105,11 @@ describe('memory-guard', () => {
 
         it('countMemoriesInCategory_nonJsonFilesIgnored_returnsOnlyJsonCount', () => {
             // Arrange — mix of .json and other extensions
-            const catDir = tmp.mkdir('memories/patterns');
-            tmp.write('memories/patterns/entry-0.json', '{}');
-            tmp.write('memories/patterns/entry-1.json', '{}');
-            tmp.write('memories/patterns/readme.md', '# notes');
-            tmp.write('memories/patterns/temp.txt', 'temp');
+            const catDir = tmp.mkdir('.memory/patterns');
+            tmp.write('.memory/patterns/entry-0.json', '{}');
+            tmp.write('.memory/patterns/entry-1.json', '{}');
+            tmp.write('.memory/patterns/readme.md', '# notes');
+            tmp.write('.memory/patterns/temp.txt', 'temp');
 
             // Act
             const count = countMemoriesInCategory(catDir);
@@ -143,9 +143,9 @@ describe('memory-guard', () => {
 
         it('processEvent_belowThreshold_noWarning', () => {
             // Arrange — one below the 80% threshold
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < NEAR - 1; i++) {
-                tmp.write(`memories/patterns/e${i}.json`, '{}');
+                tmp.write(`.memory/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
             const filePath = path.join(catDir, 'new.json');
@@ -163,9 +163,9 @@ describe('memory-guard', () => {
 
         it('processEvent_atThreshold_mildWarning', () => {
             // Arrange — exactly at the 80% threshold
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < NEAR; i++) {
-                tmp.write(`memories/patterns/e${i}.json`, '{}');
+                tmp.write(`.memory/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
             const filePath = path.join(catDir, 'new.json');
@@ -185,9 +185,9 @@ describe('memory-guard', () => {
 
         it('processEvent_atMax_strongWarning', () => {
             // Arrange — at the cap (max)
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < CAP; i++) {
-                tmp.write(`memories/patterns/e${i}.json`, '{}');
+                tmp.write(`.memory/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
             const filePath = path.join(catDir, 'new.json');
@@ -208,9 +208,9 @@ describe('memory-guard', () => {
         it('processEvent_minimalProfile_returnsNullNoWarning', () => {
             // Arrange — minimal profile suppresses all guard warnings
             process.env.MEMORY_PROFILE = 'minimal';
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < 50; i++) {
-                tmp.write(`memories/patterns/e${i}.json`, '{}');
+                tmp.write(`.memory/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
             const filePath = path.join(catDir, 'new.json');
@@ -302,9 +302,9 @@ describe('memory-guard', () => {
 
         it('processEvent_alwaysReturnsNull', () => {
             // Arrange — processEvent return value is always null regardless of threshold
-            const catDir = tmp.mkdir('memories/patterns');
+            const catDir = tmp.mkdir('.memory/patterns');
             for (let i = 0; i < 50; i++) {
-                tmp.write(`memories/patterns/e${i}.json`, '{}');
+                tmp.write(`.memory/patterns/e${i}.json`, '{}');
             }
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
             const filePath = path.join(catDir, 'new.json');

@@ -101,7 +101,7 @@ node .claude/core/memory-manager.js search "<story title + AC keywords>"
 2. For each, read the summary line in the JSON output.
 3. If a result looks load-bearing, read the full memory file:
    ```bash
-   cat docs/.output/memories/{category}/{id}.json
+   cat docs/.output/.memory/{category}/{id}.json
    ```
 4. **Dedupe against the SessionStart hook's top-8** — that injection is already in your context as a `<project_memory>` system-reminder. Skip any hit whose `id` appears there.
 5. Carry the most relevant 1-2 hits forward into Step 4 (Plan) — call them out by id when they shape a decision.
@@ -251,7 +251,7 @@ Handle QA agent STATUS the same as dev agent (Step 6, Path B, B4).
 
 `TaskUpdate: "Implement" → in_progress`
 
-**Why per-dispatch memory injection?** The session-start-prime hook only runs once at session open. Sub-agents dispatched mid-session receive no memory context by default — they must reason from the prompt alone. Path B includes a Prior Learnings block populated from FTS5 search against the story's keywords, grounding the agent in project-specific decisions and patterns that would otherwise require hallucination or cross-session re-derivation. This replaces the cross-session grounding previously provided only via the session-start-prime hook. See `docs/.output/reviews/2026-04-20-adr-memory-unification.md` (Section 2) for the decision.
+**Why per-dispatch memory injection?** The session-start-prime hook only runs once at session open. Sub-agents dispatched mid-session receive no memory context by default — they must reason from the prompt alone. Path B includes a Prior Learnings block populated from FTS5 search against the story's keywords, grounding the agent in project-specific decisions and patterns that would otherwise require hallucination or cross-session re-derivation. This replaces the cross-session grounding previously provided only via the session-start-prime hook. See `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md` (Section 2) for the decision.
 
 ### 6a. Check for pending commits
 
@@ -412,7 +412,7 @@ Before assembling the prompt:
 2. Take the top 3–5 results ranked by `decayed_confidence * relevance`.
 3. For each result, read the full memory payload:
    ```bash
-   cat docs/.output/memories/{category}/{id}.json
+   cat docs/.output/.memory/{category}/{id}.json
    ```
    Include the `content` object summary in the prompt.
 4. Format each as a labeled snippet: `- [category/id]: 1-2 sentence summary`.
@@ -439,7 +439,7 @@ Read the agent's STATUS and act accordingly:
 | Status | Action |
 |--------|--------|
 | **DONE** | Proceed to Step 7 (gate) |
-| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification in Step 8. Log concern to docs/.output/agent-updates/{YYYY-MM-DD}.md. |
+| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification in Step 8. Log concern to docs/.output/evolution/agents/{YYYY-MM-DD}.md. |
 | **BLOCKED** | Read blocker. Fix if possible (missing file, wrong path). If truly blocked → mark story `[!]`, skip to report. |
 | **NEEDS_CONTEXT** | Answer the questions by reading more files. Re-dispatch with additional context. |
 
@@ -451,11 +451,11 @@ Regardless of status, review what the agent produced:
 - **Quality issues** — missing error handling, wrong patterns, incomplete implementation
 - **Good decisions** — agent discovered something useful not in the plan
 
-If misalignment: fix it directly (Main Agent), and log the issue for docs/.output/agent-updates/{YYYY-MM-DD}.md (Step 8).
+If misalignment: fix it directly (Main Agent), and log the issue for docs/.output/evolution/agents/{YYYY-MM-DD}.md (Step 8).
 
 #### B6. Inbox curation — promote sub-agent memory drafts
 
-Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). Before proceeding to the gate:
+Sub-agents flag draft memories to `docs/.output/.state/memory-inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). Before proceeding to the gate:
 
 1. List the inbox:
    ```bash
@@ -618,7 +618,7 @@ Log **every** agent misalignment, no matter how small. Model doesn't matter — 
 
 We only put up rails for things that go wrong. Do not log "what worked well" — noise crowds out signal.
 
-If any misalignment or quality issue was observed in Step 6, append to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
+If any misalignment or quality issue was observed in Step 6, append to today's day-scoped log `docs/.output/evolution/agents/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
 ```markdown
 ## {date} — {story ID}
 
@@ -637,7 +637,7 @@ If any misalignment or quality issue was observed in Step 6, append to today's d
 node .claude/core/_lib/attribution-ledger.js append \
   '{"story_id":"{story ID}","agent":"{agent-type}","model":"{sonnet|opus}","files_touched":["path/a","path/b"],"status":"{DONE|DONE_WITH_CONCERNS|BLOCKED}"}'
 ```
-Skip only if no agent was dispatched (Opus-direct path). The ledger lands at `docs/.output/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
+Skip only if no agent was dispatched (Opus-direct path). The ledger lands at `docs/.output/.state/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
 
 ### 9d. Regenerate the session handoff — session-handoff skill
 
@@ -655,7 +655,7 @@ Why before commit: including the handoff in the same commit as the implementatio
 
 Stage the plan file (the one from Step 4c — it still says `**Status:** planning` right now; Step 10 will update it post-commit), the implementation files, TODO updates, and the handoff:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: {story-id} — {summary}
@@ -716,7 +716,7 @@ The resulting plan file is now a full record: intent at top, outcome at bottom.
 {table from Step 8}
 
 ### Agent Performance
-{any issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md, or "No issues"}
+{any issues logged to docs/.output/evolution/agents/{YYYY-MM-DD}.md, or "No issues"}
 
 ### Next Task
 {Next pending [ ] story from the checklist, or "Checklist complete"}
@@ -759,7 +759,7 @@ This mode is for: "we just talked through a design — now do it."
 6. **Context assembly matters for delegation.** When delegating (Path B), a rich Sonnet prompt with variable names and code snippets prevents hallucination. When Main Agent implements directly (Path A), the context from Step 3 is sufficient.
 7. **Mark [>] before starting, [x] after committing.** Session crashes leave a trail.
 8. **Main Agent fixes gate failures directly.** Don't re-dispatch to Sonnet for build errors.
-9. **Log agent fuck-ups.** Every misalignment — no matter how small — goes to `docs/.output/agent-updates/{YYYY-MM-DD}.md`. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Don't log what worked; rails are for failures only.
+9. **Log agent fuck-ups.** Every misalignment — no matter how small — goes to `docs/.output/evolution/agents/{YYYY-MM-DD}.md`. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Don't log what worked; rails are for failures only.
 10. **Check for pending commits before implementing.** Don't build on dirty state.
 11. **Every `/do` ends with a handoff regeneration.** Step 9d uses the `session-handoff` skill to write this run's session handoff (`docs/.output/handoffs/`, path from `handoff-path.js write do`). Don't skip it even for trivial tasks — the next session's `/prime` depends on it.
 12. **One task per invocation.** Use `/run-todo` for batch execution.

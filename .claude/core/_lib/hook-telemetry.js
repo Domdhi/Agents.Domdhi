@@ -3,7 +3,7 @@
  *
  * Hook-duration telemetry is a blind-spot opportunity noted in Section D of
  * the competitive comparison; no competitor measures hook execution time.
- * See `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` §D.
+ * See `docs/.output/findings/research/competitive/_hooks-and-core-scripts-comparison.md` §D.
  *
  * Usage from a hook:
  *
@@ -11,7 +11,7 @@
  *     const t = startHookTiming('my-hook');
  *     try { ... } finally { emitHookEvent(t, outcome); }
  *
- * Events land at docs/.output/telemetry/hook-events.jsonl and can be consumed
+ * Events land at docs/.output/.state/telemetry/hook-events.jsonl and can be consumed
  * by a future /retro or /listen command for latency analysis.
  *
  * Hook adoption shipped in P1.7 (command-usage-logger.cjs, damage-control.cjs,
@@ -95,7 +95,13 @@ function emitHookEvent(token, outcome) {
  * (Bash-guardrail) events, while feedback-digest's readScannerBlocks counts the
  * scanner-sourced ones — both readers share this one file, partitioned by source.
  *
- * @param {{ decision: string, rule?: string|null, tier?: string|null, source?: string|null }} hit
+ * The optional `pathClass` field (C1) is a BOUNDED enum class for the first path
+ * of a delete-style command (e.g. 'build-artifact', 'tmp', 'node_modules',
+ * 'project-path') — NOT the raw path. It preserves the secret-safety contract
+ * above (never the command) while letting guardrail-stats answer "is this rule
+ * just noise on disposable paths?". null for non-delete rules.
+ *
+ * @param {{ decision: string, rule?: string|null, tier?: string|null, source?: string|null, pathClass?: string|null }} hit
  * @returns {object|null} The event written, or null on any failure.
  */
 function emitGuardrailHit(hit) {
@@ -107,6 +113,7 @@ function emitGuardrailHit(hit) {
             rule: hit.rule != null ? hit.rule : null,
             tier: hit.tier != null ? hit.tier : null,
             source: hit.source != null ? hit.source : null,  // e.g. 'secret-scanner'; null = Bash guardrail
+            pathClass: hit.pathClass != null ? hit.pathClass : null,  // C1: bounded delete-path class; null = non-delete
             timestamp: new Date().toISOString(),
         };
         appendJsonl(getJsonlPath(getProjectRoot(), 'guardrail-events.jsonl'), entry, {

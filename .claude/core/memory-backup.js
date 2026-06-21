@@ -2,11 +2,12 @@
 /**
  * memory-backup.js — copy the memory store to an out-of-repo backup location.
  *
- * WHY: docs/.output/memories/ (the JSON tree + memories.db) is gitignored, so it
- * survives git accidents — but that also means NOTHING protects it from
- * `git clean -fdx`, an in-repo `rm`, disk corruption, or machine loss. The db is
- * a single binary with no redundancy. This mirrors the store to a sibling folder
- * OUTSIDE the repo tree, so a repo-level wipe can't reach it.
+ * WHY: the split store (ADR 0006 Am. 2) keeps the curated JSON source at the
+ * TRACKED docs/.output/.memory/ — git now protects that — but the rebuilt FTS5
+ * index at docs/.output/.state/memory-index/memories.db stays gitignored, and a
+ * `git clean -fdx`, in-repo `rm`, disk corruption, or machine loss can still
+ * reach the JSON working copy between commits. This mirrors the JSON source to a
+ * sibling folder OUTSIDE the repo tree, so a repo-level wipe can't reach it.
  *
  * WHAT IT WRITES (under --to, default `<repo-parent>/_<repo>-memory-backup`):
  *   memories-latest/         — full mirror, refreshed each run (fast restore)
@@ -18,7 +19,7 @@
  * copy); the suspect state is written to memories-SUSPECT-<stamp>/ and the run
  * exits non-zero so a scheduler surfaces it.
  *
- * RESTORE: copy a backup's memories/ back over docs/.output/memories/, then
+ * RESTORE: copy a backup's memories/ back over docs/.output/.memory/, then
  *   node .claude/core/memory-manager-cli.js rebuild-index     (if you kept json)
  *   node .claude/core/memory-manager-cli.js restore-from-db   (if you kept only the db)
  *
@@ -117,8 +118,10 @@ function countJson(dir) {
 }
 
 function main(argv) {
-  const memoriesDir = path.join(PROJECT_ROOT, 'docs', '.output', 'memories');
-  const dbPath = path.join(memoriesDir, 'memories.db');
+  // Split store (ADR 0006 Am. 2): mirror the curated JSON source (.memory/);
+  // the integrity check runs against the rebuilt db under .state/memory-index/.
+  const memoriesDir = path.join(PROJECT_ROOT, 'docs', '.output', '.memory');
+  const dbPath = path.join(PROJECT_ROOT, 'docs', '.output', '.state', 'memory-index', 'memories.db');
   const opts = parseArgs(argv);
   const now = new Date();
 

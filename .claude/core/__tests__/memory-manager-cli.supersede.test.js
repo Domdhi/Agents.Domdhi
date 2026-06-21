@@ -33,7 +33,7 @@ function seedMemory(tmp, category, id, overrides = {}) {
         content: { description: `Test memory ${id}` },
         ...overrides,
     };
-    const dir = path.join(tmp.root, 'docs', '.output', 'memories', category);
+    const dir = path.join(tmp.root, 'docs', '.output', '.memory', category);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(content, null, 2));
 }
@@ -42,7 +42,7 @@ function seedMemory(tmp, category, id, overrides = {}) {
  * Read a memory JSON file from tmp, return parsed object (or null if absent).
  */
 function readMemory(tmp, category, id) {
-    const filePath = path.join(tmp.root, 'docs', '.output', 'memories', category, `${id}.json`);
+    const filePath = path.join(tmp.root, 'docs', '.output', '.memory', category, `${id}.json`);
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }

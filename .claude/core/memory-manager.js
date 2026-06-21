@@ -3,8 +3,9 @@
 /**
  * Memory Manager - Dual-storage: JSON files (source of truth) + SQLite FTS5 (search index)
  *
- * JSON files at docs/.output/memories/{category}/{id}.json — human-readable, git-trackable
- * SQLite at docs/.output/memories/memories.db — FTS5 full-text search (Node 25+ built-in)
+ * Split store (ADR 0006 Amendment 2 — see _lib/memory-paths.js):
+ *   JSON source at docs/.output/.memory/{category}/{id}.json — TRACKED, human-readable
+ *   SQLite index at docs/.output/.state/memory-index/memories.db — gitignored, rebuilt from JSON
  *
  * SQLite is optional — gracefully falls back to JSON scan if unavailable.
  */
@@ -20,6 +21,7 @@ const {
 } = require('./_lib/memory-decay');
 const { parseFrontmatter: parseFm } = require('./_lib/frontmatter');
 const { resolveProjectRoot } = require('./_lib/project-root');
+const { memoryPaths } = require('./_lib/memory-paths');
 const { lintMemories: lintMemoriesLib } = require('./_lib/memory-lint');
 const {
     ingestAgentMemory: ingestAgentMemoryLib,
@@ -176,13 +178,18 @@ if (nodeMajor >= 24) {
 
 class MemoryManager {
     constructor() {
-        // Anchor the store to the MAIN worktree so every git worktree shares
-        // one memory store (see _lib/project-root.js — the worktree memory-loss
-        // fix). CLAUDE_PROJECT_DIR still overrides.
+        // Split store (ADR 0006 Amendment 2): the curated JSON source resolves
+        // via the CURRENT worktree (jsonRoot, now TRACKED), while the rebuilt db
+        // and transient drafts/logs stay anchored to the MAIN worktree under
+        // .state/ (gitignored). See _lib/memory-paths.js for the resolver split.
+        // CLAUDE_PROJECT_DIR still overrides both. this.projectRoot keeps the
+        // anchored root — the active-days resolver reads git history from it.
         const projectRoot = resolveProjectRoot(path.resolve(__dirname, '..', '..'));
         this.projectRoot = projectRoot;
-        this.memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
-        this.dbPath = path.join(this.memoriesDir, 'memories.db');
+        const paths = memoryPaths(path.resolve(__dirname, '..', '..'));
+        this.memoriesDir = paths.jsonRoot;
+        this.dbPath = paths.dbPath;
+        this.inboxDir = paths.inboxDir;
         this.categories = Object.values(CONSTANTS.MEMORY_CATEGORIES);
         this.db = null;
         this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
@@ -206,6 +213,11 @@ class MemoryManager {
             for (const category of this.categories) {
                 fsSync.mkdirSync(path.join(this.memoriesDir, category), { recursive: true });
             }
+            // The db and inbox now live under the split .state/ half, no longer
+            // colocated inside memoriesDir — create their parents too so the
+            // first write/search/inbox op never races a missing dir.
+            fsSync.mkdirSync(path.dirname(this.dbPath), { recursive: true });
+            fsSync.mkdirSync(this.inboxDir, { recursive: true });
         } catch { /* best-effort — a read-only FS shouldn't crash construction */ }
     }
 
@@ -724,33 +736,26 @@ class MemoryManager {
 
     /**
      * Record genuine recalls (ME-4.1): bump usage_count by exactly 1 for each
-     * recalled memory and persist to BOTH the JSON source of truth and the SQLite
-     * row (write-through — the SQLite search path returns a throwaway row object,
-     * so we re-read the JSON and UPDATE the column rather than mutating a copy).
-     * This is the ONLY place usage_count grows now; passive injection never calls
-     * search, so injection reads still leave no signal (honest lower bound).
+     * recalled memory. usage_count lives ONLY in the gitignored `.state/` index
+     * now — never the tracked `.memory/` JSON. (W1B store split / ADR 0006 Am. 2
+     * made the JSON a git-tracked synced source; writing this soft ranking
+     * tiebreaker there churned 20+ files on every search and produced cross-machine
+     * merge conflicts.) The increment is done in-place in SQL so it grows correctly
+     * across searches; on an index rebuild it reseeds from the JSON baseline
+     * (acceptable — usage is a tiebreaker, never load-bearing). This is the ONLY
+     * place usage_count grows; passive injection never calls search, so injection
+     * reads still leave no signal (honest lower bound). When there is no index
+     * (JSON-scan fallback window), recalls go unrecorded — by design.
      *
-     * @param {Array<{category: string, id: string}>} results
+     * @param {Array<{id: string}>} results
      */
     async _recordRecall(results) {
+        if (!this.db) return; // no index to record into — the JSON source stays clean
         for (const r of results) {
-            const memory = await this.readMemory(r.category, r.id);
-            if (!memory) continue;
-            memory.usage_count = (memory.usage_count || 0) + 1;
-            const filename = MemoryManager.idToFilename(r.id);
-            const filePath = path.join(this.memoriesDir, r.category, `${filename}.json`);
             try {
-                await fs.writeFile(filePath, JSON.stringify(memory, null, 2));
-            } catch (e) {
-                console.error(`_recordRecall: JSON write failed for ${r.category}/${r.id}:`, e.message);
-                continue;
-            }
-            if (this.db) {
-                try {
-                    this.db.prepare('UPDATE memories SET usage_count = ? WHERE id = ?')
-                        .run(memory.usage_count, r.id);
-                } catch { /* non-fatal: JSON is the source of truth */ }
-            }
+                this.db.prepare('UPDATE memories SET usage_count = usage_count + 1 WHERE id = ?')
+                    .run(r.id);
+            } catch { /* non-fatal: a soft tiebreaker must never break search */ }
         }
     }
 
@@ -769,7 +774,7 @@ class MemoryManager {
         try {
             if (!Array.isArray(results) || results.length === 0) return;
             const ts = new Date().toISOString();
-            const jsonlPath = path.join(this.projectRoot, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+            const jsonlPath = path.join(this.projectRoot, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
             appendJsonl(jsonlPath, {
                 timestamp: ts,
                 type: 'memory_access',
@@ -1116,7 +1121,7 @@ class MemoryManager {
      * @returns {{ injections: object[], accesses: object[], hasLines: boolean }}
      */
     _readInjectionTelemetry() {
-        const logPath = path.join(this.projectRoot, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+        const logPath = path.join(this.projectRoot, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
         try {
             if (!fsSync.existsSync(logPath)) {
                 return { injections: [], accesses: [], hasLines: false };
@@ -1317,7 +1322,10 @@ class MemoryManager {
     // ────────────────────────────────────────────────────────────────────────
 
     _inboxDir() {
-        return path.join(this.memoriesDir, '_inbox');
+        // Split store (ADR 0006 Amendment 2): the inbox is transient state, no
+        // longer colocated under the tracked JSON source — it lives at
+        // .state/memory-inbox/ (resolved once in the constructor).
+        return this.inboxDir;
     }
 
     /**

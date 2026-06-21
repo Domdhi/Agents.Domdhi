@@ -3,7 +3,7 @@
 /**
  * Daily Log — Standalone utility for capturing session learnings
  *
- * Appends a timestamped entry to docs/.output/memories/daily/{YYYY-MM-DD}.md
+ * Appends a timestamped entry to docs/.output/.state/memory-daily/{YYYY-MM-DD}.md
  * with git state, in-progress work, and key decisions.
  *
  * Designed to be called from any trigger:
@@ -12,7 +12,7 @@
  *   - Manual: node .claude/core/daily-log.js capture [--trigger <name>]
  *
  * The daily log feeds the memory acquisition pipeline:
- *   daily-log.js → docs/.output/memories/daily/{YYYY-MM-DD}.md
+ *   daily-log.js → docs/.output/.state/memory-daily/{YYYY-MM-DD}.md
  *     → memory-extractor.js (manual Haiku, brownfield only)
  *     → memory-manager.js create
  *
@@ -238,8 +238,8 @@ Usage:
   node daily-log.js note "text" [--trigger name]  Capture a free-text note
 
 Triggers: pre-compaction, end, remember, manual (default)
-Output:   docs/.output/memories/daily/{YYYY-MM-DD}.md (appended)
-Pipeline: daily-log.js → docs/.output/memories/daily/{YYYY-MM-DD}.md (captured) → memory-extractor.js extract (manual) → memory-manager.js create`);
+Output:   docs/.output/.state/memory-daily/{YYYY-MM-DD}.md (appended)
+Pipeline: daily-log.js → docs/.output/.state/memory-daily/{YYYY-MM-DD}.md (captured) → memory-extractor.js extract (manual) → memory-manager.js create`);
     }
 }
 

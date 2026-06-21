@@ -1,5 +1,5 @@
 // Tests for the inbox pattern (R-A): sub-agents flag draft memories to
-// docs/.output/memories/_inbox/, Main Agent promotes/discards on return.
+// .state/memory-inbox/, Main Agent promotes/discards on return.
 //
 // Plan: docs/.output/plans/2026-05-11-do-r-a-inbox-pattern.md
 
@@ -34,7 +34,9 @@ function closeManagers() {
 }
 
 function inboxDir() {
-  return path.join(tmp.root, 'docs', '.output', 'memories', '_inbox');
+  // Split store (ADR 0006 Am. 2): inbox is transient state → .state/memory-inbox
+  // (inboxDir per _lib/memory-paths.js), no longer under the JSON source.
+  return path.join(tmp.root, 'docs', '.output', '.state', 'memory-inbox');
 }
 
 function writeInboxFile(id, payload) {

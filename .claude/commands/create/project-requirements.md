@@ -36,7 +36,7 @@ If `$ARGUMENTS` contains `--yolo`, set YOLO_MODE = true. Strip `--yolo` from INP
 Check that at least ONE of these files exists AND does not contain `<!-- @@template -->` on its first line:
 - `docs/product/brief.md`
 - `docs/product/brainstorm.md`
-- Any file matching `docs/modules/*/research.md` or `docs/.output/research/**`
+- Any file matching `docs/modules/*/research.md` or `docs/.output/findings/research/**`
 - `docs/architecture/overview.md` — **brownfield exit (C8):** a real reverse-engineered architecture from `/onboard` is a valid upstream artifact. `/onboard` deliberately produces architecture (not a brief), so without this a brownfield repo dead-ends here with no onboard-native path to requirements. When this is the only real artifact, draw requirements from it in Reverse-Engineering Mode.
 
 **If NONE of them are real (all missing or all template-only):**

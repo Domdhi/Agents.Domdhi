@@ -132,6 +132,10 @@ nudge_patterns:
   #   node_modules              (always reinstallable)
   #   /var/folders/             (macOS GUI temp)
   #   .sandbox                  (the repo's gitignored disposable area)
+  #   bin/ obj/ dist/           regenerable build output (also ./bin/ etc.)
+  #   coverage/ TestResults/    regenerable test/coverage output
+  # NOTE: .output/ and .worktrees/ are deliberately NOT exempt — deleting them
+  # destroys generated reports / live worktrees, so they still nudge. (2026-06-21)
   # Real project-path deletes (rm -rf ./src, repo root, ~, /, sudo rm -rf /etc)
   # nudge first, then confirm via `# guardrail:confirm`. The path-tier check
   # (zeroAccess/readOnly/noDelete) remains the hard guard for protected paths.
@@ -144,7 +148,7 @@ nudge_patterns:
   # `;`/`&`/`|`/`(`), so `legit rm` and `X=git rm` (a var-assignment prefix on a
   # real rm) still fire — only a standalone `git rm` is exempt. (sweep A3)
   # (Dom 2026-06-03; first-arg-bound 2026-06-05; moved confirm→nudge + git-rm-exempt 2026-06-06; boundary-anchored 2026-06-06)
-  - /(?<!(?:^|[\s;&|(])git )rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox))/
+  - /(?<!(?:^|[\s;&|(])git )rm\s+-[a-z]*[rf][a-z]*\s+(?!["']?(\.?\/?tmp\/|\/tmp|\$\{?T|mktemp|node_modules|\/var\/folders\/|\.sandbox|\.?\/?bin\/|\.?\/?obj\/|\.?\/?dist\/|\.?\/?coverage\/|\.?\/?TestResults\/))/
   - /del \/s \/q/                      # Windows: silent recursive delete (cmd.exe)
   # PowerShell recursive force remove. `.*` (not `.+`) so the canonical single-space
   # `Remove-Item foo -Recurse -Force` matches, and a second alternation covers the
@@ -152,11 +156,11 @@ nudge_patterns:
   - /Remove-Item\b.*(-Recurse\b.*-Force|-Force\b.*-Recurse)\b/
 
   # --- Git: Working tree destruction (moved from confirm 2026-06-06) ---
-  # All reversible via a stash/backup first, so nudge ("git stash" or a backup
-  # branch first) before asking. Escalate with `# guardrail:confirm` when the
-  # discard is genuinely intended and nothing worth keeping is in the tree.
+  # Only the WORK-LOSING `git reset --hard` is nudged (stash first). Non-hard
+  # resets — `--soft`, `--mixed`/default, `git reset HEAD~1`, `git reset -- <file>`
+  # (unstaging) — are safe & reversible (they never touch the working tree), so
+  # they are NOT nudged; nudging them was pure friction. (narrowed 2026-06-21)
   - git reset --hard                   # discards all uncommitted changes → stash first
-  - /git reset(?! --hard)/             # git reset without --hard (mixed/soft modes)
   - git checkout -- .                  # bulk-resets tracked files → stash first
   - git clean -f                       # deletes untracked files → `git clean -n` (dry-run) first
   - git clean -fd                      # also removes untracked directories → dry-run first

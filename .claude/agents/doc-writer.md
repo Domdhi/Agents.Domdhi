@@ -74,7 +74,7 @@ Before you start, consult the project's memory store for what earlier sessions a
 
 You don't have Bash, so search the store with Grep over its JSON. Pick 2–4 concrete terms from your task (the subsystem, the doc, the concept) and grep the memory tree:
 
-    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/.memory"  glob="*.json"  output_mode="files_with_matches"
 
 Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-approaches/`. Apply what they say — a `decisions` or `constraints` memory about how this project names or structures things wins. But memory is secondary to the code: verify every claim against the implementation before you write it. If the dispatching command handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed.
 
@@ -96,7 +96,7 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-a
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

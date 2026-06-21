@@ -104,7 +104,7 @@ Mark each skipped question in the internal codebase map so the architecture doc 
 
 #### 4a. Persist scan results (BEFORE delegation)
 
-Write the codebase map to `docs/.output/work/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
+Write the codebase map to `docs/.output/.state/work/{YYYY-MM-DD}/onboard-scan.md` so a session crash before Step 5 doesn't force a full re-scan.
 
 ```markdown
 # Onboard Scan — {project name inferred from git or directory} ({YYYY-MM-DD})
@@ -227,7 +227,7 @@ node .claude/core/_lib/doc-drift.js
 - Legacy doc, no canonical → you already wrote the canonical in Steps 5–6; archive the legacy.
 - Duplicate basename (root vs `todo/`) → keep the canonical (`todo/`), remove the root copy.
 
-**3. Untrack stray ignored files (F7):** files committed BEFORE the `.gitignore` managed block existed stay tracked even though they now match an ignore rule (e.g. a root `domdhi.db`, `docs/.output/memories/`). Untrack them so they stop versioning:
+**3. Untrack stray ignored files (F7):** files committed BEFORE the `.gitignore` managed block existed stay tracked even though they now match an ignore rule (e.g. a root `domdhi.db`, `docs/.output/.state/` artifacts — but NOT `docs/.output/.memory/`, which is intentionally tracked). Untrack them so they stop versioning:
 ```bash
 git ls-files -ci --exclude-standard          # lists tracked-but-now-ignored files
 git ls-files -ci --exclude-standard -z | xargs -0 -r git rm --cached
@@ -297,10 +297,10 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md.
 Stage the files created or modified by this run specifically:
 - `docs/architecture/overview.md`
 - `docs/product/context.md`
-- `docs/.output/work/{date}/onboard-scan.md`
+- `docs/.output/.state/work/{date}/onboard-scan.md`
 - `CLAUDE.md` (only if it was modified in Step 7)
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /onboard — {project name} reverse-engineered
@@ -314,7 +314,7 @@ node .claude/core/commit.js
 
 ### 9b. Capture Feedback Report
 
-Chain `/review:feedback` as the final action. It rolls the just-captured telemetry (the onboard invocation logged in Step 0, the chained `/review:specialize`, gate runs, hooks, the freshly-written memories) plus a short agent self-review into `docs/.output/reviews/feedback-{date}.md` + `.json`, and self-commits.
+Chain `/review:feedback` as the final action. It rolls the just-captured telemetry (the onboard invocation logged in Step 0, the chained `/review:specialize`, gate runs, hooks, the freshly-written memories) plus a short agent self-review into `docs/.output/findings/reviews/feedback-{date}.md` + `.json`, and self-commits.
 
 ```
 /review:feedback

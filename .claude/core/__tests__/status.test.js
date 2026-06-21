@@ -630,7 +630,7 @@ describe('status', () => {
     describe('computeTelemetryMetrics', () => {
         const makeTelemetryProject = (jsonlLines) => {
             const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-tel-'));
-            const telDir = path.join(root, 'docs', '.output', 'telemetry');
+            const telDir = path.join(root, 'docs', '.output', '.state', 'telemetry');
             fs.mkdirSync(telDir, { recursive: true });
             fs.writeFileSync(
                 path.join(telDir, 'command-usage.jsonl'),
@@ -705,12 +705,12 @@ describe('status', () => {
             }
         });
 
-        it('counts session directories under docs/.output/sessions/', () => {
+        it('counts session directories under docs/.output/.state/sessions/', () => {
             const { computeTelemetryMetrics } = require('../status');
             const root = makeTelemetryProject([
                 JSON.stringify({ type: 'command_invocation', command: '/do', timestamp: '2026-06-01T00:00:00Z' }),
             ]);
-            const sessionsDir = path.join(root, 'docs', '.output', 'sessions');
+            const sessionsDir = path.join(root, 'docs', '.output', '.state', 'sessions');
             fs.mkdirSync(path.join(sessionsDir, 'session-01'), { recursive: true });
             fs.mkdirSync(path.join(sessionsDir, 'session-02'), { recursive: true });
             // A file in the sessions dir should not count
@@ -744,7 +744,7 @@ describe('status', () => {
         it('parses memory-benchmark.jsonl and returns hit rate for last 30 days', () => {
             const { computeTelemetryMetrics } = require('../status');
             const root = fs.mkdtempSync(path.join(os.tmpdir(), 'status-membench-'));
-            const telDir = path.join(root, 'docs', '.output', 'telemetry');
+            const telDir = path.join(root, 'docs', '.output', '.state', 'telemetry');
             fs.mkdirSync(telDir, { recursive: true });
             // Need a command-usage.jsonl so computeTelemetryMetrics doesn't return null
             fs.writeFileSync(

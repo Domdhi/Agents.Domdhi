@@ -54,9 +54,21 @@ function createTmpDir({ prefix = 'domdhi-test-' } = {}) {
 
     /**
      * Remove the entire tmp directory tree.
+     *
+     * Windows-resilient: a test may leave a background subprocess holding a handle
+     * inside root when cleanup runs — e.g. session-start-prime's fire-and-forget
+     * FTS-index rebuild (`child.unref()`), which opens the db under root. POSIX
+     * unlinks an open file fine; Windows throws EPERM/EBUSY. The assertions have
+     * already completed by afterEach, so a lingering lock is not a test failure:
+     * retry (Node's documented remedy for this) and, if a handle is still stubborn,
+     * swallow only the lock codes (the OS reaps the temp dir) — never mask a real error.
      */
     cleanup() {
-      fs.rmSync(root, { recursive: true, force: true });
+      try {
+        fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      } catch (err) {
+        if (err.code !== 'EPERM' && err.code !== 'EBUSY' && err.code !== 'ENOTEMPTY') throw err;
+      }
     },
   };
 }

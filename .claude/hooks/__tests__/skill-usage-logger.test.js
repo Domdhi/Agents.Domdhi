@@ -80,7 +80,7 @@ describe('processEvent — subagent dispatch (the S-PI.4 producer)', () => {
   });
 
   function readRows() {
-    const jsonl = path.join(sandbox, 'docs', '.output', 'telemetry', 'skill-usage.jsonl');
+    const jsonl = path.join(sandbox, 'docs', '.output', '.state', 'telemetry', 'skill-usage.jsonl');
     if (!fs.existsSync(jsonl)) return [];
     return fs.readFileSync(jsonl, 'utf8')
       .split('\n')

@@ -125,11 +125,11 @@ Exit 1 means drift was found — fold every reported item (legacy docs, duplicat
 Write the full drift analysis to disk before reporting:
 
 ```bash
-mkdir -p docs/.output/reviews
+mkdir -p docs/.output/findings/reviews
 ```
 
 Write the complete sync check output (all agent findings + dead references) to:
-`docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md`
+`docs/.output/findings/reviews/{YYMMDD-HHMM}-sync-check.md`
 
 File format:
 ```markdown
@@ -144,7 +144,7 @@ File format:
 
 Stage and commit the sync check output file:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:check-sync — {scope}, {N} drift items, {N} dead links
@@ -153,7 +153,7 @@ docs: /review:check-sync — {scope}, {N} drift items, {N} dead links
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md
+git add docs/.output/findings/reviews/{YYMMDD-HHMM}-sync-check.md
 node .claude/core/commit.js
 ```
 
@@ -166,7 +166,7 @@ Assemble agent results + dead reference check into the final report, including t
 
 **Date**: {YYYY-MM-DD}
 **Scope**: {all | architecture | stories | prd}
-**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-sync-check.md`
+**Output**: `docs/.output/findings/reviews/{YYMMDD-HHMM}-sync-check.md`
 
 ### Architecture Sync {agent rating}
 | Item | Doc Says | Reality | Status | Delta |

@@ -79,7 +79,7 @@ INPUT: $ARGUMENTS — optional scope hint. Two forms:
    ```
    Record `total_memories`, per-category counts, and `lint` score as the BEFORE numbers.
 3. **Resolve scope** from INPUT (PR range → themes + epics, or epic list → epics).
-4. **Compute the run stamp once** — `date +%y%m%d-%H%M` (e.g. `260606-1642`) — and reuse this SAME `{YYMMDD-HHMM}` for **every** artifact this sweep writes (the plan, each phase's report, the final report) so one run's files sort together and a same-day re-run never clobbers a prior run. **Resuming a dead sweep:** if a `*-sweep.md` from today already exists with an incomplete Phase Log, reuse ITS stamp (the most recent one) instead of minting a new one, so you append to the same plan. Then **write the sweep plan** to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md` with a `## Phase Log` section. This is the durable artifact — if the session dies mid-sweep, the plan + completed-phase markers survive and the sweep is resumable (skip phases already marked `[x]` in the Phase Log).
+4. **Compute the run stamp once** — `date +%y%m%d-%H%M` (e.g. `260606-1642`) — and reuse this SAME `{YYMMDD-HHMM}` for **every** artifact this sweep writes (the plan, each phase's report, the final report) so one run's files sort together and a same-day re-run never clobbers a prior run. **Resuming a dead sweep:** if a `*-sweep.md` from today already exists with an incomplete Phase Log, reuse ITS stamp (the most recent one) instead of minting a new one, so you append to the same plan. Then **write the sweep plan** to `docs/.output/findings/reviews/{YYMMDD-HHMM}-sweep.md` with a `## Phase Log` section. This is the durable artifact — if the session dies mid-sweep, the plan + completed-phase markers survive and the sweep is resumable (skip phases already marked `[x]` in the Phase Log).
 
 ---
 
@@ -90,7 +90,7 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 1. Classify the in-scope PRs/commits into themes (e.g. auth, data, API, UI, infra/CI). **Skip pure-infra/CI and doc-only changes** unless `--review-scope all`.
 2. **Tell every reviewer to ignore generated/vendored code** (lockfiles, `dist/`, minified bundles, migration scaffolding/snapshots) — sanity-check intent only.
 3. Dispatch one `code-reviewer` agent per theme, in parallel (background OK). Omit the `model:` param so each runs on the **Sonnet floor** (code-reviewer's default — sweep is broad maintenance, not a high-stakes gate). Escalate a specific theme to `model: opus` only if it touches a HIGH-risk-tier path (security, auth, data-integrity, migrations). Each gets the merge commits, diffs via `git diff <hash>^1 <hash>` (fallback `^2`), and returns a CRITICAL/MAJOR/MINOR/NIT findings table. They auto-load the `code-review` skill — do not paste the rubric.
-4. Consolidate all findings into `docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`.
+4. Consolidate all findings into `docs/.output/findings/reviews/{YYMMDD-HHMM}-code-review.md`.
 5. Commit (unless `--single-commit`) per the convention below: `docs: /sweep p1 — code review, {N} findings ({C}C/{M}M/{m}m)`.
 6. Append the findings summary to the sweep plan's Phase Log — **the retro consumes this.**
 
@@ -98,9 +98,9 @@ Reuses the `/review:code-review` methodology, but **dispatches reviewers in para
 
 Reuses `/retro` — **as if invoked with `--skip-review`**, because Phase 1 already ran the code-review pass that `/retro` would otherwise run itself. Do NOT re-review here; feed the Phase 1 findings in instead. One retro per epic in scope (or one consolidated retro if INPUT was a single PR range with no clear epic split).
 
-1. Gather data IN THE MAIN AGENT (agents have no Bash): git stats for the epic's commits, TODO Execution Log, work-doc plans, telemetry (`docs/.output/telemetry/command-usage.jsonl` if present), **and the Phase 1 code-review findings** (these populate the retro's *Code Review Findings* section — no second review).
+1. Gather data IN THE MAIN AGENT (agents have no Bash): git stats for the epic's commits, TODO Execution Log, work-doc plans, telemetry (`docs/.output/.state/telemetry/command-usage.jsonl` if present), **and the Phase 1 code-review findings** (these populate the retro's *Code Review Findings* section — no second review).
 2. Run `/review:check-sync` for doc drift; capture findings.
-3. Dispatch `doc-writer` (per the retro template) to write `docs/.output/reviews/retro-{epic-slug}.md`. **Include the output-boundary instruction verbatim** ("Your ONLY output is the retro markdown… Do NOT write memories…") — the main agent owns memory extraction in Phase 3.
+3. Dispatch `doc-writer` (per the retro template) to write `docs/.output/findings/reviews/retro-{epic-slug}.md`. **Include the output-boundary instruction verbatim** ("Your ONLY output is the retro markdown… Do NOT write memories…") — the main agent owns memory extraction in Phase 3.
 4. Commit each retro: `docs: /sweep p2 — retro {epic}`.
 5. Append each retro's `## Recommendations` and `## System Improvements` tables to the Phase Log — **Phase 3 implements these.**
 
@@ -110,7 +110,7 @@ Auto-apply the retro's concrete outputs. This is the step that turns a retro fro
 
 1. **Memory extraction** — for every reusable pattern the retro surfaced and every learning in the code-review findings worth keeping:
    - If the target category is **below ~80% of cap**: `node .claude/core/memory-manager.js create <category> <id> '<content-json>'`. Assign an `importance` (1–5) in the content per the `session-handoff` skill.
-   - If the target category is **at/near cap (≥ 40 of the 50 default)**: **stage a draft to the inbox** (`docs/.output/memories/_inbox/`) instead — do NOT force the write. The Phase 6 defrag frees room and promotes from the inbox. Record the staged item in the Phase Log.
+   - If the target category is **at/near cap (≥ 40 of the 50 default)**: **stage a draft to the inbox** (`docs/.output/.state/memory-inbox/`) instead — do NOT force the write. The Phase 6 defrag frees room and promotes from the inbox. Record the staged item in the Phase Log.
 2. **System Improvements** — for each row in the retro's `## System Improvements` table:
    - `Agent: …` → edit the named `.claude/agents/*.md` (surgical fix from the retro; broad re-alignment is Phase 5's job — don't duplicate).
    - `Skill: …` → edit the named `.claude/skills/*/SKILL.md`. **In an adopter** (not the workshop), project-specific additions to a *template* skill go below a `<!-- @@project-additions -->` marker (create if absent) — edits above it are clobbered on the next sync. See `skill-authoring`.
@@ -136,9 +136,9 @@ Reuses `/review:optimize-agents --fix`.
 
 1. Dispatch `architect` to scan the actual codebase → detected stack + structure map.
 2. Compare against each `.claude/agents/*.md` `## Project Context`; classify CURRENT / DRIFTED / MISSING.
-3. Inject proven patterns (confidence ≥ 0.7) + this sweep's retro findings + the day-scoped `docs/.output/agent-updates/{date}.md` issues into DRIFTED/MISSING agents (idempotent replace).
+3. Inject proven patterns (confidence ≥ 0.7) + this sweep's retro findings + the day-scoped `docs/.output/evolution/agents/{date}.md` issues into DRIFTED/MISSING agents (idempotent replace).
 4. Dispatch `code-reviewer` for the skill-effectiveness audit (ACTIVE / NOT_USED / gaps).
-5. Write `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`.
+5. Write `docs/.output/findings/reviews/{YYMMDD-HHMM}-agent-optimization.md`.
 6. Commit: `docs: /sweep p5 — agent re-alignment ({N} agents updated)`.
 
 ## Phase 5b — Evolve Skills (PROPOSE-ONLY)
@@ -148,9 +148,9 @@ Reuses `/review:evolve-skills --auto`. Runs *after* Phase 5 (so it sees freshly-
 **Why propose-only inside the sweep.** Skill *bodies* are the system's own brain. Unlike memory promotion (Phase 4, which has a clean ≥0.9 auto-threshold), a skill rewrite or a brand-new skill has no safe unattended threshold — and the `skill-authoring` doctrine requires a positive **differential eval** to justify any change, which is an expensive multi-subagent run that shouldn't fire blind in a maintenance pass. So Phase 5b **stages proposals; it never applies them.**
 
 1. `node .claude/core/skill-evolution.js intake --date {YYYY-MM-DD}` → reads `intake.json`: IMPROVE candidates (agent-update misalignments attributed to a skill) + CREATE candidates (uncovered recurring memory clusters).
-2. For each candidate clearing the bar (IMPROVE: ≥1 attributed misalignment; CREATE: cluster size ≥3 OR avg confidence ≥0.8), the orchestrator (Opus) does the **reflective diagnosis** (what gap, what the skill should say) and drafts a candidate edit/new SKILL.md into the workspace under `docs/.output/skill-evolution/{date}/`, then conformance-gates it:
+2. For each candidate clearing the bar (IMPROVE: ≥1 attributed misalignment; CREATE: cluster size ≥3 OR avg confidence ≥0.8), the orchestrator (Opus) does the **reflective diagnosis** (what gap, what the skill should say) and drafts a candidate edit/new SKILL.md into the workspace under `docs/.output/evolution/skills/{date}/`, then conformance-gates it:
    `node .claude/core/skill-evolution.js check <skill> <candidate>`.
-3. **Do NOT apply, do NOT run the full differential benchmark here** (that's the human-confirmed `/review:evolve-skills` standalone run). Record each staged proposal — skill, evidence, the candidate diff, conformance result — in `docs/.output/skill-evolution/{date}/proposals.md`.
+3. **Do NOT apply, do NOT run the full differential benchmark here** (that's the human-confirmed `/review:evolve-skills` standalone run). Record each staged proposal — skill, evidence, the candidate diff, conformance result — in `docs/.output/evolution/skills/{date}/proposals.md`.
 4. Commit the staging artifacts only: `docs: /sweep p5b — {N} skill-evolution proposals staged`.
 5. Surface the staged proposals under **"Still needs you"** in the final report — the user runs `/review:evolve-skills --apply <skill>` (which runs the differential) to accept any of them.
 
@@ -159,12 +159,12 @@ Reuses `/review:evolve-skills --auto`. Runs *after* Phase 5 (so it sees freshly-
 Reuses `/review:memory-defrag` in **auto-approve** mode — now operating on the GROWN store (new memories from Phases 2–3 included).
 
 1. **Process the inbox first**: `node .claude/core/memory-manager.js inbox-list`. For each staged item, decide its final category and `inbox-promote <id> [--category <cat>]`. If a target category is at cap, that item is resolved by the merges below.
-2. Dispatch a `general-purpose` analysis agent (read-only) to produce MERGE / SPLIT / CROSS-REF proposals over `docs/.output/memories/{decisions,patterns,constraints,workflows,rejected-approaches}/`. Prioritize MERGEs within near-cap categories. **If a prior defrag-analysis from this session already exists, reuse it** rather than re-dispatching.
+2. Dispatch a `general-purpose` analysis agent (read-only) to produce MERGE / SPLIT / CROSS-REF proposals over `docs/.output/.memory/{decisions,patterns,constraints,workflows,rejected-approaches}/`. Prioritize MERGEs within near-cap categories. **If a prior defrag-analysis from this session already exists, reuse it** rather than re-dispatching.
 3. **Auto-apply every proposal** that preserves all evidence anchors (story IDs, commit hashes, file paths). Skip + log any merge that would drop an anchor.
    - MERGE → `memory-manager.js update` primary (fold in duplicate's load-bearing fields) + `memory-manager.js delete <cat> <duplicate_id>`.
    - SPLIT/MOVE → `create` new + `delete`/reduce source.
    - CROSS-REF → append reciprocal `[[…]]` links to both.
-4. Write `docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md` (plan + review log).
+4. Write `docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md` (plan + review log).
 5. Commit: `docs: /sweep p6 — defrag: {M} merges, {S} splits, {X} cross-refs ({before}→{after})`.
 
 ## Phase 7 — Health & Integrity (verify + housekeeping)
@@ -192,7 +192,7 @@ Phases 3 and 5 edited agents/skills/commands. Run the `check-templates` audit to
 
 Inline `git commit -m` is blocked by the commit-guard hook. For each phase commit:
 1. `git add` the specific files that phase changed (not `git add .`).
-2. Write the message to `docs/.output/.commit-msg` with the Write tool (no `Co-Authored-By` line — `commit.js` appends the trailer).
+2. Write the message to `docs/.output/.state/.commit-msg` with the Write tool (no `Co-Authored-By` line — `commit.js` appends the trailer).
 3. Run `node .claude/core/commit.js`.
 4. Record the hash in the Phase Log.
 
@@ -202,7 +202,7 @@ With `--single-commit`, stage everything and make one commit after Phase 7 inste
 
 ## Final Report
 
-Display (and persist to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md`):
+Display (and persist to `docs/.output/findings/reviews/{YYMMDD-HHMM}-sweep.md`):
 
 ```markdown
 ## /sweep Complete — {YYYY-MM-DD}
@@ -225,18 +225,24 @@ Display (and persist to `docs/.output/reviews/{YYMMDD-HHMM}-sweep.md`):
 **Memory store:** {total_before} → {total_after} (per-category deltas)
 **Lint:** {lint_before} → {lint_after}
 
-### Still needs you (not auto-applied)
-- {MINOR/NIT code findings left for human judgment}
-- {manual-review promotion candidates below threshold}
-- {staged skill-evolution proposals — run `/review:evolve-skills --apply <skill>` to run the differential + accept}
+### Forks for you (genuine decisions only — everything fixable was already fixed)
+
+Everything this sweep could resolve, it resolved in-pass (the Autonomy Contract + the operating standard). This section is **forks-only** — never a "go run X" or "consider Y" line for something the sweep was capable of doing itself. If it's empty, say so: *"Nothing needs you — all findings resolved in-pass."*
+
+- {a genuine FORK: two mutually-exclusive approaches surfaced by retro/review that need YOUR call (not "here's a fix to apply" — those were applied)}
+- {an irreversible / outward action the sweep won't take unattended: push, publish, a destructive migration}
+- {a finding that genuinely can't be auto-resolved this run — needs a credential, an external decision, or design judgment beyond a single fix}
+- {staged skill-evolution proposals — PROPOSE-ONLY *by design* (gated on a differential eval, the one thing the sweep structurally cannot auto-apply): run `/review:evolve-skills --apply <skill>`}
 - {any phase that halted + why}
 ```
+
+> Security findings need no separate line: Phase 1 already routes security/auth/data-integrity themes to Opus reviewers and Phase 3 resolves their CRITICAL/MAJOR findings in-pass. Agent-drift needs no separate line either: Phase 2 (retro System Improvements) + Phase 5 (optimize-agents) already act on it. The sweep *does* the work those standalone reviews would have surfaced — it does not tell you to go run them.
 
 ## What NOT to Do
 
 - Do NOT defrag before Phases 2–5 run — the new memories must land first.
 - Do NOT force-write into a near-cap category — stage to inbox, let Phase 6 resolve.
-- Do NOT auto-fix MINOR/NIT code findings on already-merged code — surface them, don't churn.
+- Do NOT churn already-merged code for NIT/style findings — and do NOT park them in the report either. Per the operating standard, not-worth-fixing = not-worth-surfacing: drop them. A MINOR genuinely worth fixing gets fixed in-pass like anything else; the report is forks-only.
 - Do NOT push to remote — the user decides when to push.
 - Agents never build/test — only the orchestrator runs `gate.js`.
 - Use this repo's commit convention (`.commit-msg` + `commit.js`) — never inline `git commit -m`.

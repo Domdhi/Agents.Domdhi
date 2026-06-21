@@ -115,7 +115,7 @@ flowchart TD
 
 ## /research
 
-Validate market, technical, domain, or competitive assumptions. Writes `docs/product/research.md` plus raw outputs under `docs/.output/research/{YYYY-MM-DD}/`. Dispatches `product-strategist` (single or parallel Tasks).
+Validate market, technical, domain, or competitive assumptions. Writes `docs/product/research.md` plus raw outputs under `docs/.output/findings/research/{YYYY-MM-DD}/`. Dispatches `product-strategist` (single or parallel Tasks).
 
 ```mermaid
 flowchart TD
@@ -135,7 +135,7 @@ flowchart TD
     MULTI -->|Single| SINGLE["Agent: product-strategist\n(single Task)"]
     MULTI -->|Multiple| PARALLEL["Agent: product-strategist\n(parallel Tasks — 1 per topic)"]
 
-    SINGLE --> RAW[Write raw output to\ndocs/.output/research/\nYYYY-MM-DD/HHMM-slug.md]
+    SINGLE --> RAW[Write raw output to\ndocs/.output/findings/research/\nYYYY-MM-DD/HHMM-slug.md]
     PARALLEL --> RAW
 
     RAW --> CONSOLIDATE[Consolidate into\ndocs/product/research.md]
@@ -546,7 +546,7 @@ No mermaid — the flow is linear and mostly interactive. The component template
 
 Master orchestrator that walks a fresh clone from zero to implementation-ready. Scaffolds `docs/` from `.claude/templates/`, runs a 3-round interview (elevator pitch → tech & scope → constraints), classifies the project as simple/medium/complex, then chains the planning pipeline (`/create:project-brief` → `/create:project-requirements` → optional `/create:project-design` → `/create:project-architecture` → `/create:project-epics` → `/review:check-readiness`), specializes the generic agents for the new stack via `/review:specialize --fix`, and writes `docs/product/context.md` as the quick-reference. Intended as the FIRST command an adopter runs after cloning the template.
 
-The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `product/context.md` and the persisted interview scratch file at `docs/.output/work/{date}/new-project-interview.md`.
+The fresh-project check at Step 2 refuses to run if any non-template planning doc already exists, unless `--yolo` is passed. Each sub-command commits its own work; the wrap-up commit at Step 10 stages only `product/context.md` and the persisted interview scratch file at `docs/.output/.state/work/{date}/new-project-interview.md`.
 
 ```mermaid
 flowchart TD
@@ -555,7 +555,7 @@ flowchart TD
     FRESH -->|Filled planning docs found,\nno --yolo| EXIT["Exit — point user to\nindividual /create:project-*\ncommands"]
     FRESH -->|Clean OR --yolo| INTERVIEW
 
-    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to .output/work/{date}/\nnew-project-interview.md"]
+    INTERVIEW["Step 3: 3-round interview\nElevator pitch · Tech & scope · Constraints\nPersist to .output/.state/work/{date}/\nnew-project-interview.md"]
 
     INTERVIEW --> ROUTE{Step 4: Phase routing\nfrom interview answers}
     ROUTE -->|Simple| SIMPLE["PRD-min → Architecture → Epics"]
@@ -602,7 +602,7 @@ flowchart TD
 
     DETECT --> MAP["Step 3: Map codebase\n(parallel Explore agents)\nThread A: entry points & structure\nThread B: dependency graph\nThread C: test layout\nThread D: existing docs + git log"]
 
-    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to .output/work/{date}/\nonboard-scan.md"]
+    MAP --> QUESTIONS["Step 4: Forcing questions\n(2-3 max via AskUserQuestion)\nOnly what code cannot answer:\ndeployment target, pain points, scale\nPersist scan to .output/.state/work/{date}/\nonboard-scan.md"]
 
     QUESTIONS --> ARCH["Step 5: Delegate to architect\nTask: subagent_type=architect\nReverse-Engineering Mode\nADRs marked Status: Inferred\nOutput: docs/architecture/overview.md"]
 
@@ -631,7 +631,7 @@ flowchart TD
     style REPORT fill:#888,color:#fff
 ```
 
-**Output:** `docs/architecture/overview.md` + `docs/product/context.md` + `docs/.output/work/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
+**Output:** `docs/architecture/overview.md` + `docs/product/context.md` + `docs/.output/.state/work/{date}/onboard-scan.md` + optional `CLAUDE.md` update + specialized `.claude/agents/*.md`. One commit covers all outputs. No brief is generated — run `/create:project-brief` separately when ready to capture vision.
 
 ---
 
@@ -681,7 +681,7 @@ flowchart TD
 
 ## /todo
 
-Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/work/todo/TODO_{slug}.md` (or `docs/modules/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/.output/work/{date}/`. No commit (chat-only).
+Create an execution-ready checklist with AC, wave plan, self-review. Writes `docs/work/todo/TODO_{slug}.md` (or `docs/modules/{module}/TODO_{module}.md`). Dispatches `project-planner`; large TODOs get a `code-reviewer` pass. Research artifacts land under `docs/.output/.state/work/{date}/`. No commit (chat-only).
 
 ```mermaid
 flowchart TD
@@ -918,7 +918,7 @@ Seven utility commands for progress-checking, module scaffolding, cleanup, debug
 
 ## /status
 
-Parse every TODO file in `docs/` (master index + per-epic + per-module), compute phase/epic/story completion percentages, and generate an HTML dashboard at `docs/.output/status.html`. Chat-only summary also printed. No commit.
+Parse every TODO file in `docs/` (master index + per-epic + per-module), compute phase/epic/story completion percentages, and generate an HTML dashboard at `docs/.output/.state/status.html`. Chat-only summary also printed. No commit.
 
 Flow: find TODO files → parse status markers (`[ ]`, `[>]`, `[x]`, `[~]`, `[!]`) → roll up counts → render HTML via `.claude/core/status.js` → report critical path, blocked stories, next pending work.
 
@@ -987,7 +987,7 @@ flowchart TD
 
 ## /organize
 
-Move plan files and screenshots into dated folders. Runs `node .claude/hooks/organize.cjs`. Plans go to `docs/.output/plans/{date}/`; screenshots go to `docs/.output/screenshots/{date}/{task}/`. No commit.
+Move plan files and screenshots into dated folders. Runs `node .claude/hooks/organize.cjs`. Plans go to `docs/.output/plans/{date}/`; screenshots go to `docs/.output/.state/screenshots/{date}/{task}/`. No commit.
 
 ```mermaid
 flowchart TD
@@ -1003,17 +1003,17 @@ flowchart TD
 
 ## /investigate
 
-Structured debug investigation with root-cause analysis *before* fixes. Enforces four phases: reproduce → isolate → explain → propose. Writes the investigation record to `docs/.output/investigations/{date}-{summary}.md`. Loads the `systematic-debugging` skill for rigor.
+Structured debug investigation with root-cause analysis *before* fixes. Enforces four phases: reproduce → isolate → explain → propose. Writes the investigation record to `docs/.output/findings/investigations/{date}-{summary}.md`. Loads the `systematic-debugging` skill for rigor.
 
 **Use when:** a bug has no obvious fix, a test failure is intermittent, or you want to prevent the fix-first-explain-later anti-pattern. The investigation doc is durable — it survives context compaction and becomes the bisect trail for future reopens.
 
-**Output:** one `docs/.output/investigations/*.md` file + optional commit containing the fix if one is proposed and approved.
+**Output:** one `docs/.output/findings/investigations/*.md` file + optional commit containing the fix if one is proposed and approved.
 
 ---
 
 ## /remember
 
-Capture a conversational insight to the day's daily log so it feeds the memory acquisition pipeline. Appends to `docs/.output/memories/daily/{YYYY-MM-DD}.md` — one line per invocation, prefixed with an ISO timestamp. No commit. Structured memories are extracted manually (memory-extractor.js) or created directly via memory-manager.js create.
+Capture a conversational insight to the day's daily log so it feeds the memory acquisition pipeline. Appends to `docs/.output/.state/memory-daily/{YYYY-MM-DD}.md` — one line per invocation, prefixed with an ISO timestamp. No commit. Structured memories are extracted manually (memory-extractor.js) or created directly via memory-manager.js create.
 
 **Use when:** something surprising or non-obvious came up in conversation that's worth capturing but doesn't warrant a structured memory yet. Turn it into a structured memory later via `/review:memory-health` or `/review:promote-memories`.
 
@@ -1021,7 +1021,7 @@ Capture a conversational insight to the day's daily log so it feeds the memory a
 
 ## /listen
 
-The first **post-MVP lifecycle** command. When the initial backlog drains, the harness has no model for *push-from-reality* work — bug reports, telemetry drift, unaddressed agent issues, expiring flags. `/listen` sweeps every available signal source (git reality, telemetry, agent-updates, backlog drift, optional external tracker), tags each finding with its provenance (`[origin: …]`), and writes a single dated intake file to `docs/.output/intake/{YYYY-MM-DD}.md` (day-rotated). It does **not** triage, prioritize, or ask questions — it only gathers. Commits the intake file. Pairs with `/triage`.
+The first **post-MVP lifecycle** command. When the initial backlog drains, the harness has no model for *push-from-reality* work — bug reports, telemetry drift, unaddressed agent issues, expiring flags. `/listen` sweeps every available signal source (git reality, telemetry, agent-updates, backlog drift, optional external tracker), tags each finding with its provenance (`[origin: …]`), and writes a single dated intake file to `docs/.output/evolution/intake/{YYYY-MM-DD}.md` (day-rotated). It does **not** triage, prioritize, or ask questions — it only gathers. Commits the intake file. Pairs with `/triage`.
 
 **Use when:** the initial backlog is drained and you need to discover what reality is asking for. Run it, then run `/triage`.
 
@@ -1031,7 +1031,7 @@ The first **post-MVP lifecycle** command. When the initial backlog drains, the h
 
 The second **post-MVP lifecycle** command — the decision half of `/listen`. Reads the newest intake file and converts signals into ranked backlog stories. Built on two best-practice axes: (1) **Severity ≠ Priority** — it scores each signal's technical Severity objectively (engineering-led, no user input), then decides Priority separately as the *disposition*; (2) **auto-decide the obvious** — using the same Mechanical / Taste / User-Challenge model as `/do` Step 6c, it silently resolves mechanical calls and interviews **only** the genuine judgment calls (`AskUserQuestion`, ≤4/round, ≤3 rounds, like `/interview`).
 
-Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoSCoW tag), **defer**, **kill** (reason recorded), **research** (→ spike). Kills and defers land in an append-only ledger (`docs/.output/triage/_decisions.md`, borrowed from Paperclip's durable issue state) so the next `/listen` sweep doesn't make you re-adjudicate them. Writes promoted stories to `docs/work/backlog.md`, a day-rotated run record to `docs/.output/triage/{date}.md`, and annotates the source intake inline. `--dry-run` classifies without writing.
+Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoSCoW tag), **defer**, **kill** (reason recorded), **research** (→ spike). Kills and defers land in an append-only ledger (`docs/.output/evolution/triage/_decisions.md`, borrowed from Paperclip's durable issue state) so the next `/listen` sweep doesn't make you re-adjudicate them. Writes promoted stories to `docs/work/backlog.md`, a day-rotated run record to `docs/.output/evolution/triage/{date}.md`, and annotates the source intake inline. `--dry-run` classifies without writing.
 
 **Use when:** a `/listen` intake file has accumulated and you want to turn it into prioritized backlog work. Then `/review:optimize-backlog` to slot the new stories, or `/do` the top one.
 
@@ -1039,7 +1039,7 @@ Four dispositions: **promote** (→ backlog story, ordered by an ICE score + MoS
 
 # Review
 
-Sixteen commands for quality assurance, optimization, and project governance. Most run periodically — after an epic, before a release, or when something feels drifted. The `/review:check-*` commands are read-only diagnostics; the rest write artifacts to `docs/.output/reviews/`.
+Sixteen commands for quality assurance, optimization, and project governance. Most run periodically — after an epic, before a release, or when something feels drifted. The `/review:check-*` commands are read-only diagnostics; the rest write artifacts to `docs/.output/findings/reviews/`.
 
 ## /review:code-review
 
@@ -1084,7 +1084,7 @@ flowchart TD
 
 ## /review:security
 
-OWASP Top 10 audit, vulnerability detection, secret scanning, threat modeling. Dispatches `security-auditor` with the `code-review` skill. Writes audit results to `docs/.output/reviews/security-{date}.md`.
+OWASP Top 10 audit, vulnerability detection, secret scanning, threat modeling. Dispatches `security-auditor` with the `code-review` skill. Writes audit results to `docs/.output/findings/reviews/security-{date}.md`.
 
 ```mermaid
 flowchart TD
@@ -1189,7 +1189,7 @@ flowchart TD
 
 ## /review:check-sync
 
-Detect documentation drift from reality. Reads architecture, TODO statuses, PRD coverage, and internal links; flags mismatches. Produces a report at `docs/.output/reviews/{date}-sync-check.md`. Read-only — no commit. Pair with `/review:update-docs` to fix.
+Detect documentation drift from reality. Reads architecture, TODO statuses, PRD coverage, and internal links; flags mismatches. Produces a report at `docs/.output/findings/reviews/{date}-sync-check.md`. Read-only — no commit. Pair with `/review:update-docs` to fix.
 
 ```mermaid
 flowchart TD
@@ -1358,7 +1358,7 @@ flowchart TD
 
     COMPARE --> MEMORY["Read proven patterns\nfrom memory (confidence >= 0.7)\nCheck for promotable patterns (0.6)"]
 
-    MEMORY --> RETRO["Read docs/.output/reviews/retro-*.md\nExtract System Improvements\nAgent/Skill/Command/Memory findings"]
+    MEMORY --> RETRO["Read docs/.output/findings/reviews/retro-*.md\nExtract System Improvements\nAgent/Skill/Command/Memory findings"]
 
     RETRO --> MODE{--fix / --dry-run /\n--report-only?}
 
@@ -1484,7 +1484,7 @@ flowchart TD
 
 ## /retro
 
-Run a retrospective after completing an epic. Runs a **code-review pass over the epic's commits first** (`code-reviewer`, risk-routed — its findings feed the retro); `--skip-review` skips it when the epic was already reviewed (e.g. inside `/sweep`, whose Phase 1 satisfies it). Gathers commits, TODO state, work docs, and memory patterns from the epic's window; runs `/review:check-sync` alongside. Dispatches `doc-writer` to write `docs/.output/reviews/retro-{epic-slug}.md` (the code-review findings land in its **Code Review Findings** section — no separate file). Extracts patterns to memory (confidence 0.8 new, promotes 0.6 → 0.8+ existing).
+Run a retrospective after completing an epic. Runs a **code-review pass over the epic's commits first** (`code-reviewer`, risk-routed — its findings feed the retro); `--skip-review` skips it when the epic was already reviewed (e.g. inside `/sweep`, whose Phase 1 satisfies it). Gathers commits, TODO state, work docs, and memory patterns from the epic's window; runs `/review:check-sync` alongside. Dispatches `doc-writer` to write `docs/.output/findings/reviews/retro-{epic-slug}.md` (the code-review findings land in its **Code Review Findings** section — no separate file). Extracts patterns to memory (confidence 0.8 new, promotes 0.6 → 0.8+ existing).
 
 ```mermaid
 flowchart TD
@@ -1502,11 +1502,11 @@ flowchart TD
 
     GATHER --> SYNC["Run /check-sync\nCapture drift findings"]
 
-    SYNC --> DELEGATE["Agent: doc-writer\nWrite docs/.output/reviews/retro-{epic-slug}.md:\n\nWhat Went Well\nWhat Didn't Go Well\nKey Decisions (table)\nPatterns Extracted (table)\nCode Review Findings (from Step 2)\nMetrics (commits, files, lines,\nbuild/test failures, findings, first-attempt)\nRecommendations\nSystem Improvements\n  (Agent/Skill/Command/Memory)\nDoc Sync Summary"]
+    SYNC --> DELEGATE["Agent: doc-writer\nWrite docs/.output/findings/reviews/retro-{epic-slug}.md:\n\nWhat Went Well\nWhat Didn't Go Well\nKey Decisions (table)\nPatterns Extracted (table)\nCode Review Findings (from Step 2)\nMetrics (commits, files, lines,\nbuild/test failures, findings, first-attempt)\nRecommendations\nSystem Improvements\n  (Agent/Skill/Command/Memory)\nDoc Sync Summary"]
 
     DELEGATE --> PATTERNS["Extract patterns to memory:\nNew patterns → confidence 0.8\nExisting /do patterns (0.6) →\npromote to 0.8+"]
 
-    PATTERNS --> COMMIT["Commit:\ndocs/.output/reviews/retro-{epic-slug}.md\n+ memory updates"]
+    PATTERNS --> COMMIT["Commit:\ndocs/.output/findings/reviews/retro-{epic-slug}.md\n+ memory updates"]
 
     COMMIT --> REPORT(["Report:\nOutput file, patterns extracted,\nkey takeaway, commit hash,\nnext epic"])
 

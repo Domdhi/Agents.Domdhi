@@ -36,7 +36,7 @@ function seedMemory(tmp, category, id, daysAgo, overrides = {}) {
         content: { description: `Test memory ${id} seeded at ${daysAgo} days ago` },
         ...overrides,
     };
-    const dir = path.join(tmp.root, 'docs', '.output', 'memories', category);
+    const dir = path.join(tmp.root, 'docs', '.output', '.memory', category);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(content, null, 2));
 }
@@ -82,7 +82,7 @@ describe('prune-unused CLI command', () => {
         // Arrange — one 40-day-old never-used memory (qualifies past 30-day threshold)
         seedMemory(tmp, 'patterns', 'dead-old-one', 40);
 
-        const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'dead-old-one.json');
+        const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'dead-old-one.json');
         expect(fs.existsSync(filePath)).toBe(true); // pre-condition
 
         // Act — prune-unused with no flags
@@ -138,8 +138,8 @@ describe('prune-unused CLI command', () => {
         seedMemory(tmp, 'patterns', 'victim-a', 40);
         seedMemory(tmp, 'patterns', 'victim-b', 40);
 
-        const pathA = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'victim-a.json');
-        const pathB = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'victim-b.json');
+        const pathA = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'victim-a.json');
+        const pathB = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'victim-b.json');
         expect(fs.existsSync(pathA)).toBe(true);
         expect(fs.existsSync(pathB)).toBe(true);
 
@@ -158,8 +158,8 @@ describe('prune-unused CLI command', () => {
         seedMemory(tmp, 'patterns', 'del-pat', 40);
         seedMemory(tmp, 'constraints', 'keep-con', 40);
 
-        const pathPat = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'del-pat.json');
-        const pathCon = path.join(tmp.root, 'docs', '.output', 'memories', 'constraints', 'keep-con.json');
+        const pathPat = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'del-pat.json');
+        const pathCon = path.join(tmp.root, 'docs', '.output', '.memory', 'constraints', 'keep-con.json');
 
         // Act — only delete patterns category
         const { status } = runCli(['prune-unused', 'patterns', '--commit'], tmp);
@@ -173,7 +173,7 @@ describe('prune-unused CLI command', () => {
         // Arrange — old but has usage_count > 0 (not dead-weight)
         seedMemory(tmp, 'patterns', 'used-old', 40, { usage_count: 2 });
 
-        const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'used-old.json');
+        const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'used-old.json');
 
         const { status, stdout } = runCli(['prune-unused', '--commit'], tmp);
 
@@ -186,7 +186,7 @@ describe('prune-unused CLI command', () => {
     it('dryRun_emptyStore_exits0WithNoCandidatesMessage', () => {
         // Arrange — empty store (just ensure the memories dir exists to avoid any
         // path issues, but leave it empty so there are no candidates)
-        fs.mkdirSync(path.join(tmp.root, 'docs', '.output', 'memories'), { recursive: true });
+        fs.mkdirSync(path.join(tmp.root, 'docs', '.output', '.memory'), { recursive: true });
 
         const { status, stdout } = runCli(['prune-unused'], tmp);
 

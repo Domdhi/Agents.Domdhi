@@ -628,7 +628,7 @@ describe('intake', () => {
             ].join('\n'),
         );
 
-        // docs/.output/agent-updates/2026-06-05.md with one section
+        // docs/.output/evolution/agents/2026-06-05.md with one section
         const auDir = path.join(projectDir, 'docs', '.output', 'agent-updates');
         fs.mkdirSync(auDir, { recursive: true });
         fs.writeFileSync(
@@ -640,8 +640,8 @@ describe('intake', () => {
             ].join('\n'),
         );
 
-        // docs/.output/memories/workflows/wf1.json
-        const workflowsDir = path.join(projectDir, 'docs', '.output', 'memories', 'workflows');
+        // docs/.output/.memory/workflows/wf1.json
+        const workflowsDir = path.join(projectDir, 'docs', '.output', '.memory', 'workflows');
         fs.mkdirSync(workflowsDir, { recursive: true });
         fs.writeFileSync(
             path.join(workflowsDir, 'wf1.json'),
@@ -657,8 +657,8 @@ describe('intake', () => {
             }),
         );
 
-        // docs/.output/memories/patterns/pt1.json
-        const patternsDir = path.join(projectDir, 'docs', '.output', 'memories', 'patterns');
+        // docs/.output/.memory/patterns/pt1.json
+        const patternsDir = path.join(projectDir, 'docs', '.output', '.memory', 'patterns');
         fs.mkdirSync(patternsDir, { recursive: true });
         fs.writeFileSync(
             path.join(patternsDir, 'pt1.json'),

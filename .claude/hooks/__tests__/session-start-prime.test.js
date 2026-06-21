@@ -300,8 +300,8 @@ describe('processEvent', () => {
     it('processEvent_emptyCategoryDirs_returnsOutputNull', () => {
         process.env.MEMORY_PROFILE = 'standard';
         process.env.CLAUDE_PROJECT_DIR = tmp.root;
-        tmp.mkdir('docs/.output/memories/patterns');
-        tmp.mkdir('docs/.output/memories/constraints');
+        tmp.mkdir('docs/.output/.memory/patterns');
+        tmp.mkdir('docs/.output/.memory/constraints');
         const result = processEvent({});
         expect(result).toEqual({ output: null });
     });
@@ -336,7 +336,7 @@ describe('processEvent', () => {
         process.env.CLAUDE_PROJECT_DIR = tmp.root;
         // concepts/ is the old compaction-snapshot output — the new hook MUST ignore it
         tmp.write(
-            'docs/.output/memories/concepts/decisions/old-noise.md',
+            'docs/.output/.state/memory-concepts/decisions/old-noise.md',
             '---\ntitle: Old Noise\nconfidence: 0.9\n---\n\n> [!abstract] Summary\n> Activity observed...\n'
         );
         const result = processEvent({});
@@ -359,7 +359,7 @@ describe('processEvent', () => {
         process.env.MEMORY_PROFILE = 'standard';
         process.env.CLAUDE_PROJECT_DIR = tmp.root;
         createMemory(tmp, 'patterns', 'valid', { description: 'Valid memory' });
-        tmp.write('docs/.output/memories/patterns/readme.md', '# Not a memory');
+        tmp.write('docs/.output/.memory/patterns/readme.md', '# Not a memory');
         const result = processEvent({});
         expect(result.output).toContain('valid');
         expect(result.output).not.toContain('readme');
@@ -377,7 +377,7 @@ const fs = require('fs');
 const path = require('path');
 
 function injectionLogPath(root) {
-    return path.join(root, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+    return path.join(root, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
 }
 
 describe('injection telemetry', () => {

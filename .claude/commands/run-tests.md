@@ -55,7 +55,7 @@ Use mcp__claude-in-chrome__computer for clicks and interactions.
 | `30m`–`1h` | Mid-day polling on a busy branch — smoke checklist re-run |
 | `2h`–`6h` | Background canary — broader checklist, low-frequency assurance |
 
-Each iteration writes a fresh report to `docs/.output/screenshots/{date}/{Task}/TEST-REPORT.md`, so subsequent loops overwrite prior reports for the same task. If you need history, vary the task slug per loop or copy reports out before the next fire. **Don't build a standalone `/canary` command or a `/run-tests --watch` flag** — the *scheduling* half of a canary is just a `/loop` wrapper, and re-implementing scheduling primitives we already have is duplication. The same applies to any future scheduled-command idea (cleanup, listen, monitor): start by trying `/loop /<command>` first.
+Each iteration writes a fresh report to `docs/.output/.state/screenshots/{date}/{Task}/TEST-REPORT.md`, so subsequent loops overwrite prior reports for the same task. If you need history, vary the task slug per loop or copy reports out before the next fire. **Don't build a standalone `/canary` command or a `/run-tests --watch` flag** — the *scheduling* half of a canary is just a `/loop` wrapper, and re-implementing scheduling primitives we already have is duplication. The same applies to any future scheduled-command idea (cleanup, listen, monitor): start by trying `/loop /<command>` first.
 
 What `/loop` does **not** give you is the *stateful* half of a canary — capturing a known-good baseline, diffing live samples against it, and tolerating transient blips. That lives in **Canary Mode** below (`--baseline` / `--compare`), driven by `/loop` for the polling:
 
@@ -78,7 +78,7 @@ When the project has an E2E test framework (Playwright, Cypress, etc.):
 
 When no test framework exists:
 - Agents still write structured verification scripts or checklists
-- Screenshots and reports go to `docs/.output/screenshots/{date}/{task}/`
+- Screenshots and reports go to `docs/.output/.state/screenshots/{date}/{task}/`
 
 The goal: every test run leaves behind artifacts that can be re-executed without Claude.
 
@@ -115,8 +115,8 @@ Severity tiers are the gstack monitors verbatim. "Breach" is always *relative to
 ### `--baseline` (capture, run once pre-deploy)
 
 1. Resolve the target page(s): the `TODO_FILE` target URL + its listed pages, or the URLs passed as args, or the app root. Pre-flight each with `curl` (HARD STOP if the app isn't running — same rule as Phase 0 Step 3).
-2. Dispatch a **sonnet** browser agent (chrome MCP preferred, playwright fallback — same selection rule as the checklist mode) to visit each page and record the four signals. Take one baseline screenshot per page into `docs/.output/canary/baseline/`.
-3. Write `docs/.output/canary/baseline-{slug}.json` (slug = project or feature name; **stable filename, not date-rotated**, so `--compare` can find it across days):
+2. Dispatch a **sonnet** browser agent (chrome MCP preferred, playwright fallback — same selection rule as the checklist mode) to visit each page and record the four signals. Take one baseline screenshot per page into `docs/.output/evolution/canary/baseline/`.
+3. Write `docs/.output/evolution/canary/baseline-{slug}.json` (slug = project or feature name; **stable filename, not date-rotated**, so `--compare` can find it across days):
    ```json
    {
      "captured": "{YYYY-MM-DD HH:MM}",
@@ -125,14 +125,14 @@ Severity tiers are the gstack monitors verbatim. "Breach" is always *relative to
      }
    }
    ```
-4. **Reset the streak file** `docs/.output/canary/{YYYY-MM-DD}/_streak.json` to `{}` — a fresh baseline starts a fresh tolerance count.
+4. **Reset the streak file** `docs/.output/evolution/canary/{YYYY-MM-DD}/_streak.json` to `{}` — a fresh baseline starts a fresh tolerance count.
 5. Report the baseline path + per-page signal table. Do not commit unless asked (baselines are environment-specific; usually gitignored operational state).
 
 ### `--compare {baseline.json}` (verify, run on every poll)
 
 This is what `/loop` fires each interval. It samples **once** and persists state — **it does NOT loop internally** (looping is `/loop`'s job; smuggling a `while`/poll here is the exact duplication this design avoids).
 
-1. Read the baseline + the current streak file (`docs/.output/canary/{date}/_streak.json`, default `{}`).
+1. Read the baseline + the current streak file (`docs/.output/evolution/canary/{date}/_streak.json`, default `{}`).
 2. Dispatch the browser agent (sonnet) to re-sample the same pages — same signals.
 3. **Diff vs baseline.** For each page+signal, decide breached/clear:
    - availability false → CRITICAL breach
@@ -144,7 +144,7 @@ This is what `/loop` fires each interval. It samples **once** and persists state
    - **HEALTHY** — no breaches this sample.
    - **TRANSIENT** — breaches present, but every breached signal's streak `< N` (could be a blip; keep watching). Don't alarm.
    - **REGRESSED** — at least one breached signal's streak `≥ N` (persisted across N consecutive samples → real). Surface loudly; recommend rollback / `/investigate`.
-6. Write a run record `docs/.output/canary/{date}/canary-{HH:MM}.md` — the verdict + a table (page · signal · baseline · current · breach? · streak · severity), and on REGRESSED the offending signal(s) and a one-line recommended action.
+6. Write a run record `docs/.output/evolution/canary/{date}/canary-{HH:MM}.md` — the verdict + a table (page · signal · baseline · current · breach? · streak · severity), and on REGRESSED the offending signal(s) and a one-line recommended action.
 7. Report the verdict line. Under `/loop`, only a REGRESSED verdict warrants interrupting the user; HEALTHY/TRANSIENT runs just append their record.
 
 ### Why this honors the "no standalone /canary" rule
@@ -191,7 +191,7 @@ curl -s -o /dev/null -w "%{http_code}" {TARGET_URL}
 
 Create screenshot directories upfront:
 ```bash
-mkdir -p docs/.output/screenshots/{YYYY-MM-DD}/{Task}/cat-{NN}/
+mkdir -p docs/.output/.state/screenshots/{YYYY-MM-DD}/{Task}/cat-{NN}/
 ```
 
 ### Step 4: Build the TaskList (spine)
@@ -231,7 +231,7 @@ Before dispatching browser agents, verify actual test selectors exist in the cod
 ```
 Agent(
   subagent_type: "general-purpose",
-  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/.output/work/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
+  prompt: "Search the source tree for all data-testid attributes related to {feature}. Write the exact selector map organized by component to docs/.output/.state/work/{date}/{slug}/{time}-selectors.md, then return a concise summary.",
   description: "Find test selectors for {feature}"
 )
 ```
@@ -291,7 +291,7 @@ CHECKLIST:
 TEST SELECTORS:
 {Selector map from Step 5 for this category's components}
 
-SCREENSHOT FOLDER: docs/.output/screenshots/{YYYY-MM-DD}/{Task}/cat-{N}/
+SCREENSHOT FOLDER: docs/.output/.state/screenshots/{YYYY-MM-DD}/{Task}/cat-{N}/
 Create this directory first with mkdir.
 
 BROWSER TOOLS (chrome MCP — preferred):
@@ -351,7 +351,7 @@ Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "{cat M prompt 
 | Status | Action |
 |--------|--------|
 | **DONE** | Mark all checkpoints `[x]` in TODO |
-| **DONE_WITH_CONCERNS** | Read concerns. If flaky → mark `[x]` but note in report. If suspicious → re-run that category. Log to `docs/.output/agent-updates/{YYYY-MM-DD}.md`. |
+| **DONE_WITH_CONCERNS** | Read concerns. If flaky → mark `[x]` but note in report. If suspicious → re-run that category. Log to `docs/.output/evolution/agents/{YYYY-MM-DD}.md`. |
 | **BLOCKED** | Read blocker. Mark affected checkpoints `[!]` with root cause. Assess impact on downstream waves. |
 | **NEEDS_CONTEXT** | Answer questions, re-dispatch that agent only. |
 
@@ -403,7 +403,7 @@ node .claude/core/status.js --regen-master
 
 `TaskUpdate: "Cleanup + final report" → completed`
 
-Write `docs/.output/screenshots/{YYYY-MM-DD}/{Task}/TEST-REPORT.md`:
+Write `docs/.output/.state/screenshots/{YYYY-MM-DD}/{Task}/TEST-REPORT.md`:
 
 ```markdown
 ## Manual Test Report
@@ -443,7 +443,7 @@ Write `docs/.output/screenshots/{YYYY-MM-DD}/{Task}/TEST-REPORT.md`:
 | DONE | {n} |
 | DONE_WITH_CONCERNS | {n} |
 | BLOCKED | {n} |
-| Issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md | {n} |
+| Issues logged to docs/.output/evolution/agents/{YYYY-MM-DD}.md | {n} |
 
 ### Recommendations
 1. ...
@@ -463,7 +463,7 @@ Why: bugs found during testing and blocked checkpoints are high-value context fo
 
 ### Step 13: Commit test artifacts + handoff
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 test: {Task} — {PassCount}/{Total} passed, {BlockedCount} blocked
@@ -477,7 +477,7 @@ Then run:
 # Permanent spec files, if any were written
 git add {test spec files — test/__test__/**, e2e/**, etc.}
 # Screenshots and test report
-git add docs/.output/screenshots/{YYYY-MM-DD}/{Task}/
+git add docs/.output/.state/screenshots/{YYYY-MM-DD}/{Task}/
 # TODO checkmark updates
 git add {TODO_FILE}
 # Handoff
@@ -500,6 +500,6 @@ Skip the commit only if the user invoked `/run-tests` as a dry-run with no expec
 7. **Annotate blocked items with WHY.** `[!] BLOCKED` alone is useless. Always include root cause.
 8. **Wave gating is real.** Dependencies between categories exist. Don't launch all at once.
 9. **Screenshot at every verification point.** No screenshot = no evidence = no PASS.
-10. **Log agent issues to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md`** (create the file if today's doesn't exist; the `agent-updates/` folder rotates by day). Flaky behavior, wrong selectors, missed checkpoints — all get logged.
+10. **Log agent issues to today's day-scoped log `docs/.output/evolution/agents/{YYYY-MM-DD}.md`** (create the file if today's doesn't exist; the `agent-updates/` folder rotates by day). Flaky behavior, wrong selectors, missed checkpoints — all get logged.
 11. **Don't stop the dev server.** Unless explicitly asked.
 12. **Always regenerate the session handoff at the end (Step 12).** Bugs found and blocked checkpoints are critical next-session context. Use the `session-handoff` skill (path via `handoff-path.js write run-tests`). Skip only for explicit dry-runs.

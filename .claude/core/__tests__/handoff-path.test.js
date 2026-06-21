@@ -35,9 +35,15 @@ describe('handoff-path', () => {
     expect(s).toBe('260607-1745');
   });
 
-  it('buildWritePath_composesStampCallerBranch', () => {
+  it('buildWritePath_composesStampCallerBranch_monthBucketed', () => {
     const p = hp.buildWritePath('end', { runStamp: '260607-1745', branch: 'main' });
-    expect(p).toBe('docs/.output/handoffs/260607-1745-end-main.md');
+    expect(p).toBe('docs/.output/handoffs/2026-06/260607-1745-end-main.md');
+  });
+
+  it('monthFromStamp_derivesYYYY_MM', () => {
+    expect(hp.monthFromStamp('260607-1745')).toBe('2026-06');
+    expect(hp.monthFromStamp('260101-0000')).toBe('2026-01');
+    expect(hp.monthFromStamp('garbage')).toBeNull();
   });
 
   it('buildWritePath_rejectsUnknownCaller', () => {
@@ -80,6 +86,36 @@ describe('handoff-path', () => {
     mkHandoffs(['260607-1200-do-main.md', 'README.md', 'notes.txt']);
     expect(hp.resolveLatest({ cwd: tmp, branch: 'main' })).toBe(
       'docs/.output/handoffs/260607-1200-do-main.md'
+    );
+  });
+
+  // ── month-bucketing (ADR 0006) ──────────────────────────────────────────────
+  function mkMonth(month, names) {
+    const dir = path.join(tmp, hp.HANDOFF_DIR, month);
+    fs.mkdirSync(dir, { recursive: true });
+    for (const n of names) fs.writeFileSync(path.join(dir, n), 'x');
+  }
+
+  it('resolveLatest_scansMonthFolders', () => {
+    mkMonth('2026-06', ['260607-1200-do-main.md', '260621-1353-end-main.md']);
+    expect(hp.resolveLatest({ cwd: tmp, branch: 'main' })).toBe(
+      'docs/.output/handoffs/2026-06/260621-1353-end-main.md'
+    );
+  });
+
+  it('resolveLatest_picksNewestAcrossFlatAndMonth_mixedTree', () => {
+    mkHandoffs(['260601-0900-end-main.md']);          // legacy flat
+    mkMonth('2026-06', ['260620-1000-end-main.md']);  // newer, foldered
+    expect(hp.resolveLatest({ cwd: tmp, branch: 'main' })).toBe(
+      'docs/.output/handoffs/2026-06/260620-1000-end-main.md'
+    );
+  });
+
+  it('resolveLatest_newestMonthWins_evenWhenOlderMonthHasLaterHHMM', () => {
+    mkMonth('2026-05', ['260531-2359-end-main.md']);
+    mkMonth('2026-06', ['260601-0001-end-main.md']);
+    expect(hp.resolveLatest({ cwd: tmp, branch: 'main' })).toBe(
+      'docs/.output/handoffs/2026-06/260601-0001-end-main.md'
     );
   });
 });

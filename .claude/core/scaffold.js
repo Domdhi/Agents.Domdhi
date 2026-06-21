@@ -35,6 +35,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const CONSTANTS = require('./constants');
 
 const DEFAULT_PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ||
     path.resolve(__dirname, '..', '..');
@@ -400,18 +401,23 @@ function runScaffold(projectDir, opts) {
         // Domain folders that aren't seeded by a stub/asset (the ADR domain tree)
         'docs/modules',                 // per-feature docs — mirrors codebase (was app/)
         'docs/architecture/decisions',  // ADRs — NNNN-title.md
+        'docs/engineering',             // setup.md conventions.md testing.md (no stub asset)
         'docs/operations/runbooks',
+        'docs/reference',               // onboarding.md glossary.md links.md (no stub asset)
         'docs/work',
         'docs/work/todo',               // implementation checklists (+ _archive/)
-        // Generated/operational zone
+        // Generated/operational zone (ADR 0006). Regenerable state lives under
+        // the gitignored .state/ zone; durable compartments are created on demand
+        // by output-paths.js, so only the always-present roots are seeded here.
         'docs/.output',
-        'docs/.output/work',            // task working files — docs/.output/work/{date}/{task}/
-        'docs/.output/reviews',
-        'docs/.output/research',
-        'docs/.output/investigations',
-        'docs/.output/telemetry',
-        'docs/.output/agent-updates',   // day-rotated agent-misalignment logs ({YYYY-MM-DD}.md)
-        'docs/.output/intake',          // /listen post-MVP signal intake ({YYYY-MM-DD}.md)
+        'docs/.output/.state/work',         // task working files — .state/work/{date}/{task}/
+        'docs/.output/.state/telemetry',    // command/gate/hook telemetry (gitignored)
+        // Memory store split (ADR 0006 Amendment 2): the curated JSON SOURCE
+        // under the TRACKED .memory/ (+ a dir per category), and the rebuilt
+        // FTS5 index parent under the gitignored .state/memory-index/.
+        'docs/.output/.memory',
+        'docs/.output/.state/memory-index',
+        ...Object.values(CONSTANTS.MEMORY_CATEGORIES).map((c) => `docs/.output/.memory/${c}`),
     ];
     for (const dir of extraDirs) {
         const fullPath = path.join(target, dir);

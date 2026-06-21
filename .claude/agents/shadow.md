@@ -62,7 +62,7 @@ Before you draft, consult the memory store for what earlier sessions logged — 
 
 You don't have Bash, so search the store with Grep over its JSON. Pull 2–4 concrete terms from the piece (the topic, the domain, the angle) and grep the memory tree:
 
-    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/.memory"  glob="*.json"  output_mode="files_with_matches"
 
 Read the matches across `patterns/ constraints/ decisions/ workflows/`. Apply what they say. If the dispatching command handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed — the fingerprint and source material are still your primary law.
 
@@ -80,7 +80,7 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/`. Apply wh
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. The Main Agent will review and promote keepers; you do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

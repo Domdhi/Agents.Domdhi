@@ -45,7 +45,7 @@ describe('freeze-state', () => {
         const { setFrozen } = require('../freeze-state');
         const frozenPath = path.join(tmpRoot, 'README.md');
         setFrozen([frozenPath]);
-        const stateFile = path.join(tmpRoot, 'docs', '.output', 'freeze-state.json');
+        const stateFile = path.join(tmpRoot, 'docs', '.output', '.state', 'freeze-state.json');
         expect(fs.existsSync(stateFile)).toBe(true);
         const content = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
         expect(content.frozen).toEqual([frozenPath]);

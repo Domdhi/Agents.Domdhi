@@ -197,6 +197,76 @@ function resolveAbsPath(p) {
     return path.resolve(root, p);
 }
 
+// ─── Coarse path classification for SAFE telemetry (C1) ──────────────────────
+//
+// SECRET SAFETY: this returns a BOUNDED enum string — never the raw path and
+// never free text. It exists so guardrail-stats can answer "is rule X just
+// noise on disposable paths?" WITHOUT ever logging the command (the
+// hook-telemetry secret-safety contract at hook-telemetry.js:84-88 must hold).
+//
+// Returns null for non-delete commands (no first path to classify). Otherwise
+// classifies ONLY the first extracted path token into one bounded class.
+const PATH_CLASS_ENUM = Object.freeze({
+    BUILD_ARTIFACT: 'build-artifact',
+    TMP: 'tmp',
+    NODE_MODULES: 'node_modules',
+    OUTPUT_OR_VCS: 'output-or-vcs',
+    HOME_OR_ROOT: 'home-or-root',
+    PROJECT_PATH: 'project-path',
+    UNKNOWN: 'unknown',
+});
+
+/**
+ * Classify the FIRST path of a delete-style command into a bounded enum class.
+ *
+ * @param {string} command  The (already sanitized) bash command.
+ * @returns {string|null}   One of PATH_CLASS_ENUM values, or null when the
+ *                          command is not a delete-style command / has no path.
+ */
+function classifyDeletePath(command) {
+    const paths = extractDeletePaths(command);
+    if (!paths.length) return null;
+
+    // Normalize the first path: strip surrounding quotes, lowercase, use /.
+    let p = String(paths[0]).trim().replace(/^["']|["']$/g, '').replace(/\\/g, '/');
+    if (!p) return PATH_CLASS_ENUM.UNKNOWN;
+    const lower = p.toLowerCase();
+
+    // home-or-root — `~`, `~/...`, or an absolute root path like `/`, `/etc`.
+    // Checked first: a path starting at ~ or / is never a relative build dir.
+    if (lower === '~' || lower.startsWith('~/') || lower.startsWith('~')) return PATH_CLASS_ENUM.HOME_OR_ROOT;
+    if (lower === '/' || /^\/[a-z]/.test(lower)) {
+        // Absolute path. /tmp and /var/folders/ are tmp; everything else rooted
+        // at / is treated as a root-level (dangerous) path.
+        if (lower === '/tmp' || lower.startsWith('/tmp/') || lower.startsWith('/var/folders/')) return PATH_CLASS_ENUM.TMP;
+        return PATH_CLASS_ENUM.HOME_OR_ROOT;
+    }
+
+    // tmp — shell temp vars, mktemp, and relative tmp/ scratch dirs.
+    if (lower.startsWith('$t') || lower.startsWith('${t') || lower === 'mktemp' || lower.startsWith('mktemp ')) return PATH_CLASS_ENUM.TMP;
+    if (/^\.?\/?tmp(\/|$)/.test(lower)) return PATH_CLASS_ENUM.TMP;
+    if (/(^|\/)\.sandbox(\/|$)/.test(lower)) return PATH_CLASS_ENUM.TMP;
+
+    // node_modules — always reinstallable.
+    if (/^\.?\/?node_modules(\/|$)/.test(lower)) return PATH_CLASS_ENUM.NODE_MODULES;
+
+    // output-or-vcs — generated reports, git internals, live worktrees. These
+    // are deliberately NOT exempt from the nudge, so flagging them as their own
+    // class lets stats show they still (correctly) earn a hit.
+    if (/^\.?\/?\.output(\/|$)/.test(lower)) return PATH_CLASS_ENUM.OUTPUT_OR_VCS;
+    if (/^\.?\/?\.git(\/|$)/.test(lower)) return PATH_CLASS_ENUM.OUTPUT_OR_VCS;
+    if (/^\.?\/?\.worktrees(\/|$)/.test(lower)) return PATH_CLASS_ENUM.OUTPUT_OR_VCS;
+
+    // build-artifact — regenerable build/test output dirs.
+    if (/^\.?\/?(bin|obj|dist|build|out|target|coverage|testresults|\.next)(\/|$)/.test(lower)) return PATH_CLASS_ENUM.BUILD_ARTIFACT;
+
+    // project-path — any other relative path inside the repo (has a path-like
+    // shape: a separator, a leading ./, or a plain name).
+    if (lower.startsWith('./') || lower.includes('/') || /^[a-z0-9._-]+$/i.test(p)) return PATH_CLASS_ENUM.PROJECT_PATH;
+
+    return PATH_CLASS_ENUM.UNKNOWN;
+}
+
 // ─── Event processor (testable core logic) ───────────────────────────────────
 
 /**
@@ -222,9 +292,13 @@ function processEvent(parsedJson) {
 
     const decision = checkRules(sanitizedCommand, rules);
 
+    // Coarse, secret-safe path class for delete-style commands (C1). null for
+    // non-delete commands; carried on the telemetry of delete-relevant branches.
+    const pathClass = classifyDeletePath(sanitizedCommand);
+
     if (decision.action === 'block') {
         const resp = buildHookResponse('block', { command, pattern: decision.pattern });
-        return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: decision.pattern, tier: null } };
+        return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: decision.pattern, tier: null, pathClass } };
     }
 
     // P2.5 — four-tier path check for delete-style bash ops.
@@ -243,7 +317,7 @@ function processEvent(parsedJson) {
         const freeze = checkFreezeState(absPath);
         if (freeze.blocked) {
             const resp = buildHookResponse('frozen', { command, frozenPath: freeze.frozenPath });
-            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: 'frozen-path', tier: 'frozen' } };
+            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: 'frozen-path', tier: 'frozen', pathClass } };
         }
 
         // Four-tier path check (A3)
@@ -254,7 +328,7 @@ function processEvent(parsedJson) {
                 pattern: access.reason || 'path-tier enforcement',
                 tier: access.tier,
             });
-            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: access.reason || 'path-tier enforcement', tier: access.tier || null } };
+            return { block: true, feedback: resp.stderr, telemetry: { decision: 'block', rule: access.reason || 'path-tier enforcement', tier: access.tier || null, pathClass } };
         }
     }
 
@@ -263,10 +337,10 @@ function processEvent(parsedJson) {
         // tries a reversible path first; if there is none, it re-runs with the
         // `# guardrail:confirm` marker, which evaluate() routes to a user confirm.
         const resp = buildHookResponse('nudge', { command, pattern: decision.pattern });
-        return { block: true, feedback: resp.stderr, telemetry: { decision: 'nudge', rule: decision.pattern, tier: null } };
+        return { block: true, feedback: resp.stderr, telemetry: { decision: 'nudge', rule: decision.pattern, tier: null, pathClass } };
     }
     if (decision.action === 'confirm') {
-        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}`, telemetry: { decision: 'confirm', rule: decision.pattern, tier: null } };
+        return { confirm: true, reason: `Guardrail: "${decision.pattern}" — ${command}`, telemetry: { decision: 'confirm', rule: decision.pattern, tier: null, pathClass } };
     }
 
     return null;
@@ -312,4 +386,6 @@ module.exports = {
     stripCommitMessages,
     checkRules,          // backward compat wrapper over evaluate()
     loadRules,           // hook-level wrapper (resolves path, writes stderr warnings)
+    classifyDeletePath,  // coarse, secret-safe path class for delete telemetry (C1)
+    PATH_CLASS_ENUM,     // bounded enum of pathClass values (C1)
 };

@@ -59,7 +59,7 @@ describe('memory-manager deleteMemory', () => {
   it('deleteMemory_existingMemory_unlinkAndDeindex', async () => {
     const m = makeManager();
     await m.createMemory('patterns', 'to-delete', { description: 'doomed' });
-    const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'to-delete.json');
+    const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'to-delete.json');
     expect(fs.existsSync(filePath)).toBe(true);
 
     const result = await m.deleteMemory('patterns', 'to-delete');
@@ -128,7 +128,7 @@ describe('memory-manager deleteMemory', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Deleted');
-    const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'workflows', 'cli-test-target.json');
+    const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'workflows', 'cli-test-target.json');
     expect(fs.existsSync(filePath)).toBe(false);
   });
 

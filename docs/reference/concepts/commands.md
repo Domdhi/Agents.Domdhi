@@ -72,7 +72,7 @@ Five utility commands for progress-checking, module scaffolding, cleanup, debugg
 | `/review:promote-memories` | Surface high-confidence concepts for promotion |
 | `/review:timeline` | Generate or update weekly commit history |
 
-Sixteen review commands. Most run periodically — after an epic, before a release, or when something feels drifted. The `/review:check-*` commands are read-only diagnostics; the rest write artifacts to `docs/.output/reviews/`.
+Sixteen review commands. Most run periodically — after an epic, before a release, or when something feels drifted. The `/review:check-*` commands are read-only diagnostics; the rest write artifacts to `docs/.output/findings/reviews/`.
 
 ## The orchestration pattern
 

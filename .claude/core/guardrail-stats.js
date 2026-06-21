@@ -4,14 +4,18 @@
  * guardrail-stats.js — the guardrail hit counter's reporter.
  *
  * The guardrail hook (.claude/hooks/guardrail.cjs) appends one record to
- * docs/.output/telemetry/guardrail-events.jsonl every time a rule fires — a
+ * docs/.output/.state/telemetry/guardrail-events.jsonl every time a rule fires — a
  * block, a nudge, or a confirm (allows are NOT logged). This reads that log
  * and reports how often the guardrail is being hit, broken down by decision
  * and by rule, so you can see which rules earn their keep and which are pure
  * friction.
  *
- * Each event: { event:'guardrail', decision, rule, tier, source, timestamp }.
+ * Each event: { event:'guardrail', decision, rule, tier, source, pathClass, timestamp }.
  * The raw command is never logged (secret safety — see hook-telemetry.js).
+ * `pathClass` (C1) is a BOUNDED enum class for the first path of a delete-style
+ * command ('build-artifact', 'tmp', 'node_modules', etc.) — never the raw path.
+ * The "By path class" breakdown answers "is rule X just noise on disposable
+ * paths?" without ever surfacing the command.
  * Events tagged source:'secret-scanner' are EXCLUDED here (they're the
  * secret-scanner's blocks, counted by feedback-digest's readScannerBlocks) so
  * this stays a pure Bash-guardrail hit counter.
@@ -40,12 +44,13 @@ const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '
  *
  * @param {object[]} events  Parsed guardrail event records.
  * @param {{ since?: string }} [opts]  ISO date (YYYY-MM-DD) lower bound, inclusive.
- * @returns {{ total:number, byDecision:object, byRule:object, range:{first:string|null,last:string|null} }}
+ * @returns {{ total:number, byDecision:object, byRule:object, byPathClass:object, range:{first:string|null,last:string|null} }}
  */
 function aggregate(events, opts = {}) {
     const since = opts.since ? Date.parse(opts.since) : null;
     const byDecision = {};
     const byRule = {};
+    const byPathClass = {};
     let total = 0;
     let first = null, last = null;
 
@@ -67,6 +72,11 @@ function aggregate(events, opts = {}) {
         byDecision[decision] = (byDecision[decision] || 0) + 1;
         const rule = e.rule || '(unnamed)';
         byRule[rule] = (byRule[rule] || 0) + 1;
+        // pathClass is optional (only delete-style hits carry it). Skip
+        // null/undefined so the breakdown reflects only classified deletes.
+        if (e.pathClass != null) {
+            byPathClass[e.pathClass] = (byPathClass[e.pathClass] || 0) + 1;
+        }
         if (e.timestamp) {
             // Numeric compare — robust to mixed timezone representations, not just
             // uniform UTC `Z` (which is all the writer emits today).
@@ -77,7 +87,7 @@ function aggregate(events, opts = {}) {
             }
         }
     }
-    return { total, byDecision, byRule, range: { first, last } };
+    return { total, byDecision, byRule, byPathClass, range: { first, last } };
 }
 
 /** Parse a JSONL string into an array of records, skipping malformed lines. */
@@ -118,6 +128,17 @@ function formatReport(agg, opts = {}) {
         lines.push(`    ${String(n).padStart(4)}  ${r}`);
     }
     if (rules.length > shown.length) lines.push(`    … ${rules.length - shown.length} more rule(s)`);
+    // By path class — only when delete-style hits carried a pathClass. Surfaces
+    // whether a rule is firing on disposable paths (build-artifact/tmp) vs real
+    // project paths, without ever logging the command itself.
+    const pathClasses = Object.entries(agg.byPathClass || {}).sort((a, b) => b[1] - a[1]);
+    if (pathClasses.length) {
+        lines.push('');
+        lines.push('  By path class (delete-style hits):');
+        for (const [c, n] of pathClasses) {
+            lines.push(`    ${String(n).padStart(4)}  ${c}`);
+        }
+    }
     lines.push('');
     return lines.join('\n');
 }

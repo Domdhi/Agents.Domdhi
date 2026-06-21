@@ -29,23 +29,15 @@ node_modules/
 test-results/
 playwright-report/
 
-# Ephemeral output (rebuilt from source or session-specific)
-# Tracked (NOT listed here): .output/plans|reviews|research|investigations, and
-# the durable docs/ domains. docs/.output/work/ holds task working files
-# ({date}/{task}/) — ignored so task scratch never ships/commits.
-docs/.output/work/
+# Ephemeral output — ADR 0006 lifecycle split. ALL regenerable / per-session /
+# derived / transient state lives under ONE zone, docs/.output/.state/ (telemetry,
+# sessions, screenshots, work, HTML dashboards, .commit-msg/.pr-body/freeze-state,
+# and memory's derived index + drafts + raw logs: memory-{index,inbox,daily}).
+# Tracked (NOT under .state/): the durable .output history — handoffs/ findings/
+# plans/ evolution/ — the curated memory SOURCE docs/.output/.memory/, and the
+# docs/ domains. One ignored folder; the boundary is structural, not a path list.
+docs/.output/.state/
 .claude/.agents.docs/
 # Agent-scoped working memory (per-agent markdown the sub-agents accumulate).
-# Local/regenerable like docs/.output/memories/ — must NOT be committed (C10).
+# Local/regenerable — must NOT be committed (C10).
 .claude/agent-memory/
-# commit.js scratch file — rewritten on every commit; tracking it leaves the
-# tree perpetually dirty (and re-tracks itself when commit.js --all runs).
-docs/.output/.commit-msg
-docs/.output/memories/
-docs/.output/screenshots*/
-docs/.output/sessions*/
-docs/.output/telemetry*/
-docs/.output/telemetry/coverage/
-# Generated dashboards — rebuilt on every /status run from TODO files + telemetry
-docs/.output/status.html
-docs/.output/decisions.html

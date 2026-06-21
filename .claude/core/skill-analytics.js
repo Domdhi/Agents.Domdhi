@@ -5,14 +5,14 @@
  *
  * Two data layers:
  *   Configured  — scanned from .claude/agents/*.md and .claude/skills/ (always available)
- *   Observed    — read from docs/.output/telemetry/skill-usage.jsonl (grows over time)
+ *   Observed    — read from docs/.output/.state/telemetry/skill-usage.jsonl (grows over time)
  *
  * Useful immediately after setup (configured layer) and increasingly useful as
  * telemetry accumulates (observed layer).
  *
  * Usage:
  *   node .claude/core/skill-analytics.js              # markdown to stdout
- *   node .claude/core/skill-analytics.js --output     # write to docs/.output/telemetry/_skill-analytics.md
+ *   node .claude/core/skill-analytics.js --output     # write to docs/.output/.state/telemetry/_skill-analytics.md
  *   node .claude/core/skill-analytics.js --json       # raw JSON to stdout
  *
  * Coverage tiers (shown in report):

@@ -11,7 +11,7 @@ allowed-tools: Read Write Edit Bash Grep Glob
 
 # Skill Creator
 
-A skill for **creating new skills and iteratively improving them with measured evidence.** Ported and tuned from Anthropic's official `skill-creator` (anthropics/skills) for this toolkit: **zero-dependency Node** instead of Python, this repo's **subagent dispatch**, and workspaces under `docs/.output/skill-evolution/`.
+A skill for **creating new skills and iteratively improving them with measured evidence.** Ported and tuned from Anthropic's official `skill-creator` (anthropics/skills) for this toolkit: **zero-dependency Node** instead of Python, this repo's **subagent dispatch**, and workspaces under `docs/.output/evolution/skills/`.
 
 **This is the operational complement to two other parts of the system:**
 - **`skill-authoring`** owns the *doctrine* — when a skill is warranted, the evidence-first rule, description/CSO conventions, the spec. Read it for the "why."
@@ -94,7 +94,7 @@ Full schema (including `assertions`, added later): `references/schemas.md`.
 One continuous sequence — don't stop partway. Put results in the workspace:
 
 ```
-docs/.output/skill-evolution/{date}/{skill}-workspace/
+docs/.output/evolution/skills/{date}/{skill}-workspace/
   iteration-1/  iteration-2/  ...
     eval-<id>-<descriptive-name>/
       eval_metadata.json

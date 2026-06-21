@@ -289,7 +289,7 @@ function computeTodos() {
 // ── Sessions ─────────────────────────────────────────────────────
 
 function computeSessions() {
-  const sessionsDir = path.join(PROJECT_ROOT, 'docs', '.output', 'sessions');
+  const sessionsDir = path.join(PROJECT_ROOT, 'docs', '.output', '.state', 'sessions');
 
   if (!fs.existsSync(sessionsDir)) return null;
 

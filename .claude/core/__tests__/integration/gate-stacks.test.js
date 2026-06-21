@@ -180,7 +180,7 @@ describe('gate.js stack detection integration', () => {
         // gate.js writes _latest-test.json when the test command runs
         const testJsonPath = path.join(
             tmp.root,
-            'docs', '.output', 'telemetry', '_latest-test.json'
+            'docs', '.output', '.state', 'telemetry', '_latest-test.json'
         );
         expect(fs.existsSync(testJsonPath)).toBe(true);
 

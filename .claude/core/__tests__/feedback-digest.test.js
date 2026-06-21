@@ -44,7 +44,7 @@ afterEach(() => {
     tmp.cleanup();
 });
 
-const TEL = 'docs/.output/telemetry';
+const TEL = 'docs/.output/.state/telemetry';
 
 function writeJsonl(relPath, rows) {
     tmp.write(relPath, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
@@ -83,11 +83,11 @@ describe('readCommandUsage', () => {
 
 describe('readMemoryStore', () => {
     it('countsJsonByCategory_excludesDailyAndInbox', () => {
-        tmp.write('docs/.output/memories/patterns/a.json', '{}');
-        tmp.write('docs/.output/memories/patterns/b.json', '{}');
-        tmp.write('docs/.output/memories/decisions/adr-001.json', '{}');
-        tmp.write('docs/.output/memories/daily/2026-06-06.md', '# log'); // excluded
-        tmp.write('docs/.output/memories/_inbox/draft.json', '{}'); // excluded
+        tmp.write('docs/.output/.memory/patterns/a.json', '{}');
+        tmp.write('docs/.output/.memory/patterns/b.json', '{}');
+        tmp.write('docs/.output/.memory/decisions/adr-001.json', '{}');
+        tmp.write('docs/.output/.state/memory-daily/2026-06-06.md', '# log'); // excluded
+        tmp.write('docs/.output/.state/memory-inbox/draft.json', '{}'); // excluded
         const r = readMemoryStore(tmp.root);
         expect(r.total).toBe(3);
         expect(r.byCategory).toEqual({ patterns: 2, decisions: 1 });
@@ -274,7 +274,7 @@ describe('buildDigest + render + summarize', () => {
             { event: 'guardrail', decision: 'block', rule: 'git push --force', tier: null },
         ]);
         tmp.write(`${TEL}/_latest-summary.json`, JSON.stringify({ overall: true, mode: 'BUILD + TEST', stack: 'node', durationMs: 3963 }));
-        tmp.write('docs/.output/memories/patterns/a.json', '{}');
+        tmp.write('docs/.output/.memory/patterns/a.json', '{}');
         tmp.write('.claude/version.json', JSON.stringify({ version: '4.46.0' }));
 
         const d = buildDigest(tmp.root);

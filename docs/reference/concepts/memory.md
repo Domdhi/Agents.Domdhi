@@ -2,13 +2,13 @@
 
 Memory in this system is a persistent, compounding record of what each session learned — written to disk, scored by confidence, decayed over time, and surfaced into future sessions automatically. It is how the template gets smarter as you use it, without you having to keep re-explaining things. When a new session starts and `session-start-prime.cjs` injects a block of `[patterns]` concepts into the context, that's memory in action: the top-ranked things this project has figured out, handed to you before the first turn.
 
-It is deliberately not a database. There's no query language, no schema migration, no indexing beyond SQLite FTS5 for search. It's a pile of files under `docs/.output/memories/` that five small scripts shape into something useful. The point is durability across sessions, not structured retrieval.
+It is deliberately not a database. There's no query language, no schema migration, no indexing beyond SQLite FTS5 for search. It's a pile of files under `docs/.output/.memory/` that five small scripts shape into something useful. The point is durability across sessions, not structured retrieval.
 
 ### What kind of thing this is
 
-The memory store is repo-native: it lives under `docs/.output/memories/`, travels with the project directory, and requires nothing beyond Node and the scripts already in `.claude/core/`. No hosted service, no vendor account, no API key. You can move the repo, rename it, or hand it to someone else and the memories come with it.
+The memory store is repo-native: it lives under `docs/.output/.memory/`, travels with the project directory, and requires nothing beyond Node and the scripts already in `.claude/core/`. No hosted service, no vendor account, no API key. You can move the repo, rename it, or hand it to someone else and the memories come with it.
 
-It is also regenerable. The store is gitignored by design — not because it is disposable, but because it is locally derived from your session history and decays as your work evolves. If you delete it, the next few sessions rebuild a working set automatically. That also means no accidental secret-in-a-memory commit and no merge conflicts when two people work on the same repo.
+It is split along a source/index line (ADR 0006 Amendment 2). The **curated JSON source** (`docs/.output/.memory/`) is **tracked in git** — it is the durable record, and tracking it is exactly what lets memories sync across machines. The **derived/transient parts** (`docs/.output/.state/memory-*`: the SQLite index, the `_inbox` drafts, the raw daily logs) are gitignored and regenerable — delete them and the next session rebuilds the index from the JSON automatically (a stale/absent check in `session-start-prime.cjs` self-heals it). Keeping the index and logs out of git also means no accidental secret-in-a-derived-file commit; and because the source itself is tracked, two machines reconcile memories through ordinary git merges of small, append-mostly JSON files rather than losing them.
 
 Claude Code's native memory (Project Memory, `/memory`) offers similar persistence — context that survives across conversations without you re-explaining it. This system is not a replacement for that. They coexist: native memory is the right place for general guidance about how you want Claude to behave across all your projects; this store is the right place for project-specific learned facts, rejected approaches, and architectural decisions that belong to *this* codebase. Neither is the wrong choice — they answer different questions.
 
@@ -28,7 +28,7 @@ Each session runs memory through five stages. The four-stage automated pipeline 
 1. **Capture** — every session ends with `memory-capture.cjs` firing on the `Stop` hook. It writes a daily log entry summarizing what happened (tasks, commits, decisions). `pre-compaction-archive.cjs` also captures a log before context compaction, so work survives auto-compression. Opt-in: `edit-capture.cjs` records edits to canonical docs (CLAUDE.md, architecture, skills) as daily-log entries when `MEMORY_PROFILE=strict`.
 2. **Acquire** — Main Agent writes 0–3 structured memories per session via `memory-manager.js create`; the daily log feeds optional brownfield extraction (`memory-extractor.js extract`) for adopter projects.
 3. **Curate** — `memory-curator.js` runs on `Stop` when `MEMORY_PROFILE=strict`. Haiku analyzes the concept set for duplicates, contradictions, and merge candidates. Outside strict profile, this stage is skipped.
-4. **Extract** — `memory-extractor.js` pulls structured facts from daily logs via `claude -p` (Haiku). Manual/brownfield-only: no hook or command fires this automatically. Run it by hand via `node .claude/core/memory-extractor.js extract` when onboarding an existing project with historical daily logs, or via `/review:memory-health` which runs it as part of the periodic health check. In-process memory acquisition is owned by Main Agent at session-handoff time — see `docs/.output/reviews/2026-04-20-adr-memory-unification.md`.
+4. **Extract** — `memory-extractor.js` pulls structured facts from daily logs via `claude -p` (Haiku). Manual/brownfield-only: no hook or command fires this automatically. Run it by hand via `node .claude/core/memory-extractor.js extract` when onboarding an existing project with historical daily logs, or via `/review:memory-health` which runs it as part of the periodic health check. In-process memory acquisition is owned by Main Agent at session-handoff time — see `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md`.
 5. **Promote** — `memory-promoter.js scan` ranks concepts by their decayed confidence × recency × usage. High-ranked concepts get reviewed for promotion into templates, skills, or agent instructions — the point where a memory graduates from "knowledge the system remembers" to "knowledge the system enforces."
 
 Most of this runs on hooks without you thinking about it (see [`./hooks.md`](./hooks.md)). The `memory-*.js` scripts are also runnable directly when you want to inspect, search, or manually curate.
@@ -68,8 +68,8 @@ Thresholds: below 0.3 is stale (still visible, but deprioritized in ranking). Be
 
 The primary path into the memory system is hand-created:
 
-- **Hand-created memories** — `docs/.output/memories/{cat}/{slug}.json`. Produced by `memory-manager.js create`. No source-count filter. Represents deliberate human curation — use for rules, decisions, or context you want remembered whether or not it came up in session transcripts. Main Agent writes 0–3 of these per session at handoff time.
-- **Compiled concepts (legacy)** — `docs/.output/memories/concepts/{cat}/{slug}.md`. Produced by `memory-compiler.js` from daily logs. Needed 2+ sources to file. Represents observed reality accumulated across sessions.
+- **Hand-created memories** — `docs/.output/.memory/{cat}/{slug}.json`. Produced by `memory-manager.js create`. No source-count filter. Represents deliberate human curation — use for rules, decisions, or context you want remembered whether or not it came up in session transcripts. Main Agent writes 0–3 of these per session at handoff time.
+- **Compiled concepts (legacy)** — `docs/.output/.state/memory-concepts/{cat}/{slug}.md`. Produced by `memory-compiler.js` from daily logs. Needed 2+ sources to file. Represents observed reality accumulated across sessions.
 
 Both paths feed the same ranking and decay pipeline. `memory-promoter.js scan` and `mark` operate on both. The distinction matters only when you're deciding how to add a new memory: want to lock in a fact now? Create it by hand via `memory-manager.js create`. Working from historical logs in an adopter project? Run `memory-extractor.js extract` (manual Haiku).
 
@@ -109,7 +109,7 @@ It's **flag-then-confirm**, never automatic: at write time `createMemory` runs a
 
 The custom retrieval-accuracy harness (`node .claude/core/memory-eval.js`, or `npm run memory:eval`) validates that this pruning *improves* retrieval rather than just shrinking the store: it scores hit@k for a pruned store vs a keep-everything store and reports the delta (keep-everything is measurably worse — consistent with LongMemEval's finding).
 
-Design record: `docs/.output/research/2026-06-04-memory-eviction-retention-research.md`.
+Design record: `docs/.output/findings/research/2026-06-04-memory-eviction-retention-research.md`.
 
 ## Key scripts
 

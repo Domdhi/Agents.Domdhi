@@ -28,7 +28,7 @@
  * that agents perform based on task context.
  *
  * ── Output ────────────────────────────────────────────────────────────────
- * docs/.output/telemetry/skill-usage.jsonl
+ * docs/.output/.state/telemetry/skill-usage.jsonl
  *
  * ── Event shapes ──────────────────────────────────────────────────────────
  * @typedef {Object} AgentDispatchEvent

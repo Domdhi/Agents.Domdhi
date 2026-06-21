@@ -5,7 +5,7 @@
  *
  * Consumes the four-tier path schema from `.claude/guardrail-rules.yaml`
  * (`zeroAccessPaths` / `readOnlyPaths` / `noDeletePaths`) and the freeze-state
- * file at `docs/.output/freeze-state.json` to gate Write and Edit tool calls
+ * file at `docs/.output/.state/freeze-state.json` to gate Write and Edit tool calls
  * BEFORE Claude executes them. Companion to the existing PreToolUse:Bash
  * guardrail (`.claude/hooks/guardrail.cjs`) which gates only Bash deletes.
  *

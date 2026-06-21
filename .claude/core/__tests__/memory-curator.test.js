@@ -165,7 +165,7 @@ describe('loadConcepts()', () => {
 
   it('loadConcepts_skipsFilesWithoutFrontmatter', async () => {
     // Write a .md file with no frontmatter
-    tmp.write('docs/.output/memories/concepts/patterns/no-fm.md', '# No frontmatter here\n\nJust content.');
+    tmp.write('docs/.output/.state/memory-concepts/patterns/no-fm.md', '# No frontmatter here\n\nJust content.');
     // Write a valid one
     createConcept(tmp, 'patterns', 'valid-slug', { title: 'Valid', confidence: 0.7, sources: [] });
 
@@ -536,7 +536,7 @@ describe('curate() dry-run', () => {
     await curator.curate({ dryRun: true });
 
     // pending-curation dir should NOT exist (no file written)
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
     expect(fs.existsSync(pendingDir)).toBe(false);
   });
 
@@ -611,7 +611,7 @@ describe('curate() non-dry (file write)', () => {
     await curator.curate({ dryRun: false });
 
     const today = new Date().toISOString().slice(0, 10);
-    const dateDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation', today);
+    const dateDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation', today);
     expect(fs.existsSync(dateDir)).toBe(true);
 
     const files = fs.readdirSync(dateDir).filter(f => f.endsWith('.json'));
@@ -626,7 +626,7 @@ describe('curate() non-dry (file write)', () => {
     await curator.curate({ dryRun: false });
 
     const today = new Date().toISOString().slice(0, 10);
-    const dateDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation', today);
+    const dateDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation', today);
     const files = fs.readdirSync(dateDir).filter(f => f.endsWith('.json'));
 
     // File name should match HH-MM-SS.json pattern
@@ -641,7 +641,7 @@ describe('curate() non-dry (file write)', () => {
     await curator.curate({ dryRun: false });
 
     const today = new Date().toISOString().slice(0, 10);
-    const dateDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation', today);
+    const dateDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation', today);
     const files = fs.readdirSync(dateDir).filter(f => f.endsWith('.json'));
     const filePath = path.join(dateDir, files[0]);
     const written = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -726,7 +726,7 @@ describe('curate() graceful-skip (claude CLI not installed)', () => {
     const curator = new MemoryCurator();
     await curator.curate({ dryRun: false });
 
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
     expect(fs.existsSync(pendingDir)).toBe(false);
   });
 
@@ -772,7 +772,7 @@ describe('status()', () => {
 
   it('status_emptyPendingDir_printsNoCurationRuns', async () => {
     // Create the dir but leave it empty (no date subdirs)
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
     fs.mkdirSync(pendingDir, { recursive: true });
 
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -788,7 +788,7 @@ describe('status()', () => {
   it('status_withExistingCurationFile_printsSummary', async () => {
     // Set up a pending curation file fixture
     const today = new Date().toISOString().slice(0, 10);
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
     const dateDir = path.join(pendingDir, today);
     fs.mkdirSync(dateDir, { recursive: true });
 
@@ -830,7 +830,7 @@ describe('status()', () => {
 
   it('status_withExistingCurationFile_printsFilePath', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
     const dateDir = path.join(pendingDir, today);
     fs.mkdirSync(dateDir, { recursive: true });
 
@@ -857,7 +857,7 @@ describe('status()', () => {
   });
 
   it('status_picksLatestDateAndLatestFile', async () => {
-    const pendingDir = path.join(tmp.root, 'docs', '.output', 'memories', 'pending-curation');
+    const pendingDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-pending-curation');
 
     // Create two date directories — status() should pick the later one
     const olderDate = '2026-01-01';

@@ -1,6 +1,6 @@
 // AC→source map (P1.2 / daily-log-paths):
 //   Exports: getDailyDir(projectRoot), getDailyLogPath(date, projectRoot)
-//   Path shape: <projectRoot>/docs/.output/memories/daily/<YYYY-MM-DD>.md
+//   Path shape: <projectRoot>/docs/.output/.state/memory-daily/<YYYY-MM-DD>.md
 //   getDailyLogPath accepts Date object OR 'YYYY-MM-DD' string (pass-through)
 
 import { describe, it, expect } from 'vitest';
@@ -12,15 +12,15 @@ const path = require('node:path');
 const { getDailyDir, getDailyLogPath } = require('../daily-log-paths');
 
 describe('getDailyDir', () => {
-    it('returns docs/.output/memories/daily under the given project root', () => {
+    it('returns docs/.output/.state/memory-daily under the given project root', () => {
         const result = getDailyDir('/tmp/project');
         // path.join normalizes separators — compare in platform form
-        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', 'memories', 'daily'));
+        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', '.state', 'memory-daily'));
     });
 
     it('honors a Windows-style absolute root', () => {
         const result = getDailyDir('C:\\Users\\x\\project');
-        expect(result).toContain(path.join('docs', '.output', 'memories', 'daily'));
+        expect(result).toContain(path.join('docs', '.output', '.state', 'memory-daily'));
     });
 });
 
@@ -28,12 +28,12 @@ describe('getDailyLogPath', () => {
     it('accepts a Date object and formats YYYY-MM-DD.md', () => {
         const date = new Date('2026-04-24T10:00:00Z');
         const result = getDailyLogPath(date, '/tmp/project');
-        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', 'memories', 'daily', '2026-04-24.md'));
+        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', '.state', 'memory-daily', '2026-04-24.md'));
     });
 
     it('accepts a YYYY-MM-DD string (pass-through)', () => {
         const result = getDailyLogPath('2026-04-24', '/tmp/project');
-        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', 'memories', 'daily', '2026-04-24.md'));
+        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', '.state', 'memory-daily', '2026-04-24.md'));
     });
 
     it('uses the provided projectRoot, not cwd', () => {
@@ -43,6 +43,6 @@ describe('getDailyLogPath', () => {
 
     it('extracts the date slice from a longer ISO string', () => {
         const result = getDailyLogPath('2026-04-24T12:34:56.789Z', '/tmp/project');
-        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', 'memories', 'daily', '2026-04-24.md'));
+        expect(result).toBe(path.join('/tmp/project', 'docs', '.output', '.state', 'memory-daily', '2026-04-24.md'));
     });
 });

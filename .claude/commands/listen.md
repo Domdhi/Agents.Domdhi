@@ -27,7 +27,7 @@ SCOPE: $ARGUMENTS
 
 ## Output
 
-`docs/.output/intake/{YYYY-MM-DD}.md` — day-rotated, one file per run-day. If today's file already exists, **append a new run section** (`## Run {HH:MM}`) rather than overwriting — multiple `/listen` runs in a day accumulate.
+`docs/.output/evolution/intake/{YYYY-MM-DD}.md` — day-rotated, one file per run-day. If today's file already exists, **append a new run section** (`## Run {HH:MM}`) rather than overwriting — multiple `/listen` runs in a day accumulate.
 
 Every signal is written as a bullet tagged with its origin (provenance model borrowed from Paperclip's `origin_kind`):
 
@@ -41,14 +41,14 @@ Every signal is written as a bullet tagged with its origin (provenance model bor
 
 Determine the time window for time-bounded sources:
 - If `--since` is provided, use it.
-- Else, Glob `docs/.output/intake/*.md` and take the newest filename date as the lower bound.
+- Else, Glob `docs/.output/evolution/intake/*.md` and take the newest filename date as the lower bound.
 - Else, default to 14 days ago.
 
 State the resolved window in the report.
 
 ### Step 1b: Consult the triage ledger
 
-Read `docs/.output/triage/_decisions.md` if it exists. This is a **read-only** step — `/listen` never writes to the ledger (that belongs to `/triage`). If the file is absent or empty, skip this step silently and proceed with an empty suppress set.
+Read `docs/.output/evolution/triage/_decisions.md` if it exists. This is a **read-only** step — `/listen` never writes to the ledger (that belongs to `/triage`). If the file is absent or empty, skip this step silently and proceed with an empty suppress set.
 
 Parse each line matching the format:
 
@@ -77,10 +77,10 @@ Run every applicable source. A source that yields nothing writes its header with
 - Expiring flags: grep for `remove once`, `remove after`, `TODO: remove`, `@deprecated`, and dated `TODO({date})` markers whose date is **past today** — these are the cleanup obligations the harness otherwise forgets.
 
 **2b. `telemetry` — usage reality**
-- Read `docs/.output/telemetry/command-usage.jsonl` (if present). Within the window: count `gate_run` events with `outcome: "failure"` (recurring build/test pain), and note any command spikes or absences. Skip gracefully if the file is missing.
+- Read `docs/.output/.state/telemetry/command-usage.jsonl` (if present). Within the window: count `gate_run` events with `outcome: "failure"` (recurring build/test pain), and note any command spikes or absences. Skip gracefully if the file is missing.
 
 **2c. `agent-updates` — unaddressed friction**
-- Read the newest few day-files in `docs/.output/agent-updates/` (`{YYYY-MM-DD}.md`; fall back to legacy flat `agent-updates.md`). Surface misalignments/decisions that have **not** yet been folded into a command or agent (i.e., still actionable). These are the `/optimize-agents` candidates that haven't been picked up.
+- Read the newest few day-files in `docs/.output/evolution/agents/` (`{YYYY-MM-DD}.md`; fall back to legacy flat `agent-updates.md`). Surface misalignments/decisions that have **not** yet been folded into a command or agent (i.e., still actionable). These are the `/optimize-agents` candidates that haven't been picked up.
 
 **2d. `backlog` — plan drift**
 - Grep `docs/work/todo/TODO_*.md` for deferred `[~]` and blocked `[!]` items — work that fell out of waves and never came back.
@@ -94,7 +94,7 @@ Run every applicable source. A source that yields nothing writes its header with
 
 ### Step 3: Write the intake file
 
-MUST write `docs/.output/intake/{YYYY-MM-DD}.md` before reporting (output-persistence convention — chat-only intake is lost on compaction). Structure:
+MUST write `docs/.output/evolution/intake/{YYYY-MM-DD}.md` before reporting (output-persistence convention — chat-only intake is lost on compaction). Structure:
 
 ```markdown
 # Signal Intake — {YYYY-MM-DD}
@@ -131,7 +131,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage only the intak
 ## /listen — {YYYY-MM-DD}
 
 **Window:** {resolved}
-**Intake file:** docs/.output/intake/{YYYY-MM-DD}.md
+**Intake file:** docs/.output/evolution/intake/{YYYY-MM-DD}.md
 **Commit:** {hash}
 
 | Source | Signals |

@@ -181,7 +181,7 @@ describe('command-usage-logger', () => {
     // resolves its output path lazily from the env var (see getProjectRoot()
     // in command-usage-logger.cjs). Setting it per-test in beforeEach, and
     // restoring the caller's prior value in afterEach, guarantees test runs
-    // never touch the real repo's `docs/.output/telemetry/command-usage.jsonl`.
+    // never touch the real repo's `docs/.output/.state/telemetry/command-usage.jsonl`.
 
     describe('processEvent', () => {
         let tmp;
@@ -204,7 +204,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_skillEvent_appendsCommandInvocationEntry', () => {
             // Arrange
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({ tool_input: { skill: 'todo' } });
@@ -222,7 +222,7 @@ describe('command-usage-logger', () => {
         it('processEvent_doSkillEvent_capturesCorrectly', () => {
             // REGRESSION: /do used to not match — this test will fail if /do invocations
             // are silently dropped instead of captured.
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({ tool_input: { skill: 'do' } });
@@ -235,7 +235,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_runTodoSkillEvent_capturesCorrectly', () => {
             // Arrange
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({ tool_input: { skill: 'run-todo' } });
@@ -248,7 +248,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_gateTestPass_appendsGateRunPassEntry', () => {
             // Arrange
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({
@@ -267,7 +267,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_gateBuildFail_appendsGateRunFailEntry', () => {
             // Arrange
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({
@@ -286,7 +286,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_gateExitCodeFromToolOutput_usedWhenToolResponseMissing', () => {
             // Arrange — exit_code from tool_output (fallback path)
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({
@@ -308,8 +308,8 @@ describe('command-usage-logger', () => {
             // the gate actually passing — bug surfaced in TDD-3, TDD-5, TDD-6 retros.
 
             // Arrange — write the summary file gate.js produces, NO exit_code on event
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({
                 overall: true,
@@ -332,8 +332,8 @@ describe('command-usage-logger', () => {
 
         it('processEvent_gateNoExitCode_summaryOverallFalse_outcomeFail', () => {
             // Arrange
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({
                 overall: false,
@@ -358,7 +358,7 @@ describe('command-usage-logger', () => {
             // of any signal as a negative result. 'unknown' is correct here.
 
             // Arrange — no summary file exists
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({
@@ -378,8 +378,8 @@ describe('command-usage-logger', () => {
             // should keep using it instead of switching to the file read.
 
             // Arrange — write a contradictory summary; exit_code says fail, summary says pass
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({ overall: true }));
 
@@ -397,7 +397,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_unrelatedBashCommand_noFileWritten', () => {
             // Arrange
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             const result = processEvent({ tool_input: { command: 'ls -la' } });
@@ -431,7 +431,7 @@ describe('command-usage-logger', () => {
             // and resolve exclusively from CLAUDE_PROJECT_DIR / __dirname.
 
             // Arrange — event payload includes a bogus `cwd` pointing outside tmp
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
             const bogusCwd = path.join(tmp.root, 'subdir-that-should-not-be-used');
             fs.mkdirSync(bogusCwd, { recursive: true });
 
@@ -443,7 +443,7 @@ describe('command-usage-logger', () => {
 
             // Assert — file lands at CLAUDE_PROJECT_DIR (tmp.root), not at bogusCwd
             expect(fs.existsSync(jsonlPath)).toBe(true);
-            const bogusJsonlPath = path.join(bogusCwd, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const bogusJsonlPath = path.join(bogusCwd, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
             expect(fs.existsSync(bogusJsonlPath)).toBe(false);
         });
 
@@ -455,7 +455,7 @@ describe('command-usage-logger', () => {
         it('processEvent_a4_commandInvocation_hasDurationMsNull', () => {
             // command_invocation events carry duration_ms: null — there is no
             // start time available to a PostToolUse-only hook.
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act
             processEvent({ tool_input: { skill: 'do' } });
@@ -469,8 +469,8 @@ describe('command-usage-logger', () => {
         it('processEvent_gateRun_summaryWithDurationMs_populatesDuration', () => {
             // P1.6: gate.js stamps wall-clock durationMs into the summary; the
             // hook copies it onto the gate_run telemetry entry.
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({ overall: true, durationMs: 4213 }));
 
@@ -489,8 +489,8 @@ describe('command-usage-logger', () => {
         it('processEvent_gateRun_summaryWithoutDurationMs_durationNull', () => {
             // Backward-compat: a summary from an older gate.js (no durationMs)
             // yields duration_ms: null rather than undefined/NaN.
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({ overall: true }));
 
@@ -508,7 +508,7 @@ describe('command-usage-logger', () => {
 
         it('processEvent_a4_gateNoSignal_outcomeUnknown', () => {
             // A4: no exit_code AND no summary file → outcome 'unknown' (not 'fail')
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
 
             // Act — no summary file in tmp, no exit_code in payload
             processEvent({
@@ -523,8 +523,8 @@ describe('command-usage-logger', () => {
 
         it('processEvent_a4_summaryOverallFalse_outcomeFailure', () => {
             // A4: summary reports overall: false → outcome 'failure' (not 'fail')
-            const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
-            const summaryPath = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
+            const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
+            const summaryPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
             fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
             fs.writeFileSync(summaryPath, JSON.stringify({ overall: false, test: { failed: 2 } }));
 

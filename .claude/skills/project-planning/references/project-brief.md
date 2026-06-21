@@ -60,6 +60,6 @@ A constraint comes from the user's reality and *every* valid solution must honor
 7. "Are there any regulatory or compliance requirements?"
 
 ## Output Paths
-- Reads from: brainstorm/research docs if available — feature-scoped: `docs/modules/{feature}/brainstorm.md`; general: `docs/.output/research/{date}-{slug}.md`
+- Reads from: brainstorm/research docs if available — feature-scoped: `docs/modules/{feature}/brainstorm.md`; general: `docs/.output/findings/research/{date}-{slug}.md`
 - Produces: `docs/product/brief.md`
 - Feeds into: `docs/product/requirements.md` (via `/create:project-requirements`)

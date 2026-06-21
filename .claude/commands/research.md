@@ -5,7 +5,7 @@ argument-hint: [research topic or question]
 
 # Research
 
-Conduct structured research to validate assumptions. Output is **context-bundled** — if researching a specific feature/module, output goes to `docs/modules/{feature}/research.md`. If general, output goes to `docs/.output/research/{YYMMDD-HHMM}-{slug}.md`.
+Conduct structured research to validate assumptions. Output is **context-bundled** — if researching a specific feature/module, output goes to `docs/modules/{feature}/research.md`. If general, output goes to `docs/.output/findings/research/{YYMMDD-HHMM}-{slug}.md`.
 
 ## Telemetry (run first)
 
@@ -40,7 +40,7 @@ ELIF researching a specific feature/module (new):
   mkdir -p docs/modules/{name}/
   OUTPUT_PATH = docs/modules/{name}/research.md
 ELSE (general/project-wide):
-  OUTPUT_PATH = docs/.output/research/{YYMMDD-HHMM}-{slug}.md
+  OUTPUT_PATH = docs/.output/findings/research/{YYMMDD-HHMM}-{slug}.md
 ```
 
 If unclear whether it's feature-scoped or general, ask with AskUserQuestion.

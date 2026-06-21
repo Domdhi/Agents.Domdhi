@@ -3,7 +3,7 @@
  *
  * Moves loose files into dated folder structures:
  *   Plans:       docs/.output/plans/{YYYY-MM-DD}/{HHMM}-{story}-{slug}.md
- *   Screenshots: docs/.output/screenshots/{YYYY-MM-DD}/{task}/
+ *   Screenshots: docs/.output/.state/screenshots/{YYYY-MM-DD}/{task}/
  *
  * Also updates Work Document References in Epic TODO files (plans only).
  *
@@ -193,7 +193,7 @@ function organizeScreenshots(results) {
     const projectDir = process.env.CLAUDE_PROJECT_DIR ||
         path.resolve(__dirname, '..', '..');
 
-    const verifyDir = path.join(projectDir, 'docs', '.output', 'screenshots');
+    const verifyDir = path.join(projectDir, 'docs', '.output', '.state', 'screenshots');
     if (!fs.existsSync(verifyDir)) return;
 
     const description = process.argv[2] || '';

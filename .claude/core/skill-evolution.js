@@ -8,7 +8,7 @@
  * differential eval after (see .claude/core/skill-eval.js).
  *
  * Two evolution paths, two signals:
- *   IMPROVE — agent-updates misalignments (docs/.output/agent-updates/*.md)
+ *   IMPROVE — agent-updates misalignments (docs/.output/evolution/agents/*.md)
  *             attributed to the existing skill that owns that domain. The
  *             misalignment IS the "without_skill / old_skill failed" baseline.
  *   CREATE  — clusters of recurring `workflows` + `patterns` memories that no
@@ -225,7 +225,7 @@ function collectMemories(memRoot, categories = ['workflows', 'patterns']) {
 function intake({ projectDir, since = null } = {}) {
     const root = projectDir || process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
     const skillsRoot = path.join(root, '.claude', 'skills');
-    const memRoot = path.join(root, 'docs', '.output', 'memories');
+    const memRoot = path.join(root, 'docs', '.output', '.memory');
     const auDir = path.join(root, 'docs', '.output', 'agent-updates');
 
     const skillIndex = buildSkillIndex(skillsRoot);

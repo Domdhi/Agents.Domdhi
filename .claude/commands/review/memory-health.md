@@ -81,7 +81,7 @@ Output ONLY this line and stop:
 
 #### Full report mode
 
-If any condition above is not met, **persist before reporting:** Write the full report below to `docs/.output/reviews/{YYMMDD-HHMM}-memory-health.md`. Then display the same content in chat.
+If any condition above is not met, **persist before reporting:** Write the full report below to `docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-health.md`. Then display the same content in chat.
 
 ```markdown
 ## Memory Health Report

@@ -2,7 +2,7 @@
  * Telemetry Paths — canonical path helpers for the telemetry pipeline.
  *
  * Telemetry schema enrichment (A4) adopted from gstack:
- * `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` A4.
+ * `docs/.output/findings/research/competitive/_hooks-and-core-scripts-comparison.md` A4.
  *
  * Extracted from duplicated inline implementations across:
  *   - .claude/core/gate.js:39-40 (GATE_DIR, LOG_DIR inline)
@@ -18,13 +18,16 @@
 
 const path = require('path');
 
-const TELEMETRY_SUBPATH = ['docs', '.output', 'telemetry'];
+// ADR 0006: telemetry is regenerable state — it lives under the gitignored
+// .state/ zone (docs/.output/.state/telemetry). This single constant repoints
+// every telemetry consumer (all route through this resolver).
+const TELEMETRY_SUBPATH = ['docs', '.output', '.state', 'telemetry'];
 
 /**
  * Return the canonical telemetry directory for a project.
  *
  * @param {string} projectRoot  Absolute path to the project root
- * @returns {string}            <projectRoot>/docs/.output/telemetry
+ * @returns {string}            <projectRoot>/docs/.output/.state/telemetry
  */
 function getTelemetryDir(projectRoot) {
     return path.join(projectRoot, ...TELEMETRY_SUBPATH);

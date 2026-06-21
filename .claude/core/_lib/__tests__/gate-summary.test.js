@@ -1,6 +1,6 @@
 // AC→source map (P1.4 / gate-summary):
 //   Exports: writeSummary(projectRoot, summary), readSummary(projectRoot)
-//   Path: <projectRoot>/docs/.output/telemetry/_latest-summary.json
+//   Path: <projectRoot>/docs/.output/.state/telemetry/_latest-summary.json
 //   readSummary returns null unless typeof parsed.overall === 'boolean'
 //   (load-bearing — command-usage-logger depends on null for exit-code fallback)
 
@@ -27,14 +27,14 @@ describe('writeSummary / readSummary roundtrip', () => {
 
     it('writeSummary creates parent directories as needed', () => {
         writeSummary(tmp.root, { overall: false });
-        const expected = path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json');
+        const expected = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json');
         expect(fs.existsSync(expected)).toBe(true);
     });
 
     it('writeSummary pretty-prints JSON (indented, not minified)', () => {
         writeSummary(tmp.root, { overall: true, nested: { a: 1 } });
         const raw = fs.readFileSync(
-            path.join(tmp.root, 'docs', '.output', 'telemetry', '_latest-summary.json'),
+            path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', '_latest-summary.json'),
             'utf8'
         );
         expect(raw).toContain('\n');
@@ -48,7 +48,7 @@ describe('readSummary null-return contract', () => {
     });
 
     it('returns null on invalid JSON', () => {
-        const dir = path.join(tmp.root, 'docs', '.output', 'telemetry');
+        const dir = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, '_latest-summary.json'), '{ not json');
         expect(readSummary(tmp.root)).toBeNull();

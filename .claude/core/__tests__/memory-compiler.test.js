@@ -444,7 +444,7 @@ describe('memory-compiler', () => {
         await compiler.compile();
 
         // Assert: at least one concept file written under any category
-        const conceptsBase = path.join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+        const conceptsBase = path.join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
         let foundConceptFile = null;
         const categories = Object.values(CONSTANTS.MEMORY_CATEGORIES);
         for (const cat of categories) {
@@ -509,7 +509,7 @@ describe('memory-compiler', () => {
 
       const compiler = new MemoryCompiler();
 
-      const conceptsBase = path.join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+      const conceptsBase = path.join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
       const patternsDir = path.join(conceptsBase, 'patterns');
       fs.mkdirSync(patternsDir, { recursive: true });
 
@@ -565,7 +565,7 @@ describe('memory-compiler', () => {
       // Arrange
       const compiler = new MemoryCompiler();
       // Create concepts dir but no concept files
-      const conceptsBase = path.join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+      const conceptsBase = path.join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
       fs.mkdirSync(conceptsBase, { recursive: true });
 
       // Act
@@ -587,7 +587,7 @@ describe('memory-compiler', () => {
       // Arrange
       const compiler = new MemoryCompiler();
 
-      const conceptsBase = path.join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+      const conceptsBase = path.join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
       const patternsDir = path.join(conceptsBase, 'patterns');
       fs.mkdirSync(patternsDir, { recursive: true });
 

@@ -9,7 +9,7 @@
  *
  * Historical note: this file was originally `post-read-scrubber.cjs` covering
  * only `Read` and only warning (no redaction). Expanded 2026-05-10 (R7 from
- * `docs/.output/research/2026-05-09-landscape-refresh.md`) to also cover Bash
+ * `docs/.output/findings/research/2026-05-09-landscape-refresh.md`) to also cover Bash
  * tool output and to actually redact, not just warn. File name kept for
  * minimal blast radius (still referenced by SKIP_PATHS in secret-patterns.cjs
  * and by .claude/settings.json).

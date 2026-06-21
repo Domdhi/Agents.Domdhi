@@ -23,7 +23,7 @@ class MemoryHealthChecker {
     async checkMemoryDirectories() {
         console.log('📁 Checking memory directories...');
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        const memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
+        const memoriesDir = path.join(projectRoot, 'docs', '.output', '.memory');
 
         for (const category of Object.values(CONSTANTS.MEMORY_CATEGORIES)) {
             const categoryPath = path.join(memoriesDir, category);

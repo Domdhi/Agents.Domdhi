@@ -43,6 +43,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { stamp } = require('./_lib/run-stamp');
 
 const HANDOFF_DIR = 'docs/.output/handoffs';
 const CALLERS = ['end', 'do', 'run-todo', 'run-tests', 'todo'];
@@ -73,26 +74,35 @@ function currentBranchSlug(cwd = process.cwd()) {
     }
 }
 
-/** YYMMDD-HHMM run stamp (matches the universal Run-Stamp Convention). */
-function stamp(date = new Date()) {
-    const p = (n) => String(n).padStart(2, '0');
-    const yy = p(date.getFullYear() % 100);
-    return `${yy}${p(date.getMonth() + 1)}${p(date.getDate())}-${p(date.getHours())}${p(date.getMinutes())}`;
+// stamp() is the universal Run-Stamp Convention helper, now single-sourced in
+// _lib/run-stamp.js and shared with output-paths.js. Re-exported below so existing
+// `require('./handoff-path').stamp` callers keep working.
+
+/** Month-bucket folder (YYYY-MM) derived from a YYMMDD-HHMM stamp string. */
+function monthFromStamp(s) {
+    const m = /^(\d{2})(\d{2})\d{2}-\d{4}$/.exec(s);
+    return m ? `20${m[1]}-${m[2]}` : null;
 }
 
-/** Build the path this run should write. */
+/**
+ * Build the path this run should write — month-bucketed (ADR 0006):
+ * docs/.output/handoffs/{YYYY-MM}/{stamp}-{caller}-{branch}.md
+ */
 function buildWritePath(caller, { cwd = process.cwd(), runStamp, branch } = {}) {
     if (!CALLERS.includes(caller)) {
         throw new Error(`unknown caller "${caller}" — expected one of: ${CALLERS.join(', ')}`);
     }
     const s = runStamp || stamp();
     const b = branch || currentBranchSlug(cwd);
-    return `${HANDOFF_DIR}/${s}-${caller}-${b}.md`;
+    const month = monthFromStamp(s) || 'undated';
+    return `${HANDOFF_DIR}/${month}/${s}-${caller}-${b}.md`;
 }
 
-/** Ensure docs/.output/handoffs/ exists. */
-function ensureDir(cwd = process.cwd()) {
-    fs.mkdirSync(path.join(cwd, HANDOFF_DIR), { recursive: true });
+/** Ensure docs/.output/handoffs/ (and, if given, a stamp's month folder) exists. */
+function ensureDir(cwd = process.cwd(), runStamp) {
+    const month = runStamp ? monthFromStamp(runStamp) : null;
+    const dir = month ? path.join(cwd, HANDOFF_DIR, month) : path.join(cwd, HANDOFF_DIR);
+    fs.mkdirSync(dir, { recursive: true });
 }
 
 /**
@@ -101,27 +111,47 @@ function ensureDir(cwd = process.cwd()) {
  * string, or null if the dir is empty/absent.
  */
 function resolveLatest({ cwd = process.cwd(), branch } = {}) {
-    const dir = path.join(cwd, HANDOFF_DIR);
-    let entries;
-    try {
-        entries = fs.readdirSync(dir);
-    } catch {
-        return null; // dir absent → caller falls back to backlog scan
-    }
-    const parsed = entries
-        .map((name) => {
+    const root = path.join(cwd, HANDOFF_DIR);
+    const parsed = [];
+
+    // Collect parseable handoffs from a directory, tagging each with its repo-
+    // relative path (sub = '' for legacy flat files, or the YYYY-MM month folder).
+    const collect = (absDir, sub) => {
+        let entries;
+        try {
+            entries = fs.readdirSync(absDir);
+        } catch {
+            return;
+        }
+        for (const name of entries) {
             const m = FILE_RE.exec(name);
-            return m ? { name, stampStr: m[1], caller: m[2], branch: m[3] } : null;
-        })
-        .filter(Boolean)
-        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)); // stamp-prefix => chronological
+            if (m) parsed.push({ name, sub, stampStr: m[1], caller: m[2], branch: m[3] });
+        }
+    };
+
+    // Legacy flat files (pre-migration) live directly under handoffs/; new files
+    // live under handoffs/{YYYY-MM}/. Scan both so the resolver tolerates a mixed
+    // tree during/after migration. The filename stamp sorts both eras together.
+    collect(root, '');
+    let monthDirs;
+    try {
+        monthDirs = fs.readdirSync(root, { withFileTypes: true })
+            .filter((d) => d.isDirectory() && /^\d{4}-\d{2}$/.test(d.name))
+            .map((d) => d.name);
+    } catch {
+        monthDirs = [];
+    }
+    for (const m of monthDirs) collect(path.join(root, m), m);
 
     if (parsed.length === 0) return null;
 
+    // Sort by stamp prefix (chronological), then pick newest for the branch.
+    parsed.sort((a, b) => (a.stampStr < b.stampStr ? -1 : a.stampStr > b.stampStr ? 1 : 0));
     const b = branch || currentBranchSlug(cwd);
     const mine = parsed.filter((e) => e.branch === b);
-    const pick = (mine.length ? mine : parsed)[(mine.length ? mine : parsed).length - 1];
-    return `${HANDOFF_DIR}/${pick.name}`;
+    const pool = mine.length ? mine : parsed;
+    const pick = pool[pool.length - 1];
+    return pick.sub ? `${HANDOFF_DIR}/${pick.sub}/${pick.name}` : `${HANDOFF_DIR}/${pick.name}`;
 }
 
 module.exports = {
@@ -130,6 +160,7 @@ module.exports = {
     slugBranch,
     currentBranchSlug,
     stamp,
+    monthFromStamp,
     buildWritePath,
     resolveLatest,
     ensureDir,
@@ -144,8 +175,11 @@ if (require.main === module) {
                 process.stderr.write(`usage: handoff-path.js write <${CALLERS.join('|')}>\n`);
                 process.exit(2);
             }
-            ensureDir();
-            process.stdout.write(buildWritePath(arg) + '\n');
+            // One stamp for both the mkdir and the path, so the month folder can't
+            // disagree with the filename stamp at a minute/month boundary.
+            const s = stamp();
+            ensureDir(process.cwd(), s);
+            process.stdout.write(buildWritePath(arg, { runStamp: s }) + '\n');
         } else if (cmd === 'latest') {
             const p = resolveLatest();
             if (p) process.stdout.write(p + '\n');

@@ -24,7 +24,7 @@ Plus two non-domain elements:
 - **`.output/`** — the ephemeral/generated zone (the only deep tree). Agents
   **write** here and rarely re-read; quarantining it keeps the seven domains
   clean to scan. Holds generated reports **and** task working files
-  (`.output/work/{date}/{task}/`).
+  (`.output/.state/work/{date}/{task}/`).
 
 ## Folder Structure
 
@@ -82,7 +82,7 @@ docs/
   live *within* domains (the threat model is `architecture/decisions/`, secret
   handling is `operations/security.md`), never as a sibling folder.
 - **`work/` owns the durable plan** (backlog, roadmap, timeline, todo). Ephemeral
-  task working files live in the generated zone at `.output/work/{date}/{task}/`,
+  task working files live in the generated zone at `.output/.state/work/{date}/{task}/`,
   not in `work/` — so the living plan stays scannable and scratch never ships.
 - **`.output/` is operational.** Only the regenerable/session-specific subdirs are
   gitignored (`work/`, `memories/`, `telemetry/`, `screenshots/`, `sessions/`,
@@ -108,5 +108,5 @@ mkdir -p docs/modules/{module-name}
 | Ship & run it | `docs/operations/` |
 | Understand a specific module | `docs/modules/{module}/brief.md` |
 | Track implementation | `docs/work/backlog.md`, `docs/work/todo/` |
-| Find reviews and audits | `docs/.output/reviews/` |
+| Find reviews and audits | `docs/.output/findings/reviews/` |
 | Session continuity | `docs/.output/handoffs/` (latest, via handoff-path.js) |

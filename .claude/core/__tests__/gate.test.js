@@ -840,7 +840,7 @@ describe('gate', () => {
 
   // ─── acquireLock / releaseLock ─────────────────────────────────────────────
   //
-  // GATE_DIR = path.join(PROJECT_ROOT, 'docs', '.output', 'telemetry')
+  // GATE_DIR = path.join(PROJECT_ROOT, 'docs', '.output', '.state', 'telemetry')
   // LOCK_FILE = path.join(GATE_DIR, '.gate.lock')
   // Both are frozen at module load, so we use the same cache-bust pattern.
 
@@ -914,8 +914,8 @@ describe('gate', () => {
 
     it('acquireLock_staleLock_breaksAndReturnsTrue', () => {
       // Arrange — write a lock file with a started time >10 minutes ago
-      // GATE_DIR = docs/.output/telemetry inside PROJECT_ROOT
-      const gateDir = path.join(tmp.root, 'docs', '.output', 'telemetry');
+      // GATE_DIR = docs/.output/.state/telemetry inside PROJECT_ROOT
+      const gateDir = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry');
       fs.mkdirSync(gateDir, { recursive: true });
       const lockFile = path.join(gateDir, '.gate.lock');
       const staleTime = new Date(Date.now() - 700000).toISOString(); // 700s > 600s threshold
@@ -932,7 +932,7 @@ describe('gate', () => {
 
     it('acquireLock_freshLock_returnsFalse', () => {
       // Arrange — write a fresh lock (under 10 minutes old)
-      const gateDir = path.join(tmp.root, 'docs', '.output', 'telemetry');
+      const gateDir = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry');
       fs.mkdirSync(gateDir, { recursive: true });
       const lockFile = path.join(gateDir, '.gate.lock');
       const freshTime = new Date(Date.now() - 5000).toISOString(); // 5s old

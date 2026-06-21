@@ -195,7 +195,7 @@ Production code under test resolves output paths via `process.env.CLAUDE_PROJECT
 ```bash
 npm test                                    # all suites
 npm run test:watch                          # watch mode
-npm run test:coverage                       # v8 coverage → docs/.output/telemetry/coverage/
+npm run test:coverage                       # v8 coverage → docs/.output/.state/telemetry/coverage/
 node .claude/core/gate.js test              # gate runner; auto-detects node stack, runs npm test
 ```
 

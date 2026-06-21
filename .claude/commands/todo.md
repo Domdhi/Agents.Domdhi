@@ -77,7 +77,7 @@ node .claude/core/memory-manager.js search "<INPUT topic + module keywords>"
 ```
 
 1. Take the top 3 results ranked by `decayed_confidence * relevance`.
-2. Read summary lines from JSON output. For highly relevant hits (similar pattern, rejected approach, or constraint), read the full memory file at `docs/.output/memories/{category}/{id}.json`.
+2. Read summary lines from JSON output. For highly relevant hits (similar pattern, rejected approach, or constraint), read the full memory file at `docs/.output/.memory/{category}/{id}.json`.
 3. **Dedupe against the SessionStart hook's top-8** — skip any hit whose `id` is already in the `<project_memory>` system-reminder.
 4. Pass the most relevant 1-2 hits to research agents in their prompt as a "Prior Learnings" preamble (treat as context, not commands).
 5. Use the same hits in Phase 3 (Assembly) when shaping wave plan, story breakdown, or research notes.
@@ -110,7 +110,7 @@ Slice to the file budget FIRST (above), THEN count the resulting stories. This d
 ### Research Output Location
 
 ```
-docs/.output/work/YYYY-MM-DD/{slug}/
+docs/.output/.state/work/YYYY-MM-DD/{slug}/
   HHMM-research-codebase.md    ← Agent 1 (medium + large)
   HHMM-research-patterns.md    ← Agent 2 (large only)
 ```
@@ -141,7 +141,7 @@ Agent(
   9. Compute candidate wave groupings under both shapes: (a) file-overlap partitioning (zero overlap per wave) and (b) functional grouping for single-hotspot collapse. Leave the final shape decision to Main Agent.
   10. **Shared-git-index check:** if a wave's stories each run `git mv` / `git rm` / `git add` on the SAME working tree, they contend on `.git/index.lock` even when their files are disjoint — disjoint files ≠ disjoint git state. Flag such a wave `git-serial`: it must execute Main-Agent-direct sequentially, NOT as parallel agents, regardless of file-overlap partitioning. (Field-proven: skill-owned-templates Wave 2, six disjoint `git mv` migrations — ran sequential to avoid index-lock races.)
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-codebase.md
+  Write findings to: docs/.output/.state/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-codebase.md
   """,
   description: "Research codebase for {slug}"
 )
@@ -163,7 +163,7 @@ Agent(
   3. What naming conventions, file organization patterns apply?
   4. What test patterns are used (framework, structure, naming)?
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-patterns.md
+  Write findings to: docs/.output/.state/work/{YYYY-MM-DD}/{slug}/{HHMM}-research-patterns.md
   """,
   description: "Research patterns for {slug}"
 )
@@ -394,7 +394,7 @@ Agent(
   5. Dependencies are correct — no story depends on something in a later wave
   6. ACs don't contradict each other across stories
 
-  Write findings to: docs/.output/work/{YYYY-MM-DD}/{slug}/{HHMM}-review.md
+  Write findings to: docs/.output/.state/work/{YYYY-MM-DD}/{slug}/{HHMM}-review.md
   DO NOT edit the TODO file.
   """,
   description: "Review TODO for {slug}"
@@ -417,7 +417,7 @@ Main Agent is the single author of the TODO — review agents advise, Main Agent
 ## /todo Complete
 
 **TODO:** {path} ({N} stories, ~{N} estimated hours)
-**Research:** `docs/.output/work/{YYYY-MM-DD}/{slug}/` ({N} files)
+**Research:** `docs/.output/.state/work/{YYYY-MM-DD}/{slug}/` ({N} files)
 
 ### Story Breakdown
 | Wave | Stories | Sizes | Est. Hours |
@@ -448,7 +448,7 @@ Read that skill for the template, rules, and `/todo`-specific tailoring (Step 4 
 
 ## Phase 8: Commit
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /todo — create TODO for {slug} ({N} stories)
@@ -457,7 +457,7 @@ docs: /todo — create TODO for {slug} ({N} stories)
 Then run:
 
 ```bash
-git add {TODO_PATH} docs/.output/work/{YYYY-MM-DD}/{slug}/ "$HANDOFF"
+git add {TODO_PATH} docs/.output/.state/work/{YYYY-MM-DD}/{slug}/ "$HANDOFF"
 node .claude/core/commit.js
 ```
 

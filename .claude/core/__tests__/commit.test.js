@@ -218,7 +218,7 @@ describe('commit.js inline -m flag', () => {
 
   it('inlineMessage_dryRun_doesNotRequireMsgFile', () => {
     // Running -m in a directory with NO .commit-msg file must succeed (exit 0).
-    // cwd is a brand-new empty tmp dir — no docs/.output/.commit-msg present.
+    // cwd is a brand-new empty tmp dir — no docs/.output/.state/.commit-msg present.
     try {
       const stdout = execFileSync(
         'node',
@@ -283,7 +283,7 @@ describe('commit.js inline -m flag', () => {
     expect(subject).toBe('feat: inline commit test');
 
     // Confirm .commit-msg was NOT created in the repo root
-    const msgFilePath = path.join(repo.repoPath, 'docs', '.output', '.commit-msg');
+    const msgFilePath = path.join(repo.repoPath, 'docs', '.output', '.state', '.commit-msg');
     expect(fs.existsSync(msgFilePath)).toBe(false);
   });
 });
@@ -320,7 +320,7 @@ describe('commit.js parseArgs (in-process)', () => {
     else process.env.CLAUDE_COMMIT_NO_SCAN = prevNoScanEnv;
   });
 
-  it('defaults: no flags → file-based path to docs/.output/.commit-msg', () => {
+  it('defaults: no flags → file-based path to docs/.output/.state/.commit-msg', () => {
     delete process.env.CLAUDE_COMMIT_NO_SCAN;
     const r = commit.parseArgs([]);
     expect(r.stageAll).toBe(false);
@@ -329,7 +329,7 @@ describe('commit.js parseArgs (in-process)', () => {
     expect(r.inlineMsg).toBe(null);
     expect(r.fileIdx).toBe(-1);
     expect(r.noScan).toBe(false);
-    expect(r.msgFile).toBe(path.join('docs', '.output', '.commit-msg'));
+    expect(r.msgFile).toBe(path.join('docs', '.output', '.state', '.commit-msg'));
   });
 
   it('parses --all / -a, --amend, and --dry-run / -n', () => {
@@ -601,13 +601,13 @@ describe('commit.js main() — full commit against an isolated tmp repo (in-proc
     const repo = createGitRepo({ root: tmp.root });
     // Write a working-tree change and the default message file inside the repo.
     fs.writeFileSync(path.join(repo.repoPath, 'app.js'), 'const x = 1;\n');
-    const defaultMsg = path.join(repo.repoPath, 'docs', '.output', '.commit-msg');
+    const defaultMsg = path.join(repo.repoPath, 'docs', '.output', '.state', '.commit-msg');
     fs.mkdirSync(path.dirname(defaultMsg), { recursive: true });
     fs.writeFileSync(defaultMsg, 'feat: in-process main commit\n');
 
     const before = commitCount(repo.repoPath);
     process.chdir(repo.repoPath);
-    // No --file → default docs/.output/.commit-msg path → exercises stageAll, scan
+    // No --file → default docs/.output/.state/.commit-msg path → exercises stageAll, scan
     // bypass, the -F commit branch, AND the default-path msg-file cleanup (fileIdx<0).
     process.argv = ['node', 'commit.js', '--all', '--no-scan'];
     const fresh = loadFreshCommit();

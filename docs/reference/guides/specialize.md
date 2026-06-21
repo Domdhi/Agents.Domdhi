@@ -162,7 +162,7 @@ In `--dry-run` mode, gaps are reported as "Would create" — nothing written. In
 
 The 0.9 confidence is the highest tier — architecture-documented facts are authoritative because they come from a reviewed design decision, not from an agent's implementation guess. Lower confidences (0.7 from `/do` post-task, 0.8 from `/retro`, 0.5 from session observations) get promoted or decay against this architecture baseline. See [`../concepts/memory.md`](../concepts/memory.md) for the full confidence ladder.
 
-Seeding is conservative. The memory manager only seeds an empty category — if `docs/.output/memories/decisions/` already has any `.json` files, nothing is written to avoid trampling memories promoted from later runs. If you want to re-seed after a major architecture change, delete the relevant category directory first.
+Seeding is conservative. The memory manager only seeds an empty category — if `docs/.output/.memory/decisions/` already has any `.json` files, nothing is written to avoid trampling memories promoted from later runs. If you want to re-seed after a major architecture change, delete the relevant category directory first.
 
 After seeding, the command runs a memory health check (linter + decay report) and includes the results in its final report.
 

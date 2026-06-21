@@ -14,9 +14,9 @@ Hooks are the right mechanism when the work must happen *every time* and does no
 | `path-guardrail.cjs` | PreToolUse:Write/Edit/MultiEdit/NotebookEdit | Blocks write/edit ops via the four-tier path schema (zeroAccessPaths/readOnlyPaths/noDeletePaths) and freeze-state checks |
 | `pre-compaction-archive.cjs` | Pre-Compact | Snapshots state + daily log before context compaction |
 | `post-read-scrubber.cjs` | Post-Read | Warns on secrets in read files (non-blocking) |
-| `organize.cjs` | Post-ExitPlanMode, Post-Bash | Moves plans to `docs/.output/plans/{date}/` and screenshots to `docs/.output/screenshots/{date}/{task}/` |
+| `organize.cjs` | Post-ExitPlanMode, Post-Bash | Moves plans to `docs/.output/plans/{date}/` and screenshots to `docs/.output/.state/screenshots/{date}/{task}/` |
 | `damage-control.cjs` | Post-Bash | Error analysis on failures — prevents retry spin loops |
-| `command-usage-logger.cjs` | Post-Skill/Bash | Logs command invocations + gate runs to `docs/.output/telemetry/` |
+| `command-usage-logger.cjs` | Post-Skill/Bash | Logs command invocations + gate runs to `docs/.output/.state/telemetry/` |
 | `memory-guard.cjs` | Post-Write | Warns when a memory category approaches its size limit |
 | `memory-capture.cjs` | Stop, PostToolUse:Bash | Auto-compounds memory on Stop (capture → curate under strict profile only); commit enrichment on Bash. Compile pipeline retired 2026-04-20. |
 | `edit-capture.cjs` | Post-Edit | Captures edits to canonical docs (CLAUDE.md, architecture, skills) as daily-log entries (`MEMORY_PROFILE=strict` only) |

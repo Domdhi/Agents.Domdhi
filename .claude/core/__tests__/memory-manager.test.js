@@ -77,7 +77,7 @@ describe('memory-manager', () => {
       // unseeded and read-only tools ran against missing dirs. Construction alone
       // must now self-heal the 5 category dirs (no SQLite required).
       const manager = makeManager();
-      const memDir = path.join(tmp.root, 'docs', '.output', 'memories');
+      const memDir = path.join(tmp.root, 'docs', '.output', '.memory');
       for (const category of manager.categories) {
         expect(fs.existsSync(path.join(memDir, category))).toBe(true);
       }
@@ -103,7 +103,7 @@ describe('memory-manager', () => {
       expect(new Date(result.updated).getTime()).not.toBeNaN();
 
       // Assert — file on disk (underscores → hyphens)
-      const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'test-pattern-one.json');
+      const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'test-pattern-one.json');
       expect(fs.existsSync(filePath)).toBe(true);
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       expect(parsed.id).toBe('test_pattern_one');
@@ -206,7 +206,7 @@ describe('memory-manager', () => {
       // Arrange
       const manager = makeManager();
       await manager.createMemory('patterns', 'delete_me', { description: 'temp' });
-      const filePath = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns', 'delete-me.json');
+      const filePath = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns', 'delete-me.json');
       expect(fs.existsSync(filePath)).toBe(true);
 
       // Act
@@ -396,7 +396,7 @@ describe('memory-manager', () => {
 
       // Assert — the returned ids are logged as one memory_access event
       expect(results.length).toBeGreaterThanOrEqual(1);
-      const logPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+      const logPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
       expect(fs.existsSync(logPath)).toBe(true);
       const accessEvents = fs.readFileSync(logPath, 'utf8')
         .split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
@@ -621,7 +621,7 @@ describe('memory-manager', () => {
         if (k !== 'content' && k !== 'metadata') base[k] = v;
       }
       const filename = id.replace(/_/g, '-');
-      tmp.write(`docs/.output/memories/${category}/${filename}.json`, JSON.stringify(base, null, 2));
+      tmp.write(`docs/.output/.memory/${category}/${filename}.json`, JSON.stringify(base, null, 2));
       return base;
     }
 
@@ -669,7 +669,7 @@ describe('memory-manager', () => {
       writeFixtureMemory('patterns', 'cites_a_file', {
         updated: new Date().toISOString(),
         usage_count: 1,
-        content: { note: 'Surfaced 2026-06-14. Ref: docs/.output/research/260614-applied.md' },
+        content: { note: 'Surfaced 2026-06-14. Ref: docs/.output/findings/research/260614-applied.md' },
         metadata: { confidence: 1.0 }
       });
       const manager = makeManager();
@@ -990,7 +990,7 @@ describe('memory-manager', () => {
 
     function writeInjectionLog(lines) {
       tmp.write(
-        'docs/.output/telemetry/memory-injection.jsonl',
+        'docs/.output/.state/telemetry/memory-injection.jsonl',
         lines.map(l => JSON.stringify(l)).join('\n') + '\n'
       );
     }
@@ -1071,7 +1071,7 @@ describe('memory-manager', () => {
         metadata: { confidence: 1.0 },
         ...overrides,
       };
-      tmp.write(`docs/.output/memories/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
+      tmp.write(`docs/.output/.memory/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
       return base;
     }
 
@@ -1164,7 +1164,7 @@ describe('memory-manager', () => {
         created: '2020-01-01T00:00:00.000Z', updated: '2020-01-01T00:00:00.000Z',
         usage_count: 0, content: { description: 'old' }, metadata: { confidence: 1.0 },
       };
-      tmp.write('docs/.output/memories/patterns/legacy-mem.json', JSON.stringify(legacy, null, 2));
+      tmp.write('docs/.output/.memory/patterns/legacy-mem.json', JSON.stringify(legacy, null, 2));
 
       const list = await manager.listMemories('patterns');
       expect(list.find(m => m.id === 'legacy_mem').importance).toBe(3);
@@ -1302,7 +1302,7 @@ describe('memory-manager', () => {
         usage_count: 0, content: { description: 'seed token here' }, metadata: { confidence: 1.0 },
         ...overrides,
       };
-      tmp.write(`docs/.output/memories/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
+      tmp.write(`docs/.output/.memory/${category}/${id.replace(/_/g, '-')}.json`, JSON.stringify(base, null, 2));
       return base;
     }
 
@@ -1435,20 +1435,31 @@ describe('memory-manager', () => {
       expect((await manager.readMemory('patterns', 'upd_mem')).usage_count).toBe(0);
     });
 
-    it('searchMemories_genuineRecall_incrementsOncePersistsSurvivesReload', async () => {
+    it('searchMemories_genuineRecall_recordsInIndexNotTrackedJson_survivesReload', async () => {
       const manager = makeManager();
+      // usage_count lives in the .state/ index; a JSON-only env has nowhere to record it.
+      if (!manager.initDb()) return;
       await manager.createMemory('patterns', 'recall_mem', { description: 'platypus token here' });
       expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(0);
 
-      // each search = one genuine recall = +1, persisted to the JSON source of truth
+      // Each search = one genuine recall = +1, recorded ONLY in the gitignored
+      // .state/ index — never the tracked .memory/ JSON (writing it there churned
+      // the synced source on every recall; W1B store split / ADR 0006 Am. 2).
       await manager.searchMemories('platypus');
-      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(1);
       await manager.searchMemories('platypus');
-      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(2);
 
-      // survives a reload (new manager reading the same store)
+      // the tracked JSON source is NOT mutated by a read (the regression guard)
+      expect((await manager.readMemory('patterns', 'recall_mem')).usage_count).toBe(0);
+      // …but the index recorded both recalls
+      const idxCount = () => manager.db
+        .prepare('SELECT usage_count AS n FROM memories WHERE id = ?').get('recall_mem').n;
+      expect(idxCount()).toBe(2);
+
+      // survives a reload (new manager reading the same persisted index)
       const reopened = makeManager();
-      expect((await reopened.readMemory('patterns', 'recall_mem')).usage_count).toBe(2);
+      reopened.initDb();
+      expect(reopened.db
+        .prepare('SELECT usage_count AS n FROM memories WHERE id = ?').get('recall_mem').n).toBe(2);
     });
   }); // honest usage
 

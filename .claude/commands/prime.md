@@ -45,30 +45,26 @@ git status --short
 ```
 The handoff has decisions, intent, blockers, and next actions from the previous session. Git is the source of truth — do NOT trust the handoff over git. If `$HANDOFF` is empty (no handoff exists yet), scan `docs/work/backlog.md` instead.
 
-### Step 2: Read the handoff's Key Files (parallel)
+### Step 2: Read Key Files + forward-looking memory (one parallel batch)
 
-The handoff's `## Key Files` section is the curated short list of files needed to resume work. Read every file path listed there in parallel. Rules:
-- Extract paths from bullets under `## Key Files` (ignore line-range annotations like `:47-89` — just read the whole file)
+Both reads depend only on the handoff (Step 1) and not on each other — so fire them together in a single parallel batch, not back-to-back.
+
+**Key Files** — the handoff's `## Key Files` section is the curated short list needed to resume work. Read every path listed:
+- Extract paths from bullets under `## Key Files` (ignore line-range annotations like `:47-89` — read the whole file)
 - Skip anything that isn't a readable file (directories, globs, missing files — note them but don't fail)
-- If the handoff has no `## Key Files` section, skip this step
-- Also read any file path explicitly called out in `## Next Actions` as the first file to touch — but only one or two, don't chase every mention
+- If the handoff has no `## Key Files` section, skip the file reads
+- Also read any file explicitly called out in `## Next Actions` as the first file to touch — one or two, don't chase every mention
 
-This is the "did you read all of these?" fix. Listing files without reading them is worthless; the next session needs the content loaded to act on step one of Next Actions immediately.
+Listing files without reading them is worthless; the next session needs the content loaded to act on step one of Next Actions immediately.
 
-### Step 2.5: Search memory for what's coming next
+**Forward-looking memory** — the SessionStart hook already injected a generic top-8 by decayed confidence × usage. Add *forward-looking* recall that bears on the next action specifically:
+1. Extract 2-4 concrete noun phrases from the handoff's `## Next Actions` (file names, feature names, technical concepts — skip filler like "decide", "verify").
+2. `node .claude/core/memory-manager.js search "<phrases joined>"`
+3. Take the top 3 by `decayed_confidence * relevance`.
+4. **Dedupe against the SessionStart top-8** (already in context as a `<project_memory>` system-reminder) — skip hits whose `id` appears there.
+5. For each remaining hit directly relevant to the first Next Action, `cat docs/.output/.memory/{category}/{id}.json` and surface the rule.
 
-The SessionStart hook injects a generic top-8 by decayed confidence × usage. This step adds *forward-looking* recall — memories that bear on the next action specifically, not on the project at large.
-
-1. Extract 2-4 noun phrases from the handoff's `## Next Actions` section. Skip filler words ("decide", "consider", "verify"). Concrete things only — file names, feature names, technical concepts.
-2. Run search:
-   ```bash
-   node .claude/core/memory-manager.js search "<phrases joined>"
-   ```
-3. Take the top 3 results ranked by `decayed_confidence * relevance`.
-4. **Dedupe against the SessionStart hook's top-8** — that's already in context as a `<project_memory>` system-reminder. Skip hits whose `id` appears there.
-5. For each remaining hit, read the summary line. If a hit looks directly relevant to the first Next Action, `cat docs/.output/memories/{category}/{id}.json` and surface the rule in the report.
-
-**Skip condition:** If Next Actions is empty/stale OR `search` returns 0 results OR all hits are dupes of the top-8 OR all `decayed_confidence < 0.3`, skip silently — note "no relevant memories beyond top-8" in the report.
+Skip the memory search silently if Next Actions is empty/stale, search returns nothing, every hit dupes the top-8, or all `decayed_confidence < 0.3` — then render the **Loaded** section's memory line as `(no memories beyond SessionStart top-8)`.
 
 ### Step 3: Verify & synthesize
 
@@ -81,12 +77,19 @@ Compare the handoff against git reality:
 
 Provide a substantive summary (**30-60 lines**) that gives enough context to start working immediately. Use this exact template — every section is required, every label is verbatim, even when a section is empty.
 
+Ordered **bottom-up**: the most actionable content sits at the bottom, closest to the input box where the eye lands first; provenance (recent work, loaded files/memories) sits at the top, read last or skipped.
+
 ```markdown
 ## Cold-start summary
 
 **Recent work** (last 3-5 commits):
 - `{hash}` {subject} — {one-line why-it-matters}
 - `{hash}` {subject} — {one-line why-it-matters}
+
+**Loaded** (what this summary was built from — files + memory)
+- ✓ `{path}` — Key File from handoff
+- ✗ skipped `{path}` — {reason: missing, directory, glob, etc.}
+- 🧠 `{category}/{id}` (rel {N.N}, conf {N.NN}) — {one-line takeaway}
 
 **State**
 - Branch: `{branch}`, working tree {clean | N modified files}
@@ -96,17 +99,6 @@ Provide a substantive summary (**30-60 lines**) that gives enough context to sta
 **Decisions & context**
 - {decision from handoff with the reasoning, not just the conclusion}
 - {next decision with reasoning}
-
-**Files loaded**
-- ✓ `{path}` — Key File from handoff
-- ✗ skipped `{path}` — {reason: missing, directory, glob, etc.}
-
-**Memory hits** (from Step 2.5)
-- `{category}/{id}` (relevance {N.N}, decayed_confidence {N.NN}) — {one-line takeaway}
-- `{category}/{id}` (relevance {N.N}, decayed_confidence {N.NN}) — {one-line takeaway}
-
-  *If Step 2.5 was skipped, replace the bullets with the literal line:*
-  `none beyond SessionStart top-8`
 
 **⚠ Handoff drift** (only if detected — omit the section if handoff matches git)
 - {what the handoff says vs what git shows, with commit hashes}
@@ -118,14 +110,15 @@ Provide a substantive summary (**30-60 lines**) that gives enough context to sta
 **Blockers** (only if still relevant — omit the section if none)
 - {blocker, with what was already tried}
 
-**Ready to work**: {one-sentence confirmation you understand what needs to be done}
+▶ **Start here:** {the single most important next step in one line — the literal last line of the report}
 ```
 
 ### Section rules
 
-- **Order is fixed.** Recent work → State → Decisions → Files loaded → Memory hits → (drift if any) → Next actions → (blockers if any) → Ready to work.
-- **Memory hits is always present.** When Step 2.5 surfaces nothing useful, render it with the literal `none beyond SessionStart top-8` line — never omit the section.
-- **Files loaded is always present.** Even if the handoff has no Key Files, render the heading and write `(no Key Files in handoff)`.
+- **Order is fixed (bottom-up).** Recent work → Loaded → State → Decisions → (drift if any) → Next actions → (blockers if any) → ▶ Start here. The gradient runs least-actionable at top to most-actionable at bottom.
+- **▶ Start here is always the literal last line.** One line, the single highest-value next step — never followed by anything else.
+- **Route genuinely-new work through `/route`.** When the highest-value next step is a *new* feature or a scope-unclear request — not resuming an in-flight story, not a known bugfix — render `▶ Start here:` as `/route {description}` so scale-aware pipeline depth gets chosen instead of defaulting to `/todo`. This is the only place the front-door router is surfaced in the daily loop. When resuming work already in flight, the handoff's concrete next action IS the right Start-here — do not re-route it.
+- **Loaded is always present** and merges files + memory. Always render the heading. If the handoff had no Key Files, write `(no Key Files in handoff)`; if the memory search was skipped or dry, render its memory line as `(no memories beyond SessionStart top-8)`.
 - **Optional sections are explicitly optional.** Only Handoff drift and Blockers may be omitted, and only when there is genuinely nothing to report.
 
 ## What NOT to Do

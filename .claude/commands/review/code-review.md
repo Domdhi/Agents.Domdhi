@@ -120,25 +120,25 @@ Both receive the same prompt. Results are compared in Step 4.
 
 ### 3d. Council Mode (`--council`)
 
-When `--council` is set, **replace** the single/`--deep` dispatch in Step 3 with this three-stage flow (Karpathy's llm-council, adapted for a single-vendor panel — diversity comes from LENS, not vendor). Use a workspace dir: `docs/.output/reviews/council-{YYMMDD-HHMM}/`.
+When `--council` is set, **replace** the single/`--deep` dispatch in Step 3 with this three-stage flow (Karpathy's llm-council, adapted for a single-vendor panel — diversity comes from LENS, not vendor). Use a workspace dir: `docs/.output/findings/reviews/council-{YYMMDD-HHMM}/`.
 
 **Stage 1 — independent reviews (parallel).** Get the lens set: `node .claude/core/council.js lenses`. Dispatch one `code-reviewer` agent **per lens, in parallel** (background OK). Model is risk-routed, same as the primary dispatch: overall tier **HIGH** → pass `model: opus` per lens; overall tier **MEDIUM or LOW** → omit `model:` (Sonnet floor). The Opus chairman (Stage 3) is always Opus regardless of tier. Each agent gets the same diff + standards + risk table from Steps 1–2b, **plus a lens instruction**: "Review ONLY through the **{lens}** lens ({focus}). Report findings as a JSON array `[{file,line,title,severity,lens:'{lens}',detail}]`." Collect all findings into `findings.json` (concatenate the arrays; tag each with its `lens`).
 - Optional cross-vendor member: if the project has configured an external model (e.g. OpenRouter) AND opted in, add it as one more reviewer for true vendor diversity. Off by default — it breaks the zero-dependency drop-in property, so never enable it implicitly.
 
-**Stage 2 — anonymized cross-validation.** Dedupe + assign stable ids: `node .claude/core/council.js dedupe docs/.output/reviews/council-{YYMMDD-HHMM}/findings.json` → `deduped.json`. (Independent re-raises by multiple lenses auto-merge — that overlap is itself a confirmation signal.) Then dispatch each lens reviewer AGAIN, giving it the **anonymized** deduped findings (present them as "Reviewer A/B/…" via the `anonymization` map — do NOT tell a reviewer which findings are its own) with this instruction: "For each finding NOT your own, vote `confirm` / `refute` / `unsure` and a `severity_vote`. **Default to `refute` if you cannot independently substantiate it** — do not rubber-stamp; we reward independent confirmation, not agreement." Collect votes into `votes.json` as `[{finding_id,voter:'{lens}',verdict,severity_vote}]`.
+**Stage 2 — anonymized cross-validation.** Dedupe + assign stable ids: `node .claude/core/council.js dedupe docs/.output/findings/reviews/council-{YYMMDD-HHMM}/findings.json` → `deduped.json`. (Independent re-raises by multiple lenses auto-merge — that overlap is itself a confirmation signal.) Then dispatch each lens reviewer AGAIN, giving it the **anonymized** deduped findings (present them as "Reviewer A/B/…" via the `anonymization` map — do NOT tell a reviewer which findings are its own) with this instruction: "For each finding NOT your own, vote `confirm` / `refute` / `unsure` and a `severity_vote`. **Default to `refute` if you cannot independently substantiate it** — do not rubber-stamp; we reward independent confirmation, not agreement." Collect votes into `votes.json` as `[{finding_id,voter:'{lens}',verdict,severity_vote}]`.
 
-**Stage 3 — chairman synthesis.** Aggregate deterministically: `node .claude/core/council.js aggregate docs/.output/reviews/council-{YYMMDD-HHMM}/` → `council.json` + `council.md`. This applies the survival rule (a finding **confirmed** = ≥2 independent confirms and confirms>refutes; **refuted** = majority-refuted and not high-severity; a CRITICAL/MAJOR that drew refutes is **contested**, never silently dropped). Then YOU (Opus, the chairman) write the synthesis: take the `council.json` consensus and produce the final findings list — lead with **confirmed**, call out **contested** for human judgment, and list **refuted** in an appendix (logged, not actioned). This `council.md` + your synthesis is the review body for Step 4.
+**Stage 3 — chairman synthesis.** Aggregate deterministically: `node .claude/core/council.js aggregate docs/.output/findings/reviews/council-{YYMMDD-HHMM}/` → `council.json` + `council.md`. This applies the survival rule (a finding **confirmed** = ≥2 independent confirms and confirms>refutes; **refuted** = majority-refuted and not high-severity; a CRITICAL/MAJOR that drew refutes is **contested**, never silently dropped). Then YOU (Opus, the chairman) write the synthesis: take the `council.json` consensus and produce the final findings list — lead with **confirmed**, call out **contested** for human judgment, and list **refuted** in an appendix (logged, not actioned). This `council.md` + your synthesis is the review body for Step 4.
 
 ### 4. Persist Output (main agent)
 
 Write the full review analysis to disk before reporting:
 
 ```bash
-mkdir -p docs/.output/reviews
+mkdir -p docs/.output/findings/reviews
 ```
 
 Write the complete review output (risk classification table + all agent findings) to:
-`docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`
+`docs/.output/findings/reviews/{YYMMDD-HHMM}-code-review.md`
 
 File format:
 ```markdown
@@ -154,7 +154,7 @@ File format:
 
 Stage and commit the review output file:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{minor}m)
@@ -163,7 +163,7 @@ docs: /review:code-review — {verdict}, {N} findings ({critical}C/{major}M/{min
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYMMDD-HHMM}-code-review.md
+git add docs/.output/findings/reviews/{YYMMDD-HHMM}-code-review.md
 node .claude/core/commit.js
 ```
 
@@ -176,7 +176,7 @@ Read the agent's output and present the final report, including the output file 
 
 **Verdict**: {Approved / Approved with Comments / Changes Requested}
 **Files**: {count} reviewed
-**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-code-review.md`
+**Output**: `docs/.output/findings/reviews/{YYMMDD-HHMM}-code-review.md`
 **Overall Review Depth**: {Deep / Standard / Fast-Lane}
 **Findings**: {critical} critical, {major} major, {minor} minor, {nit} nits
 

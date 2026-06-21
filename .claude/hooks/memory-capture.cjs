@@ -182,7 +182,7 @@ function handleBashPostToolUse(input) {
         const diffstatLine = (Number.isFinite(insertions) && Number.isFinite(deletions))
             ? `\n**Diffstat:** +${insertions} -${deletions}` : '';
         const entry = `## ${timeLabel} — post-commit\n\n**Commit:** \`${hash}\` — ${subject}\n**Files changed:** ${filesChanged}${diffstatLine}\n\n`;
-        const dailyDir = path.join(projectDir, 'docs', '.output', 'memories', 'daily');
+        const dailyDir = path.join(projectDir, 'docs', '.output', '.state', 'memory-daily');
         fs.mkdirSync(dailyDir, { recursive: true });
         fs.appendFileSync(dailyLogPath, entry, 'utf8');
     }
@@ -239,7 +239,7 @@ module.exports = {
 
 if (require.main === module) {
     // P1.7 — hook duration instrumentation (A4/Section-D blind-spot).
-    // emitHookEvent appends one JSONL line to docs/.output/telemetry/hook-events.jsonl
+    // emitHookEvent appends one JSONL line to docs/.output/.state/telemetry/hook-events.jsonl
     // on every run. The try/catch around emit keeps the hook from ever failing
     // because of a telemetry write — telemetry is observability, not correctness.
     const { startHookTiming, emitHookEvent } = require('../core/_lib/hook-telemetry');

@@ -81,7 +81,7 @@ function countFilesRecursive(absDir, match) {
  * DESIGN DECISION (S-PI.5): gate-run count uses a two-source strategy.
  *   Primary:  `gate_run` rows in command-usage.jsonl — these carry pass/fail
  *             outcomes, so we prefer them when present.
- *   Fallback: count `gate-*.log` files under docs/.output/telemetry/logs/ —
+ *   Fallback: count `gate-*.log` files under docs/.output/.state/telemetry/logs/ —
  *             gate.js writes a timestamped log per run; no JSONL rows in older
  *             sessions means the fallback avoids a "Gate runs: 0" false zero.
  *   When JSONL has at least one gate_run row, log files are ignored entirely
@@ -104,7 +104,7 @@ function readGateRuns(root) {
     if (total > 0) return { total, passed, failed, source: 'jsonl' };
 
     // Fallback: count gate-*.log files — no pass/fail info available from logs alone
-    const logsDir = path.join(root, 'docs', '.output', 'telemetry', 'logs');
+    const logsDir = path.join(root, 'docs', '.output', '.state', 'telemetry', 'logs');
     let logCount = 0;
     for (const ent of listDir(logsDir)) {
         if (ent.isFile() && ent.name.startsWith('gate-') && ent.name.endsWith('.log')) {
@@ -242,17 +242,19 @@ function readMemoryInjection(root) {
 }
 
 function readMemoryStore(root) {
-    const memDir = path.join(root, 'docs', '.output', 'memories');
+    // Split store (ADR 0006 Am. 2): JSON categories under the TRACKED .memory/;
+    // the rebuilt db under the gitignored .state/memory-index/.
+    const memDir = path.join(root, 'docs', '.output', '.memory');
     const byCategory = {};
     let total = 0;
     for (const ent of listDir(memDir)) {
         if (!ent.isDirectory()) continue;
-        if (ent.name === '_inbox' || ent.name === 'daily') continue; // staging / raw logs
+        if (ent.name === '_inbox' || ent.name === 'daily') continue; // legacy staging guard (now under .state) — harmless
         const count = listDir(path.join(memDir, ent.name))
             .filter(e => e.isFile() && e.name.endsWith('.json')).length;
         if (count > 0) { byCategory[ent.name] = count; total += count; }
     }
-    const hasDb = fs.existsSync(path.join(memDir, 'memories.db'));
+    const hasDb = fs.existsSync(path.join(root, 'docs', '.output', '.state', 'memory-index', 'memories.db'));
     return { total, byCategory, hasDb };
 }
 

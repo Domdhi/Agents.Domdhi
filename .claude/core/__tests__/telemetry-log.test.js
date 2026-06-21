@@ -17,7 +17,7 @@ beforeEach(() => { tmp = createTmpDir({ prefix: 'telemetry-log-test-' }); });
 afterEach(() => { tmp.cleanup(); vi.restoreAllMocks(); });
 
 function readRows(root) {
-    const p = path.join(root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+    const p = path.join(root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
     return fs.readFileSync(p, 'utf8').trim().split('\n').map(l => JSON.parse(l));
 }
 
@@ -77,7 +77,7 @@ describe('telemetry-log.logCommand', () => {
 describe('telemetry-log trim-to-tail', () => {
     it('trims file to TAIL_KEEP_LINES when line count exceeds MAX_JSONL_LINES', () => {
         // Pre-fill the JSONL file with MAX_JSONL_LINES rows
-        const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+        const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
         fs.mkdirSync(path.dirname(jsonlPath), { recursive: true });
 
         // Write exactly MAX_JSONL_LINES rows

@@ -368,10 +368,10 @@ Written by the eval viewer when a human reviewer leaves notes on a run.
 
 ## 9. Workspace Layout
 
-The harness writes to a date-scoped workspace under `docs/.output/skill-evolution/`. The eval definitions themselves live in the target skill directory.
+The harness writes to a date-scoped workspace under `docs/.output/evolution/skills/`. The eval definitions themselves live in the target skill directory.
 
 ```
-docs/.output/skill-evolution/{YYYY-MM-DD}/{skill}-workspace/
+docs/.output/evolution/skills/{YYYY-MM-DD}/{skill}-workspace/
   skill-snapshot/               # Present only when IMPROVING an existing skill
   │                             # Contains a verbatim copy of the old skill docs
   iteration-N/

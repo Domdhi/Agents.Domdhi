@@ -10,8 +10,8 @@
  * Fires on both manual (/compact) and auto-compact triggers.
  *
  * Output:
- *   - Session snapshot: docs/.output/sessions/{YYYY-MM-DD}/{HHMM}-pre-compaction.md
- *   - Daily log entry:  docs/.output/memories/daily/{YYYY-MM-DD}.md (via daily-log.js)
+ *   - Session snapshot: docs/.output/.state/sessions/{YYYY-MM-DD}/{HHMM}-pre-compaction.md
+ *   - Daily log entry:  docs/.output/.state/memory-daily/{YYYY-MM-DD}.md (via daily-log.js)
  *
  * Exit codes:
  *   0 = always (PreCompact hooks cannot block compaction)
@@ -23,8 +23,8 @@ const DailyLog = require('../core/daily-log');
 
 // Anchor writes to the repo root — not the caller's CWD. Without this, a prior
 // `cd src && ...` in the same shell session leaves the hook's CWD at `src/`,
-// and a subsequent /compact dumps the snapshot into `src/docs/.output/sessions/`
-// and the daily log into `src/docs/.output/memories/daily/`. Match the
+// and a subsequent /compact dumps the snapshot into `src/docs/.output/.state/sessions/`
+// and the daily log into `src/docs/.output/.state/memory-daily/`. Match the
 // convention used by command-usage-logger.cjs, gate.js, and ~10 other core
 // scripts: CLAUDE_PROJECT_DIR env var first, else resolve from __dirname
 // (hook lives at .claude/hooks/, so ../../ is repo root).
@@ -83,9 +83,9 @@ function buildSnapshot(projectRoot, log, trigger) {
     }
 
     // Read recent agent updates if available. The store rotates by day under
-    // docs/.output/agent-updates/{YYYY-MM-DD}.md so no single file grows unbounded;
+    // docs/.output/evolution/agents/{YYYY-MM-DD}.md so no single file grows unbounded;
     // older (pre-rotation) projects may still have the legacy flat
-    // docs/.output/agent-updates.md. Prefer the folder (newest day-files), fall
+    // docs/.output/evolution/agents.md. Prefer the folder (newest day-files), fall
     // back to the flat file.
     let agentUpdates = '';
     try {
@@ -151,7 +151,7 @@ function processEvent(parsedJson) {
 
     const snapshot = buildSnapshot(projectRoot, log, trigger);
 
-    const sessionsDir = path.join(projectRoot, 'docs', '.output', 'sessions', dateStr);
+    const sessionsDir = path.join(projectRoot, 'docs', '.output', '.state', 'sessions', dateStr);
     fs.mkdirSync(sessionsDir, { recursive: true });
 
     const snapshotPath = path.join(sessionsDir, `${timeStr}-pre-compaction.md`);

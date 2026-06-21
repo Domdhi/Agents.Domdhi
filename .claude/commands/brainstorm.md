@@ -5,7 +5,7 @@ argument-hint: [topic or problem statement]
 
 # Brainstorm
 
-Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/modules/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md`. Also captures ideas into `docs/work/todo/feature-ideas.md` (living backlog).
+Facilitate a structured brainstorming session. Output is **context-bundled** — if brainstorming a specific feature/module, output goes to `docs/modules/{feature}/brainstorm.md`. If project-wide, output goes to `docs/.output/findings/research/{YYMMDD-HHMM}-brainstorm-{slug}.md`. Also captures ideas into `docs/work/todo/feature-ideas.md` (living backlog).
 
 ## Telemetry (run first)
 
@@ -60,7 +60,7 @@ ELIF brainstorming a specific feature/module (new):
   mkdir -p docs/modules/{name}/
   OUTPUT_PATH = docs/modules/{name}/brainstorm.md
 ELSE (project-wide or general):
-  OUTPUT_PATH = docs/.output/research/{YYMMDD-HHMM}-brainstorm-{slug}.md
+  OUTPUT_PATH = docs/.output/findings/research/{YYMMDD-HHMM}-brainstorm-{slug}.md
 ```
 
 If unclear whether it's feature-scoped or project-wide, ask with AskUserQuestion.

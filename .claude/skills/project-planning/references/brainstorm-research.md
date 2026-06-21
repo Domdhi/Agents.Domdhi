@@ -151,7 +151,7 @@ Use these when facilitating a brainstorm session:
 
 ## Output Paths
 - Feature-scoped output: `docs/modules/{feature}/brainstorm.md` or `docs/modules/{feature}/research.md`
-- Project-wide output: `docs/.output/research/{date}-{slug}.md`
+- Project-wide output: `docs/.output/findings/research/{date}-{slug}.md`
 
 ## Question-Type Self-Check (for command authors)
 
@@ -179,5 +179,5 @@ Borderline cases:
 When in doubt, run the question through this filter: *"Could a reasonable user respond with something I haven't anticipated?"* If yes → free-form. If no → closed-choice.
 
 ## Cross-References
-- Produces: feature-scoped output goes to `docs/modules/{feature}/brainstorm.md` or `docs/modules/{feature}/research.md`; project-wide output goes to `docs/.output/research/{date}-{slug}.md`
+- Produces: feature-scoped output goes to `docs/modules/{feature}/brainstorm.md` or `docs/modules/{feature}/research.md`; project-wide output goes to `docs/.output/findings/research/{date}-{slug}.md`
 - Feeds into: `docs/product/brief.md` (via `/create:project-brief`)

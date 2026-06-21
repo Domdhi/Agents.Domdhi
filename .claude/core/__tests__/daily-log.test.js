@@ -6,7 +6,7 @@
 //     diffstat line only when BOTH insertions and deletions are finite numbers
 //   - findInProgressTodos() → scans docs/work/todo/ AND docs/ for TODO*.md; [>] and [!] markers
 //   - findKeyDecisions() → scans docs/ ONLY for TODO*.md; ## Key Decisions table (header+separator required)
-//   - All writes go to docs/.output/memories/daily/{YYYY-MM-DD}.md via appendFileSync (same-date = same file)
+//   - All writes go to docs/.output/.state/memory-daily/{YYYY-MM-DD}.md via appendFileSync (same-date = same file)
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'node:module';
@@ -36,7 +36,7 @@ afterEach(() => {
 
 // Helper: read daily log for today's date (or a given date)
 function readDailyLog(tmpRoot, dateStr) {
-  const logPath = path.join(tmpRoot, 'docs', '.output', 'memories', 'daily', `${dateStr}.md`);
+  const logPath = path.join(tmpRoot, 'docs', '.output', '.state', 'memory-daily', `${dateStr}.md`);
   return fs.readFileSync(logPath, 'utf8');
 }
 
@@ -79,7 +79,7 @@ describe('DailyLog', () => {
       const log = new DailyLog();
 
       // Assert
-      const expectedDir = path.join(tmp.root, 'docs', '.output', 'memories', 'daily');
+      const expectedDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-daily');
       expect(log.dailyDir).toBe(expectedDir);
     });
   });
@@ -679,7 +679,7 @@ describe('DailyLog', () => {
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
       const yesterdayPath = path.join(
         tmp.root,
-        'docs', '.output', 'memories', 'daily',
+        'docs', '.output', '.state', 'memory-daily',
         `${yesterday}.md`
       );
       fs.mkdirSync(path.dirname(yesterdayPath), { recursive: true });

@@ -67,7 +67,7 @@ describe('pull-request.js parseArgs', () => {
     const r = pr.parseArgs(['status', '--id', '259']);
     expect(r.sub).toBe('status');
     expect(r.id).toBe(259);
-    expect(r.bodyFile).toBe(path.join('docs', '.output', '.pr-body'));
+    expect(r.bodyFile).toBe(path.join('docs', '.output', '.state', '.pr-body'));
   });
 
   it('honors --body-file override and -n alias for dry-run', () => {

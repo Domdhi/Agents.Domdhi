@@ -453,10 +453,10 @@ In `--dry-run` mode, report "Would add {skill} to {agent}" without writing.
 
 **4a. Ensure directory structure** (if MODE is `--fix`):
 
-Create the directories for **all five** memory categories under `docs/.output/memories/` (missing any one — e.g. `rejected-approaches` — hard-errors later tools that iterate the full category set):
+Create the directories for **all five** memory categories under `docs/.output/.memory/` (missing any one — e.g. `rejected-approaches` — hard-errors later tools that iterate the full category set):
 ```bash
 for c in patterns constraints decisions workflows rejected-approaches; do
-  mkdir -p "docs/.output/memories/$c"
+  mkdir -p "docs/.output/.memory/$c"
 done
 ```
 
@@ -515,8 +515,8 @@ Check each implementation command for proper memory API usage:
 
 **For each command, Grep for:**
 1. `memory-manager.js` — proper API usage (CLI calls)
-2. `Glob: docs/.output/memories/` — raw Glob pattern (should prefer API)
-3. `Check docs/.output/memories/` — vague text mention (should be actual CLI call)
+2. `Glob: docs/.output/.memory/` — raw Glob pattern (should prefer API)
+3. `Check docs/.output/.memory/` — vague text mention (should be actual CLI call)
 
 **Integration status:**
 - **INTEGRATED** — Uses `memory-manager.js` CLI for both reads and writes

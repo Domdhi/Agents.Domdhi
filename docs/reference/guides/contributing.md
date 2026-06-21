@@ -217,7 +217,7 @@ Every contribution ends with this command.
 /review:check-templates
 ```
 
-It audits the entire `.claude/` system: orphaned agents (no command dispatches to them), unused skills (no agent loads them, no command references them), missing hooks referenced in settings.json, frontmatter drift, broken wiring. Anything your new component touched that isn't quite right will show up in the report at `docs/.output/reviews/{date}-check-templates.md`.
+It audits the entire `.claude/` system: orphaned agents (no command dispatches to them), unused skills (no agent loads them, no command references them), missing hooks referenced in settings.json, frontmatter drift, broken wiring. Anything your new component touched that isn't quite right will show up in the report at `docs/.output/findings/reviews/{date}-check-templates.md`.
 
 If the report is clean, commit. If it's not, fix what it flagged and re-run. Do not ship contributions that the template audit flags — other adopters inherit your additions, and drift compounds.
 

@@ -172,7 +172,7 @@ describe('parseDailyFile', () => {
 
     const dailyPath = path.join(
       tmp.root,
-      'docs', '.output', 'memories', 'daily', '2026-04-19.md'
+      'docs', '.output', '.state', 'memory-daily', '2026-04-19.md'
     );
     const content = fs.readFileSync(dailyPath, 'utf-8');
     const result = extractor.parseDailyFile(content, '2026-04-19');
@@ -210,7 +210,7 @@ describe('markProcessed', () => {
     const extractor = new MemoryExtractor();
     const originalHeading = '## 09:00 — Pre-Compaction';
     const content = `${originalHeading}\n\nbody text`;
-    const filePath = tmp.write('docs/.output/memories/daily/2026-04-19.md', content);
+    const filePath = tmp.write('docs/.output/.state/memory-daily/2026-04-19.md', content);
 
     await extractor.markProcessed(filePath, originalHeading);
 
@@ -223,7 +223,7 @@ describe('markProcessed', () => {
     const extractor = new MemoryExtractor();
     const originalHeading = '## 10:30 — Stop';
     const content = `${originalHeading}\n\nsome content`;
-    const filePath = tmp.write('docs/.output/memories/daily/2026-04-19.md', content);
+    const filePath = tmp.write('docs/.output/.state/memory-daily/2026-04-19.md', content);
 
     await extractor.markProcessed(filePath, originalHeading);
 
@@ -238,7 +238,7 @@ describe('markProcessed', () => {
     const extractor = new MemoryExtractor();
     const originalHeading = '## 11:00 — PostBash';
     const content = `${originalHeading}\n\n**Branch:** feature-x\n\nSome important notes.`;
-    const filePath = tmp.write('docs/.output/memories/daily/2026-04-19.md', content);
+    const filePath = tmp.write('docs/.output/.state/memory-daily/2026-04-19.md', content);
 
     await extractor.markProcessed(filePath, originalHeading);
 
@@ -493,7 +493,7 @@ describe('writeExtractedLearnings', () => {
 
     const outPath = await extractor.writeExtractedLearnings(date, learnings, timestamp);
 
-    const expectedDir = path.join(tmp.root, 'docs', '.output', 'memories', 'extracted', date);
+    const expectedDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-extracted', date);
     const expectedFile = path.join(expectedDir, `${timestamp}.json`);
     expect(outPath).toBe(expectedFile);
     expect(fs.existsSync(expectedDir)).toBe(true);
@@ -578,7 +578,7 @@ describe('extract — dryRun mode', () => {
 
     await extractor.extract({ dryRun: true });
 
-    const extractedDir = path.join(tmp.root, 'docs', '.output', 'memories', 'extracted');
+    const extractedDir = path.join(tmp.root, 'docs', '.output', '.state', 'memory-extracted');
     const extractedExists = fs.existsSync(extractedDir);
     if (extractedExists) {
       const files = fs.readdirSync(extractedDir);
@@ -596,7 +596,7 @@ describe('extract — dryRun mode', () => {
 
     const dailyPath = path.join(
       tmp.root,
-      'docs', '.output', 'memories', 'daily', '2026-04-19.md'
+      'docs', '.output', '.state', 'memory-daily', '2026-04-19.md'
     );
     const contentBefore = fs.readFileSync(dailyPath, 'utf-8');
 
@@ -653,7 +653,7 @@ describe('extract — live mode (mocked model)', () => {
 
     const dailyPath = path.join(
       tmp.root,
-      'docs', '.output', 'memories', 'daily', '2026-04-19.md'
+      'docs', '.output', '.state', 'memory-daily', '2026-04-19.md'
     );
     const updatedContent = fs.readFileSync(dailyPath, 'utf-8');
     expect(updatedContent).toContain('[extracted]');
@@ -672,7 +672,7 @@ describe('extract — live mode (mocked model)', () => {
 
     await extractor.extract({ dryRun: false });
 
-    const extractedBase = path.join(tmp.root, 'docs', '.output', 'memories', 'extracted');
+    const extractedBase = path.join(tmp.root, 'docs', '.output', '.state', 'memory-extracted');
     const dateDirs = fs.readdirSync(extractedBase);
     expect(dateDirs).toHaveLength(1);
 
@@ -701,7 +701,7 @@ describe('extract — live mode (mocked model)', () => {
     expect(result.processed).toBe(1);
     const dailyPath = path.join(
       tmp.root,
-      'docs', '.output', 'memories', 'daily', '2026-04-19.md'
+      'docs', '.output', '.state', 'memory-daily', '2026-04-19.md'
     );
     const content = fs.readFileSync(dailyPath, 'utf-8');
     expect(content).toContain('[extracted]');
@@ -711,7 +711,7 @@ describe('extract — live mode (mocked model)', () => {
     const extractor = new MemoryExtractor();
     // Write a daily log where the heading already has [extracted]
     tmp.write(
-      'docs/.output/memories/daily/2026-04-19.md',
+      'docs/.output/.state/memory-daily/2026-04-19.md',
       '## 09:00 — Pre-Compaction [extracted]\n\nbody already done'
     );
 

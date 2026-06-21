@@ -24,7 +24,7 @@ node .claude/core/telemetry-log.js review:promote-memories
 
 Before scanning for promotions, surface any unreviewed curation proposals from the memory-curator (AMEM-7). Curation may dedup, merge, or flag contradictions that change which concepts are eligible for promotion — reviewing them first avoids promoting a concept that's about to be replaced.
 
-1. Look for the most recent file under `docs/.output/memories/pending-curation/{YYYY-MM-DD}/*.json` (sort by date directory, then by filename).
+1. Look for the most recent file under `docs/.output/.state/memory-pending-curation/{YYYY-MM-DD}/*.json` (sort by date directory, then by filename).
 2. **If the directory is missing or contains no JSON files:** Print `Step 0: No pending curation proposals (memory-curator has not run or MEMORY_PROFILE is not strict).` and proceed to Step 1.
 3. **If a file exists:** Read it and surface a summary to the user:
    - **Latest curation file:** path + timestamp
@@ -56,7 +56,7 @@ Parse the output. If "No concepts meet promotion criteria" → report that and s
 
 For each candidate (in rank order):
 
-1. Read the concept article at `docs/.output/memories/concepts/{category}/{slug}.md`
+1. Read the concept article at `docs/.output/.state/memory-concepts/{category}/{slug}.md`
 2. Present to the user:
    - **Title** and **category**
    - **Promotion score** and **decayed confidence**
@@ -100,7 +100,7 @@ For each accepted candidate:
 
 If any promotions were accepted and applied:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:promote-memories — promoted {N} concepts

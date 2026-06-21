@@ -23,7 +23,7 @@ node .claude/core/telemetry-log.js review:evolve-skills
 
 | Path | Signal source | Why it's a real baseline |
 |------|---------------|--------------------------|
-| **IMPROVE** | `docs/.output/agent-updates/*.md` misalignments + recurring gate failures, attributed to the skill that owns that domain | The misalignment IS the "current behavior failed" baseline — the `old_skill` already lost in the field |
+| **IMPROVE** | `docs/.output/evolution/agents/*.md` misalignments + recurring gate failures, attributed to the skill that owns that domain | The misalignment IS the "current behavior failed" baseline — the `old_skill` already lost in the field |
 | **CREATE** | Clusters of recurring `workflows` + `patterns` memories that **no existing skill covers** | The recurrence across N memories is the evidence agents keep re-deriving this unaided — the Voyager/Hermes "write the reusable pattern down" move |
 
 CREATE is deliberately distinct from `/review:promote-memories` (which injects a *single* validated memory into an *existing* skill/CLAUDE.md). This command synthesizes a *new* skill from a *cluster*, or rewrites a skill from *failure traces*.
@@ -47,7 +47,7 @@ CREATE is deliberately distinct from `/review:promote-memories` (which injects a
 node .claude/core/skill-evolution.js intake --since <date-or-omit> --date <YYYY-MM-DD>
 ```
 
-This writes `docs/.output/skill-evolution/{date}/intake.{json,md}` with ranked **IMPROVE** candidates (per-skill, with the agent-update evidence + per-signal `polarity`), **CREATE** candidates (memory clusters with member IDs + keywords), and a **`dispatchGaps`** list. Read `intake.json`. If `improve` and `create` are both empty → report "no skill-evolution signal" and stop.
+This writes `docs/.output/evolution/skills/{date}/intake.{json,md}` with ranked **IMPROVE** candidates (per-skill, with the agent-update evidence + per-signal `polarity`), **CREATE** candidates (memory clusters with member IDs + keywords), and a **`dispatchGaps`** list. Read `intake.json`. If `improve` and `create` are both empty → report "no skill-evolution signal" and stop.
 
 > **`dispatchGaps` are NOT skill-evolution candidates.** Each is a signal that attributed to a review/safeguard skill but whose text shows the safeguard *caught* the defect — so the gap is in the **dev-agent dispatch prompt** (e.g. `/run-todo`'s implementation prompt), not in the review skill. Do **not** open a skill eval for these (it would read Δ=0, exactly the wasted cycle two projects reported). Surface them in the Report under "Dispatch-prompt gaps" for the human to route; the scorer attributes by domain keyword and cannot tell *caught* from *slipped*, so it pre-separates them here. Likewise, an IMPROVE evidence line tagged `(caught)` is weaker evidence (a safeguard fired) than one tagged `(slipped)` — weight the diagnosis accordingly.
 
@@ -63,7 +63,7 @@ Ask which to pursue (Accept / Skip per candidate). Under `--auto`, pursue every 
 
 For each pursued candidate, read the evidence and the relevant skill, then diagnose the *gap*:
 - **IMPROVE** — read the named skill's `SKILL.md` + each cited agent-update section. What did the skill say (or fail to say) that let the misalignment happen? Is it missing a rule, ambiguous, or contradicted by reality? Confirm the evidence is a genuine empirical RED (an agent actually failed) — if it's speculative, drop it. No "this could be clearer" edits without a failure behind them.
-- **CREATE** — read each member memory (`docs/.output/memories/{cat}/{id}.json`). What single reusable capability do they share? Is it broad enough to be a skill (not project-specific — that belongs in CLAUDE.md per `skill-authoring`)?
+- **CREATE** — read each member memory (`docs/.output/.memory/{cat}/{id}.json`). What single reusable capability do they share? Is it broad enough to be a skill (not project-specific — that belongs in CLAUDE.md per `skill-authoring`)?
 
 ### Step 4 — Draft / edit (follow `skill-creator`)
 
@@ -71,7 +71,7 @@ For each pursued candidate, read the evidence and the relevant skill, then diagn
 - **CREATE** → scaffold `.claude/skills/<name>/SKILL.md` (name==dir; pushy what+when description; explain-the-why body; progressive disclosure). The baseline is `without_skill`.
 
 Write the workspace + test cases per `skill-creator` Step "Running and evaluating test cases":
-`docs/.output/skill-evolution/{date}/<skill>-workspace/`.
+`docs/.output/evolution/skills/{date}/<skill>-workspace/`.
 
 ### Step 5 — Differential eval (the proof the gap closed)
 
@@ -110,11 +110,11 @@ For each candidate that cleared the differential (and that the user accepts — 
    node .claude/core/gate.js test
    ```
    If it fails → stop, report, leave unapplied.
-3. The change is already on disk (Step 4 wrote it). Record the proposal + benchmark delta in `docs/.output/skill-evolution/{date}/proposals.md`.
+3. The change is already on disk (Step 4 wrote it). Record the proposal + benchmark delta in `docs/.output/evolution/skills/{date}/proposals.md`.
 
 ### Step 7 — Commit
 
-Stage the skill file(s) + the workspace artifacts + `proposals.md`. Write the message to `docs/.output/.commit-msg` (Write tool, no `Co-Authored-By`), then `node .claude/core/commit.js`:
+Stage the skill file(s) + the workspace artifacts + `proposals.md`. Write the message to `docs/.output/.state/.commit-msg` (Write tool, no `Co-Authored-By`), then `node .claude/core/commit.js`:
 
 ```
 feat: /review:evolve-skills — {CREATE <name> | IMPROVE <skill>} (pass-rate Δ +N pts)

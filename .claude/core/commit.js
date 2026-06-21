@@ -8,7 +8,7 @@
 //
 // WORKFLOW:
 //   1. Write the commit message (subject line, blank line, body) to
-//      docs/.output/.commit-msg using the Write tool — no shell escaping needed.
+//      docs/.output/.state/.commit-msg using the Write tool — no shell escaping needed.
 //      (Working-tree path, NOT under .git/ — so it resolves correctly inside git
 //       worktrees, where .git is a file pointer rather than a directory.)
 //      Do NOT add the Co-Authored-By trailer; this script appends it.
@@ -74,7 +74,7 @@ function parseArgs(args) {
   }
 
   const fileIdx = args.indexOf('--file');
-  const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.commit-msg');
+  const msgFile = fileIdx >= 0 ? args[fileIdx + 1] : path.join('docs', '.output', '.state', '.commit-msg');
 
   const mIdx = args.indexOf('-m');
   const inlineMsg = mIdx >= 0 ? args[mIdx + 1] : null;

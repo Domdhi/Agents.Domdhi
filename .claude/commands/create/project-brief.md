@@ -30,7 +30,7 @@ INPUT: $ARGUMENTS
 ### 1. Check Upstream (main agent)
 
 - Read `docs/product/brainstorm.md` if it exists (use as input context)
-- Read `docs/modules/*/research.md` or `docs/.output/research/**` if any research exists (use as input context)
+- Read `docs/modules/*/research.md` or `docs/.output/findings/research/**` if any research exists (use as input context)
 - If neither exists, that's fine — we'll interview from scratch
 
 ### 2. Check for Existing Output (main agent)

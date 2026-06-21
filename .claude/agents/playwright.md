@@ -76,7 +76,7 @@ Pick 2–4 concrete terms from your task (the page, the user flow, the component
 
     node .claude/core/memory-manager.js search "<your task's key terms>"
 
-Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `workflows` memory about this app's behavior outranks a generic automation tip. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+Scan the top 2–3 hits; open the full `docs/.output/.memory/{category}/{id}.json` with the `Read` tool for any directly on-point. Apply what they say — a `constraints` or `workflows` memory about this app's behavior outranks a generic automation tip. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
 
 ## Output, Paths & Guardrails
 
@@ -84,7 +84,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 **Where your work goes:**
 - Screenshots → `docs/.output/` (the `organize.cjs` hook files them into dated folders automatically)
-- Test run results / notes → `docs/.output/reviews/{YYMMDD-HHMM}-{slug}.md` (a stamped report under `reviews/`, not the `.output/` root)
+- Test run results / notes → `docs/.output/findings/reviews/{YYMMDD-HHMM}-{slug}.md` (a stamped report under `reviews/`, not the `.output/` root)
 
 **Run-stamp:** when you write a fresh-each-run results report under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. Screenshots already carry their own timestamps; don't double-stamp.
 
@@ -97,7 +97,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

@@ -99,8 +99,14 @@ case $LOCATION in
     ;;
 esac
 
-# Create worktree with new branch
-git worktree add "$path" -b "$BRANCH_NAME"
+# Create worktree with new branch, BASED ON THE CURRENT TIP of the integration
+# branch (main/master) — never on whatever happens to be checked out, and never on
+# a stale commit. A worktree branched behind main is missing recent renames and
+# refactors; those surface as compile/merge errors you CANNOT catch inside the
+# worktree (the changed symbols aren't there yet). Fetch first so the base is current.
+git fetch origin 2>/dev/null
+base="$(git rev-parse --verify --quiet origin/main || git rev-parse --verify --quiet main || git rev-parse --verify --quiet origin/master || echo HEAD)"
+git worktree add "$path" -b "$BRANCH_NAME" "$base"
 cd "$path"
 ```
 
@@ -180,6 +186,16 @@ Ready to implement <feature-name>
 
 - **Problem:** Breaks on projects using different tools
 - **Fix:** Auto-detect from project files (package.json, etc.)
+
+### Branching from a stale base commit
+
+- **Problem:** The worktree is created from whatever was checked out (or an old commit), so it's missing recent renames/refactors on main. Everything compiles *inside* the worktree, then breaks on merge (e.g. a `NavGroup.Settings→Admin` rename landed on main while the worktree still references the old name — 19 compile failures at merge).
+- **Fix:** Always base the new branch on the current tip of the integration branch — `git fetch` then `git worktree add … "$base"` as in Creation Step 2. Never branch from a detached or behind-HEAD commit.
+
+### Editing main-checkout absolute paths from inside a worktree
+
+- **Problem:** Auto-loaded context files (`CLAUDE.md`, `docs/CLAUDE.md`) carry **absolute paths rooted in the MAIN checkout**, not the worktree. An agent that "edits CLAUDE.md" via that absolute path writes into the main working tree — a change that escapes the worktree's isolation entirely (observed: an architect edited the main-checkout `CLAUDE.md` while working in a worktree).
+- **Fix:** Inside a worktree, only ever edit paths *relative to the worktree root* (`$path/...`). Treat any absolute path that doesn't start with the worktree root as out-of-scope — the whole point of the worktree is that your writes stay in it.
 
 ## Example Workflow
 

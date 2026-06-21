@@ -18,8 +18,8 @@ describe('classifyPath', () => {
   it('flags regenerable working state as disposable', () => {
     expect(classifyPath('docs/.output/plans/x.md')).toBe('disposable');
     expect(classifyPath('.claude/commands/do.md')).toBe('disposable');
-    expect(classifyPath('docs/.output/.commit-msg')).toBe('disposable');
-    expect(classifyPath('docs/.output/.pr-body')).toBe('disposable');
+    expect(classifyPath('docs/.output/.state/.commit-msg')).toBe('disposable');
+    expect(classifyPath('docs/.output/.state/.pr-body')).toBe('disposable');
     expect(classifyPath('node_modules/x/index.js')).toBe('disposable');
   });
   it('treats unknown paths as other (review)', () => {

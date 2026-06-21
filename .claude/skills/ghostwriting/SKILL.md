@@ -195,8 +195,8 @@ End with a punch, not a summary. Leave the reader with something that sticks.
 ## Source Material
 
 When writing articles, always pull from:
-1. `docs/.output/memories/daily/*.md` — daily session logs (auto-captured)
-2. `docs/.output/memories/concepts/**/*.md` — decision, constraint, and pattern concepts compiled from session logs (always present in scaffolded projects, paths use memory system for portability)
+1. `docs/.output/.state/memory-daily/*.md` — daily session logs (auto-captured)
+2. `docs/.output/.state/memory-concepts/**/*.md` — decision, constraint, and pattern concepts compiled from session logs (always present in scaffolded projects, paths use memory system for portability)
 3. `.claude/skills/ghostwriting/references/_voice/fingerprint.md` — quantitative voice analysis (302 convos, 3,928 messages)
 4. Real commit hashes, test counts, file counts from git log
 

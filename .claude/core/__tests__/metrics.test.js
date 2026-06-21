@@ -48,7 +48,7 @@ describe('computeTelemetry — gate outcome normalization', () => {
     let dir, prevEnv;
     beforeEach(() => {
         dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metrics-tel-'));
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         const rows = [
             { type: 'gate_run', command: 'gate:test', outcome: 'success' },
@@ -105,7 +105,7 @@ describe('computeTelemetry — missing/empty/malformed data', () => {
     });
 
     it('returns null when the telemetry file is empty (whitespace only)', () => {
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         fs.writeFileSync(path.join(telDir, 'command-usage.jsonl'), '   \n\n  \n');
         const { computeTelemetry } = loadMetrics(dir);
@@ -113,7 +113,7 @@ describe('computeTelemetry — missing/empty/malformed data', () => {
     });
 
     it('returns null when every line is malformed JSON', () => {
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         fs.writeFileSync(path.join(telDir, 'command-usage.jsonl'), 'not json\n{broken\n');
         const { computeTelemetry } = loadMetrics(dir);
@@ -121,7 +121,7 @@ describe('computeTelemetry — missing/empty/malformed data', () => {
     });
 
     it('aggregates command_frequency and skips malformed lines among valid ones', () => {
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         const rows = [
             JSON.stringify({ type: 'command_invocation', command: '/do' }),
@@ -382,7 +382,7 @@ describe('buildReport → prettyReport (in-process orchestration)', () => {
 
     it('buildReport returns a shaped object with all sections + generated stamp', () => {
         // Telemetry data
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         fs.writeFileSync(path.join(telDir, 'command-usage.jsonl'),
             [
@@ -406,7 +406,7 @@ describe('buildReport → prettyReport (in-process orchestration)', () => {
     });
 
     it('prettyReport renders all sections when data is present', () => {
-        const telDir = path.join(dir, 'docs', '.output', 'telemetry');
+        const telDir = path.join(dir, 'docs', '.output', '.state', 'telemetry');
         fs.mkdirSync(telDir, { recursive: true });
         fs.writeFileSync(path.join(telDir, 'command-usage.jsonl'),
             [
@@ -417,7 +417,7 @@ describe('buildReport → prettyReport (in-process orchestration)', () => {
             ].join('\n') + '\n');
         writeDoc('docs/work/todo/TODO_y.md', '- [x] **1.1 Done** — x\n- [ ] **1.2 Pending** — p\n');
         // Session dirs to exercise the sessions section of prettyReport
-        const sessDir = path.join(dir, 'docs', '.output', 'sessions');
+        const sessDir = path.join(dir, 'docs', '.output', '.state', 'sessions');
         fs.mkdirSync(path.join(sessDir, '2026-06-12'), { recursive: true });
         fs.mkdirSync(path.join(sessDir, '2026-06-13'), { recursive: true });
 

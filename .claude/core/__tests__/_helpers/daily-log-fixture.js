@@ -58,12 +58,12 @@ function buildEntry(entry) {
 /**
  * createDailyLog(tmpDirHelper, date, entries)
  *
- * Writes `{tmpDirHelper.root}/docs/.output/memories/daily/{date}.md`.
+ * Writes `{tmpDirHelper.root}/docs/.output/.state/memory-daily/{date}.md`.
  * Returns the absolute path written.
  */
 function createDailyLog(tmpDirHelper, date, entries = []) {
   const body = entries.map(buildEntry).join('\n');
-  const relPath = `docs/.output/memories/daily/${date}.md`;
+  const relPath = `docs/.output/.state/memory-daily/${date}.md`;
   return tmpDirHelper.write(relPath, body);
 }
 

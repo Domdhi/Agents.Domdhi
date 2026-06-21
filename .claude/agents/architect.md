@@ -90,7 +90,7 @@ Pick 2–4 concrete terms from your task (subsystem names, technologies, the dec
 
     node .claude/core/memory-manager.js search "<your task's key terms>"
 
-Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.json` with the `Read` tool for any that look directly on-point. Apply what they say — a `decisions` or `rejected-approaches` memory that contradicts your plan wins until you have fresh evidence it's stale. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
+Scan the top 2–3 hits; open the full `docs/.output/.memory/{category}/{id}.json` with the `Read` tool for any that look directly on-point. Apply what they say — a `decisions` or `rejected-approaches` memory that contradicts your plan wins until you have fresh evidence it's stale. Hyphenated terms are safe to search. Found nothing relevant? Proceed — the search cost one command.
 
 ## Output, Paths & Guardrails
 
@@ -98,7 +98,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 **Where your work goes:**
 - Architecture document → `docs/architecture/overview.md` (canonical, overwritten in place)
-- ADRs → `docs/.output/reviews/{YYMMDD-HHMM}-adr-{slug}.md`
+- ADRs → `docs/.output/findings/reviews/{YYMMDD-HHMM}-adr-{slug}.md`
 
 **Run-stamp:** when you write a fresh-each-run ADR or review under `.output/`, prefix it `{YYMMDD-HHMM}` — compute the stamp once with `date +%y%m%d-%H%M` and reuse it across the run. The canonical `architecture/overview.md` is overwritten in place, never stamped.
 
@@ -111,7 +111,7 @@ Scan the top 2–3 hits; open the full `docs/.output/memories/{category}/{id}.js
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

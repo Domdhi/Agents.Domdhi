@@ -12,10 +12,10 @@
  *   node .claude/core/gate.js test               # Build + test
  *
  * Output:
- *   docs/.output/telemetry/logs/gate-{timestamp}.log    — Full output
- *   docs/.output/telemetry/_latest-build.json           — Parsed build results
- *   docs/.output/telemetry/_latest-test.json            — Parsed test results (if --test)
- *   docs/.output/telemetry/_latest-summary.json         — Combined summary
+ *   docs/.output/.state/telemetry/logs/gate-{timestamp}.log    — Full output
+ *   docs/.output/.state/telemetry/_latest-build.json           — Parsed build results
+ *   docs/.output/.state/telemetry/_latest-test.json            — Parsed test results (if --test)
+ *   docs/.output/.state/telemetry/_latest-summary.json         — Combined summary
  *
  * Configuration (.claude/gate.config.json):
  *   {

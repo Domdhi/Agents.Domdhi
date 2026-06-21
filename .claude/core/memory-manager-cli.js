@@ -417,12 +417,12 @@ Inbox (R-A — sub-agent draft memory pattern):
   node memory-manager-cli.js inbox-list
   node memory-manager-cli.js inbox-promote <id> [--category <cat>] [--id <id>]
   node memory-manager-cli.js inbox-discard <id>
-    Sub-agents flag draft memories to docs/.output/memories/_inbox/ during
+    Sub-agents flag draft memories to docs/.output/.state/memory-inbox/ during
     their work. Main Agent reviews on dispatch return: promote keepers,
     discard noise. See docs/.output/plans/2026-05-11-do-r-a-inbox-pattern.md.
 
 Categories: patterns, constraints, decisions, workflows, rejected-approaches
-Storage: docs/.output/memories/ (JSON) + memories.db (SQLite FTS5)
+Storage: docs/.output/.memory/ (JSON) + memories.db (SQLite FTS5)
             `);
     }
 }

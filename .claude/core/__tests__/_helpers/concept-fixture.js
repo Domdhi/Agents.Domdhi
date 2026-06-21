@@ -19,7 +19,7 @@ const path = require('node:path');
  *   usage_count  {number}   — convenience input; written as scalar field (optional)
  *   content      {string}   — body text after frontmatter (optional, defaults to '')
  *
- * Writes to: {tmpDirHelper.root}/docs/.output/memories/concepts/{category}/{slug}.md
+ * Writes to: {tmpDirHelper.root}/docs/.output/.state/memory-concepts/{category}/{slug}.md
  * Returns the absolute path written.
  *
  * Frontmatter matches memory-compiler.parseFrontmatter() expectations:
@@ -84,7 +84,7 @@ function createConcept(tmpDirHelper, category, slug, opts) {
   const fileContent = frontmatter + '\n' + body;
 
   const relPath = path.join(
-    'docs', '.output', 'memories', 'concepts', category, `${slug}.md`
+    'docs', '.output', '.state', 'memory-concepts', category, `${slug}.md`
   );
 
   return tmpDirHelper.write(relPath, fileContent);
@@ -94,7 +94,7 @@ function createConcept(tmpDirHelper, category, slug, opts) {
  * createConceptIndex(tmpDirHelper)
  *
  * Scans concept files already written inside tmpDirHelper and writes
- * docs/.output/memories/concepts/index.md.
+ * docs/.output/.state/memory-concepts/index.md.
  *
  * The index is non-empty and lists every concept by category/slug/title.
  * Format mirrors memory-compiler.generateIndex() (plain markdown, not Dataview)
@@ -104,7 +104,7 @@ function createConcept(tmpDirHelper, category, slug, opts) {
  */
 function createConceptIndex(tmpDirHelper) {
   const conceptsBase = path.join(
-    tmpDirHelper.root, 'docs', '.output', 'memories', 'concepts'
+    tmpDirHelper.root, 'docs', '.output', '.state', 'memory-concepts'
   );
 
   // Collect written concept files by scanning category subdirectories.
@@ -164,7 +164,7 @@ function createConceptIndex(tmpDirHelper) {
   }
 
   const content = lines.join('\n');
-  const relPath = path.join('docs', '.output', 'memories', 'concepts', 'index.md');
+  const relPath = path.join('docs', '.output', '.state', 'memory-concepts', 'index.md');
   return tmpDirHelper.write(relPath, content);
 }
 

@@ -87,7 +87,7 @@ You already commit to checking memory for estimation patterns and dependency les
 
 You don't have Bash, so search the store with Grep over its JSON. Pick 2–4 concrete terms from your task (the epic, the subsystem, the kind of work) and grep the memory tree:
 
-    Grep  pattern="<term1>|<term2>"  path="docs/.output/memories"  glob="*.json"  output_mode="files_with_matches"
+    Grep  pattern="<term1>|<term2>"  path="docs/.output/.memory"  glob="*.json"  output_mode="files_with_matches"
 
 Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-approaches/`. Apply what they say — a `patterns` or `workflows` memory about how work actually sequences here outranks a generic estimate. If the dispatching command already handed you relevant memory in your prompt, that's your recall. Found nothing? Proceed.
 
@@ -109,7 +109,7 @@ Read the matches across `patterns/ constraints/ decisions/ workflows/ rejected-a
 
 If during your work you discover something **unexpected and reusable** — a tool gotcha, an undocumented platform behavior, a constraint the spec didn't predict, a pattern worth repeating — capture it as a draft memory in the inbox **before reporting back**. Do not write straight into the curated store: the Main Agent reviews drafts and promotes the keepers. You do not need to be confident the insight is worth keeping.
 
-Inbox path: `docs/.output/memories/_inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
+Inbox path: `docs/.output/.state/memory-inbox/{YYYY-MM-DD}-{HHMM}-{short-kebab-slug}.json`
 
 Write the file directly (you have the `Write` tool). Use the JSON shape:
 

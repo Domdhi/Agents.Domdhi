@@ -91,7 +91,7 @@ Ask three short rounds. Each question is marked **free-form** (plain conversatio
 
 #### 3a. Persist interview answers (BEFORE any sub-command runs)
 
-Write the answers to `docs/.output/work/{YYYY-MM-DD}/new-project-interview.md`. Session death between here and Step 8 otherwise loses the entire interview and forces a re-ask. Format:
+Write the answers to `docs/.output/.state/work/{YYYY-MM-DD}/new-project-interview.md`. Session death between here and Step 8 otherwise loses the entire interview and forces a re-ask. Format:
 
 ```markdown
 # New Project Interview — {project name} ({YYYY-MM-DD})
@@ -283,12 +283,12 @@ Write `docs/product/context.md`:
 **What this step commits:** only the files NOT yet staged by any sub-command. In practice that's:
 - `docs/product/context.md` (written in Step 9)
 - `CLAUDE.md` (written or additively merged in Step 8b — only if it was created/modified, i.e. not when Case B was declined)
-- `docs/.output/work/{date}/new-project-interview.md` (written in Step 3a)
+- `docs/.output/.state/work/{date}/new-project-interview.md` (written in Step 3a)
 - Any scaffolded template files that were left empty and committed as-scaffolded (edge case — usually not applicable)
 
 Stage specifically those files; never use `git add .` (might pull in unrelated changes in the adopter's working tree).
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: /create:new-project — {project name} initialized
@@ -298,13 +298,13 @@ Then run:
 
 ```bash
 # Append CLAUDE.md to the staged set only if Step 8b created or merged it.
-git add docs/product/context.md docs/.output/work/{date}/new-project-interview.md
+git add docs/product/context.md docs/.output/.state/work/{date}/new-project-interview.md
 node .claude/core/commit.js
 ```
 
 ### 10b. Capture Feedback Report
 
-Chain `/review:feedback` as the final action so every newly-initialized project leaves a baseline template-performance report (`docs/.output/reviews/feedback-{date}.md` + `.json`). It rolls up the pipeline's telemetry (sub-command invocations, gate runs, hooks, memories) plus a short agent self-review, and self-commits.
+Chain `/review:feedback` as the final action so every newly-initialized project leaves a baseline template-performance report (`docs/.output/findings/reviews/feedback-{date}.md` + `.json`). It rolls up the pipeline's telemetry (sub-command invocations, gate runs, hooks, memories) plus a short agent self-review, and self-commits.
 
 ```
 /review:feedback

@@ -90,6 +90,10 @@ The token belongs to the judge: it is emitted by evidence, not by opinion.
 | Regression test works | Red-green cycle verified | Test passes once |
 | Agent completed | VCS diff shows changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
+| Symbol exists (enum/icon/method/path) | Grep finds its definition | "Confirmed present", remembering it |
+| Edit to existing component is safe | Grep tests that render/construct it — all pass | The component's own test passes |
+| Symbol/file safe to delete | Grep all consumers (src/tests/js/barrels): none | The AC says "delete X" |
+| Files I claimed to create exist | Re-read each created file: present + correct content | "I wrote it", no write error shown |
 
 ## Resolve, Don't Defer — the other half of the gate
 
@@ -100,6 +104,17 @@ Verification finds problems. The job is not done when you've *found* them — it
 - "Pre-existing" and "unrelated" describe a bug's *origin* — they are not a license to leave it broken. Broken is broken.
 - If a fix exposes a new failure, follow the thread to green. Completing every task down to the last detail is how quality is built — perfection is not an accident.
 - **Only** stop to ask on a genuine fork: mutually-exclusive approaches, an irreversible/outward action, or scope that materially expands the task. A clear bug is never a fork.
+
+### Autonomous & batch commands: fix-in-pass, surface forks ONLY
+
+Autonomous / auto-approved commands — `/sweep`, `/retro`, `/run-todo`, `/do` — are bound by this standard at full strength. Their default is **resolve, not report**:
+
+- **Any finding worth surfacing is worth fixing — so fix it, in the same pass, and re-verify.** A report line that says "consider running X", "you should fix Y", or "Z still needs attention" for something the command *could have done itself* is a standard violation, not a courtesy. Don't hand the human a to-do list of things the command was capable of resolving.
+- **If a finding isn't worth fixing, it isn't worth reporting either — drop it.** There is no "surface-but-don't-fix" middle tier. (The one carve-out: NIT-level churn on *already-merged* code — don't reformat shipped code for style; that's noise, so it is neither fixed nor surfaced.)
+- **A human-facing report section in an autonomous command is for GENUINE FORKS ONLY** — mutually-exclusive approaches the user must choose between, irreversible/outward actions (push, publish, delete), work that genuinely cannot be auto-resolved (needs a credential, an external decision, a human judgment call), or a phase that halted. Nothing else earns a line.
+- **Default posture is autonomous.** Assume the user wants the run to resolve everything it can without pausing. Reserve interruption for the forks above. "Almost always, autonomous" is the rule — perfectionism means *being* awesome by default, not narrating a punch-list of what awesome would require.
+
+This is the same standard, applied to the command layer: the canonical statement is above; commands enforce it by auto-resolving and keeping their report sections fork-only.
 
 ## The Operating Standard — two role translations
 

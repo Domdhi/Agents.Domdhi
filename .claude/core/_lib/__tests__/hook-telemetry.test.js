@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 function readEvents() {
-    const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'hook-events.jsonl');
+    const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'hook-events.jsonl');
     if (!fs.existsSync(jsonlPath)) return [];
     return fs.readFileSync(jsonlPath, 'utf8')
         .split('\n')
@@ -128,7 +128,7 @@ describe('emitHookEvent', () => {
 
 describe('emitGuardrailHit', () => {
     function readGuardrailEvents() {
-        const jsonlPath = path.join(tmp.root, 'docs', '.output', 'telemetry', 'guardrail-events.jsonl');
+        const jsonlPath = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'guardrail-events.jsonl');
         if (!fs.existsSync(jsonlPath)) return [];
         return fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
     }
@@ -153,6 +153,16 @@ describe('emitGuardrailHit', () => {
         expect(events[0].tier).toBe('zeroAccess');
         expect(events[1].rule).toBeNull();
         expect(events[1].tier).toBeNull();
+    });
+
+    it('records the pathClass field when given and defaults it to null otherwise (C1)', () => {
+        const { emitGuardrailHit } = require('../hook-telemetry');
+        emitGuardrailHit({ decision: 'nudge', rule: 'rm -rf', pathClass: 'build-artifact' });
+        emitGuardrailHit({ decision: 'confirm', rule: 'git push --force' }); // non-delete — no pathClass
+
+        const events = readGuardrailEvents();
+        expect(events[0].pathClass).toBe('build-artifact');
+        expect(events[1].pathClass).toBeNull();
     });
 
     it('records the source field when given and defaults it to null otherwise', () => {

@@ -28,6 +28,8 @@ const {
     stripCommitMessages,
     checkRules,
     loadRules,
+    classifyDeletePath,
+    PATH_CLASS_ENUM,
 } = require('../guardrail.cjs');
 
 const { createTmpDir } = require('../../core/__tests__/_helpers/tmp-dir');
@@ -504,13 +506,15 @@ confirm_patterns:
         it('processEvent_block_carriesTelemetryMetadata', () => {
             writeRules(STANDARD_RULES);
             const result = processEvent({ tool_input: { command: 'rm -rf /tmp/foo' } });
-            expect(result.telemetry).toEqual({ decision: 'block', rule: 'rm -rf /', tier: null });
+            // pathClass=tmp: this IS a delete-style command on /tmp/foo (C1).
+            expect(result.telemetry).toEqual({ decision: 'block', rule: 'rm -rf /', tier: null, pathClass: 'tmp' });
         });
 
         it('processEvent_confirm_carriesTelemetryMetadata', () => {
             writeRules(STANDARD_RULES);
             const result = processEvent({ tool_input: { command: 'git push --force main' } });
-            expect(result.telemetry).toEqual({ decision: 'confirm', rule: 'git push --force', tier: null });
+            // pathClass=null: not a delete-style command (C1).
+            expect(result.telemetry).toEqual({ decision: 'confirm', rule: 'git push --force', tier: null, pathClass: null });
         });
 
         it('processEvent_nudge_carriesTelemetryMetadata', () => {
@@ -527,6 +531,34 @@ nudge_patterns:
             writeRules(STANDARD_RULES);
             const result = processEvent({ tool_input: { command: 'ls -la' } });
             expect(result).toBeNull();   // allows are never counted
+        });
+
+        // ─── pathClass on delete-relevant telemetry (C1) ────────────────────────
+        it('processEvent_nudgeOnDelete_carriesPathClass', () => {
+            writeRules(`
+nudge_patterns:
+  - "rm -rf"
+`);
+            const result = processEvent({ tool_input: { command: 'rm -rf ./src' } });
+            expect(result.telemetry.decision).toBe('nudge');
+            expect(result.telemetry.pathClass).toBe('project-path');
+        });
+
+        it('processEvent_blockOnDelete_carriesPathClass', () => {
+            writeRules(`
+block_patterns:
+  - "rm -rf"
+`);
+            const result = processEvent({ tool_input: { command: 'rm -rf node_modules' } });
+            expect(result.telemetry.decision).toBe('block');
+            expect(result.telemetry.pathClass).toBe('node_modules');
+        });
+
+        it('processEvent_nonDeleteRule_pathClassIsNull', () => {
+            writeRules(STANDARD_RULES);
+            const result = processEvent({ tool_input: { command: 'git push --force main' } });
+            expect(result.telemetry.decision).toBe('confirm');
+            expect(result.telemetry.pathClass).toBeNull();
         });
     });
 
@@ -602,6 +634,85 @@ confirm_patterns:
             expect(Array.isArray(result.block_patterns)).toBe(true);
             expect(Array.isArray(result.confirm_patterns)).toBe(true);
         });
+    });
+});
+
+// ─── classifyDeletePath (C1 — coarse, secret-safe path class) ─────────────────
+describe('classifyDeletePath', () => {
+    it('returns null for non-delete commands (no path to classify)', () => {
+        expect(classifyDeletePath('git push --force')).toBeNull();
+        expect(classifyDeletePath('ls -la')).toBeNull();
+        expect(classifyDeletePath('echo rm -rf /tmp')).toBeNull(); // not a delete verb at start
+        expect(classifyDeletePath('')).toBeNull();
+    });
+
+    it('classifies build-artifact dirs', () => {
+        for (const cmd of [
+            'rm -rf bin/', 'rm -rf ./obj', 'rm -rf dist', 'rm -rf build/',
+            'rm -rf out', 'rm -rf target/', 'rm -rf coverage', 'rm -rf TestResults/',
+            'rm -rf .next',
+        ]) {
+            expect(classifyDeletePath(cmd)).toBe(PATH_CLASS_ENUM.BUILD_ARTIFACT);
+        }
+    });
+
+    it('classifies tmp paths (relative, absolute, vars, mktemp, sandbox)', () => {
+        for (const cmd of [
+            'rm -rf tmp/', 'rm -rf ./tmp/scratch', 'rm -rf /tmp/x',
+            'rm -rf "$TMPDIR/foo"', 'rm -rf $T', 'rm -rf mktemp',
+            'rm -rf /var/folders/ab/cd/T/x', 'rm -rf .sandbox/mfahub',
+        ]) {
+            expect(classifyDeletePath(cmd)).toBe(PATH_CLASS_ENUM.TMP);
+        }
+    });
+
+    it('returns null for a bare short /flag-like first token (extractDeletePaths drops it)', () => {
+        // extractDeletePaths treats a short single-segment `/tmp` (≤5 chars, no
+        // second slash) as a flag and drops it, so there is no path to classify.
+        // `/tmp/...` (with a sub-path) classifies as tmp — covered above.
+        expect(classifyDeletePath('rm -rf /tmp')).toBeNull();
+    });
+
+    it('classifies node_modules', () => {
+        expect(classifyDeletePath('rm -rf node_modules')).toBe(PATH_CLASS_ENUM.NODE_MODULES);
+        expect(classifyDeletePath('rm -rf ./node_modules/foo')).toBe(PATH_CLASS_ENUM.NODE_MODULES);
+    });
+
+    it('classifies output-or-vcs (.output / .git / .worktrees)', () => {
+        expect(classifyDeletePath('rm -rf .output/')).toBe(PATH_CLASS_ENUM.OUTPUT_OR_VCS);
+        expect(classifyDeletePath('rm -rf ./.output/findings/reviews')).toBe(PATH_CLASS_ENUM.OUTPUT_OR_VCS);
+        expect(classifyDeletePath('rm -rf .git')).toBe(PATH_CLASS_ENUM.OUTPUT_OR_VCS);
+        expect(classifyDeletePath('rm -rf .worktrees/feat')).toBe(PATH_CLASS_ENUM.OUTPUT_OR_VCS);
+    });
+
+    it('classifies home-or-root paths', () => {
+        // Note: bare `/` and short single-segment absolutes like `/etc` are
+        // dropped by extractDeletePaths' flag heuristic (≤5 chars, no 2nd slash),
+        // so use ~ forms and multi-segment absolutes here.
+        for (const cmd of [
+            'rm -rf ~', 'rm -rf ~/Documents', 'rm -rf /usr/local', 'rm -rf /etc/passwd',
+        ]) {
+            expect(classifyDeletePath(cmd)).toBe(PATH_CLASS_ENUM.HOME_OR_ROOT);
+        }
+    });
+
+    it('classifies other relative repo paths as project-path', () => {
+        expect(classifyDeletePath('rm -rf ./src')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
+        expect(classifyDeletePath('rm -rf docs/work')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
+        expect(classifyDeletePath('rm -rf README.md')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
+        expect(classifyDeletePath('rm -rf somefile')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
+    });
+
+    it('classifies del / unlink / Remove-Item delete verbs too', () => {
+        expect(classifyDeletePath('del /s /q bin')).toBe(PATH_CLASS_ENUM.BUILD_ARTIFACT);
+        expect(classifyDeletePath('unlink ./src/x.js')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
+        expect(classifyDeletePath('Remove-Item node_modules -Recurse')).toBe(PATH_CLASS_ENUM.NODE_MODULES);
+    });
+
+    it('classifies the FIRST path only (later tokens do not change the class)', () => {
+        // First arg is a real project path → project-path even though bin/ trails.
+        expect(classifyDeletePath('rm -rf ~/important && echo bin/')).toBe(PATH_CLASS_ENUM.HOME_OR_ROOT);
+        expect(classifyDeletePath('rm -rf ./src dist/')).toBe(PATH_CLASS_ENUM.PROJECT_PATH);
     });
 });
 
@@ -797,5 +908,63 @@ describe('real guardrail-rules.yaml — rm -rf autonomy exemptions', () => {
     it('still blocks catastrophic commands', () => {
         expect(act('git push --force')).toBe('block');
         expect(act('mkfs.ext4 /dev/sda')).toBe('block');
+    });
+
+    // ── B2: build-artifact dirs exempted from the rm nudge (2026-06-21) ──────────
+    it('exempts regenerable build-artifact dirs as the rm first arg (B2)', () => {
+        // bin/ obj/ dist/ coverage/ TestResults/ — both bare and ./-prefixed.
+        // The trailing slash is required (mirrors the \.?\/?tmp\/ exemption form),
+        // so these match the lookahead and pass with no nudge.
+        for (const cmd of [
+            'rm -rf bin/',
+            'rm -rf ./bin/',
+            'rm -rf obj/',
+            'rm -rf ./obj/',
+            'rm -rf dist/',
+            'rm -rf ./dist/',
+            'rm -rf coverage/',
+            'rm -rf ./coverage/',
+            'rm -rf TestResults/',
+            'rm -rf ./TestResults/',
+            'rm -rf testresults/',   // case-insensitive match
+        ]) {
+            expect(act(cmd)).toBe('allow');
+        }
+    });
+
+    it('still nudges output/vcs/worktree dirs and real project paths (B2 non-exempt)', () => {
+        // .output/ and .worktrees/ are deliberately NOT exempt — deleting them
+        // destroys generated reports / live worktrees. `dist` WITHOUT a trailing
+        // slash is also not exempt (the exemption requires the slash).
+        for (const cmd of [
+            'rm -rf .output/',
+            'rm -rf ./.output/',
+            'rm -rf .worktrees/',
+            'rm -rf ./src',
+            'rm -rf ~',
+            'rm -rf dist',          // no trailing slash → not exempt
+            'rm -rf binaries/x',    // `bin` substring but not the bin/ dir
+        ]) {
+            expect(act(cmd)).toBe('nudge');
+        }
+    });
+
+    it('keeps the build-dir exemption bound to the FIRST arg only (no trailing-token bypass)', () => {
+        // A trailing exempt token must NOT disarm the guard for a dangerous
+        // first target — the exemption binds to the rm's first argument.
+        expect(act('rm -rf ~/important && echo bin/')).toBe('nudge');
+        expect(act('rm -rf ~/important && cp -r dist/ /backup')).toBe('nudge');
+    });
+
+    // ── B1: narrowed git reset nudge (2026-06-21) ───────────────────────────────
+    it('nudges only git reset --hard, not safe non-hard resets (B1)', () => {
+        // Only the work-losing --hard variant nudges.
+        expect(act('git reset --hard')).toBe('nudge');
+        expect(act('git reset --hard HEAD~1')).toBe('nudge');
+        // Safe/reversible resets no longer nudge (they never touch the work tree).
+        expect(act('git reset -- somefile')).toBe('allow');
+        expect(act('git reset --soft HEAD~1')).toBe('allow');
+        expect(act('git reset HEAD~1')).toBe('allow');
+        expect(act('git reset --mixed HEAD')).toBe('allow');
     });
 });

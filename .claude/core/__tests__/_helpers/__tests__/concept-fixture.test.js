@@ -73,7 +73,7 @@ describe('concept-fixture', () => {
       });
 
       const expectedPath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts',
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts',
         'constraints', 'test-constraint.md'
       );
       expect(out).toBe(expectedPath);
@@ -88,7 +88,7 @@ describe('concept-fixture', () => {
       });
 
       const filePath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts',
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts',
         'patterns', 'required-fields.md'
       );
       const raw = fs.readFileSync(filePath, 'utf8');
@@ -116,7 +116,7 @@ describe('concept-fixture', () => {
       });
 
       const filePath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts',
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts',
         'workflows', 'list-fields-slug.md'
       );
       const raw = fs.readFileSync(filePath, 'utf8');
@@ -218,7 +218,7 @@ describe('concept-fixture', () => {
       createConceptIndex(tmp);
 
       const indexPath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts', 'index.md'
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts', 'index.md'
       );
       expect(fs.existsSync(indexPath)).toBe(true);
       const content = fs.readFileSync(indexPath, 'utf8');
@@ -251,7 +251,7 @@ describe('concept-fixture', () => {
       createConceptIndex(tmp);
 
       const indexPath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts', 'index.md'
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts', 'index.md'
       );
       const content = fs.readFileSync(indexPath, 'utf8');
 
@@ -282,7 +282,7 @@ describe('concept-fixture', () => {
       createConceptIndex(tmp);
 
       const expectedPath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts', 'index.md'
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts', 'index.md'
       );
       expect(fs.existsSync(expectedPath)).toBe(true);
     });
@@ -293,7 +293,7 @@ describe('concept-fixture', () => {
       createConceptIndex(tmp);
 
       const indexPath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts', 'index.md'
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts', 'index.md'
       );
       const content = fs.readFileSync(indexPath, 'utf8');
       expect(content.trim().length).toBeGreaterThan(0);

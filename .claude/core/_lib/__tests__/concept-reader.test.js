@@ -29,7 +29,7 @@ function makeResolver() {
 describe('readConcepts', () => {
 
   it('readConcepts_emptyConceptsDir_returnsEmptyArray', async () => {
-    const conceptsDir = tmp.mkdir('docs/.output/memories/concepts');
+    const conceptsDir = tmp.mkdir('docs/.output/.state/memory-concepts');
     const result = await readConcepts({
       conceptsDir,
       categories: CATEGORIES,
@@ -45,7 +45,7 @@ describe('readConcepts', () => {
       sources: ['2026-01-01', '2026-01-02'],
       usage_count: 3,
     });
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,
@@ -73,7 +73,7 @@ describe('readConcepts', () => {
     createConcept(tmp, 'patterns',    'p1', { title: 'P1', confidence: 0.7, sources: ['2026-01-01'] });
     createConcept(tmp, 'constraints', 'c1', { title: 'C1', confidence: 0.7, sources: ['2026-01-01'] });
     createConcept(tmp, 'decisions',   'd1', { title: 'D1', confidence: 0.7, sources: ['2026-01-01'] });
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,
@@ -103,8 +103,8 @@ describe('readConcepts', () => {
       '',
       'body',
     ].join('\n');
-    tmp.write('docs/.output/memories/concepts/patterns/promoted.md', md);
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    tmp.write('docs/.output/.state/memory-concepts/patterns/promoted.md', md);
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,
@@ -118,7 +118,7 @@ describe('readConcepts', () => {
   it('readConcepts_missingCategoryDir_skipsGracefully', async () => {
     // Only create patterns/; other 4 dirs don't exist at all
     createConcept(tmp, 'patterns', 'lonely', { title: 'Lonely', confidence: 0.6, sources: ['2026-01-01'] });
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,
@@ -133,8 +133,8 @@ describe('readConcepts', () => {
   it('readConcepts_nonMdFile_ignored', async () => {
     createConcept(tmp, 'patterns', 'valid', { title: 'V', confidence: 0.7, sources: ['2026-01-01'] });
     // Drop a non-.md file in the same dir — must be ignored
-    tmp.write('docs/.output/memories/concepts/patterns/not-a-concept.txt', 'junk content');
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    tmp.write('docs/.output/.state/memory-concepts/patterns/not-a-concept.txt', 'junk content');
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,
@@ -149,8 +149,8 @@ describe('readConcepts', () => {
   it('readConcepts_invalidFrontmatter_entrySkipped', async () => {
     // Valid concept alongside an .md file with no frontmatter — reader must skip the bad one
     createConcept(tmp, 'patterns', 'valid', { title: 'V', confidence: 0.7, sources: ['2026-01-01'] });
-    tmp.write('docs/.output/memories/concepts/patterns/no-fm.md', '# just a heading, no frontmatter\n');
-    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', 'memories', 'concepts');
+    tmp.write('docs/.output/.state/memory-concepts/patterns/no-fm.md', '# just a heading, no frontmatter\n');
+    const conceptsDir = require('node:path').join(tmp.root, 'docs', '.output', '.state', 'memory-concepts');
 
     const result = await readConcepts({
       conceptsDir,

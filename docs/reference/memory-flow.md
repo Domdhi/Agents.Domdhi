@@ -13,7 +13,7 @@ flowchart TD
         direction TB
         MA["Main Agent<br/>(handoff Step 6)"]
         SA["Sub-agents<br/>(memory: project frontmatter)"]
-        LEG["Legacy: daily logs<br/>docs/.output/memories/daily/"]
+        LEG["Legacy: daily logs<br/>docs/.output/.state/memory-daily/"]
 
         AMEM[".claude/agent-memory/<br/>{agent}/*.md<br/><i>YAML frontmatter + body</i>"]
         INGEST["ingest subcommand<br/><b>added 2026-04-20</b><br/>type → category · preserves body"]
@@ -33,7 +33,7 @@ flowchart TD
     %% ── Store ──────────────────────────────────────────────────────
     subgraph STOREBOX["STORE"]
         direction TB
-        STORE["docs/.output/memories/<br/><i>anchored to the MAIN worktree via _lib/project-root.js<br/>— shared across all git worktrees</i><br/>├─ {category}/{id}.json — source of truth<br/>└─ memories.db — SQLite FTS5 index"]
+        STORE["docs/.output/.memory/ — TRACKED source<br/><i>{category}/{id}.json — source of truth, syncs over git<br/>resolved via the worktree root (resolveWorktreeRoot)</i><br/>docs/.output/.state/memory-index/memories.db<br/><i>SQLite FTS5 index — gitignored, rebuilt from JSON;<br/>anchored to the MAIN worktree, shared across worktrees</i>"]
     end
     MGR --> STORE
 
@@ -111,5 +111,5 @@ Per-category cap: **100 entries.** Auto-prune fires at 80% (80 entries), gated o
 - `.claude/hooks/session-start-prime.cjs` — the cold-start injection path
 - `.claude/skills/session-handoff/SKILL.md` Step 6 — the contract Main Agent follows when deciding what to write
 - `.claude/agents/*.md` — `memory: project` frontmatter on the native sub-agent write path
-- `docs/.output/reviews/2026-04-20-adr-memory-unification.md` — the MU ADR that retired auto-extraction and wired per-dispatch injection
-- `docs/.output/research/memory-parity-findings.md` — why the `ingest` bridge exists (2026-04-20)
+- `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md` — the MU ADR that retired auto-extraction and wired per-dispatch injection
+- `docs/.output/findings/research/memory-parity-findings.md` — why the `ingest` bridge exists (2026-04-20)

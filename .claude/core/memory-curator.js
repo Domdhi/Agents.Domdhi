@@ -5,7 +5,7 @@
  *
  * Reads concepts/index.md + today's daily log + top-N concept summaries.
  * Invokes the model to propose dedup/contradiction/merge candidates for human review.
- * Writes JSON to docs/.output/memories/pending-curation/{YYYY-MM-DD}/{HH-MM-SS}.json
+ * Writes JSON to docs/.output/.state/memory-pending-curation/{YYYY-MM-DD}/{HH-MM-SS}.json
  *
  * CLI:
  *   node memory-curator.js curate [--dry-run]   — run curation, write JSON (or print if --dry-run)
@@ -41,9 +41,9 @@ class MemoryCurator {
     constructor() {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
         this.projectRoot = projectRoot;
-        this.dailyDir = path.join(projectRoot, 'docs', '.output', 'memories', 'daily');
-        this.conceptsDir = path.join(projectRoot, 'docs', '.output', 'memories', 'concepts');
-        this.pendingDir = path.join(projectRoot, 'docs', '.output', 'memories', 'pending-curation');
+        this.dailyDir = path.join(projectRoot, 'docs', '.output', '.state', 'memory-daily');
+        this.conceptsDir = path.join(projectRoot, 'docs', '.output', '.state', 'memory-concepts');
+        this.pendingDir = path.join(projectRoot, 'docs', '.output', '.state', 'memory-pending-curation');
         this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
     }
 
@@ -375,7 +375,7 @@ Cost control:
   MAX_ACTIVITY_SCOPE_ARTICLES = ${MAX_ACTIVITY_SCOPE_ARTICLES}
 
 Output:
-  docs/.output/memories/pending-curation/{YYYY-MM-DD}/{HH-MM-SS}.json
+  docs/.output/.state/memory-pending-curation/{YYYY-MM-DD}/{HH-MM-SS}.json
 `);
             process.exit(command ? 1 : 0);
     }

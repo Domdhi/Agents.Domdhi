@@ -373,9 +373,13 @@ function parseMemoryRecords({ memoriesDir, categories }) {
  * @returns {{ concepts: object[], crossReferences: object, commits: object[], adrs: object[], memories: object[], dailyLogs: object[] }}
  */
 function loadDecisionData({ projectRoot, cutoffDate, categories, execSync }) {
-  const memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
-  const conceptsDir = path.join(memoriesDir, 'concepts');
-  const dailyDir = path.join(memoriesDir, 'daily');
+  // Split store (ADR 0006 Am. 2): JSON categories under .memory/; the derived
+  // concepts + raw daily logs under .state/memory-*. Keep projectRoot
+  // authoritative (callers/tests pass it) rather than the global accessor.
+  const memoriesDir = path.join(projectRoot, 'docs', '.output', '.memory');
+  const stateRoot = path.join(projectRoot, 'docs', '.output', '.state');
+  const conceptsDir = path.join(stateRoot, 'memory-concepts');
+  const dailyDir = path.join(stateRoot, 'memory-daily');
 
   return {
     concepts: parseConcepts({ conceptsDir, categories }),

@@ -7,10 +7,10 @@
  * system-reminder at the opening of every Claude Code session. These are
  * the JSON memories produced by the Haiku extractor (or hand-created via
  * memory-manager.js) — the substantive, curated lessons — not the
- * compaction-snapshot concept articles at memories/concepts/ (which tend
+ * compaction-snapshot concept articles at .state/memory-concepts/ (which tend
  * to be branch-activity meta-noise).
  *
- * Source: docs/.output/memories/{category}/*.json
+ * Source: docs/.output/.memory/{category}/*.json
  *   where category in {patterns, constraints, decisions, workflows, rejected-approaches}
  *
  * Ranking (ME-4.2): importance_floored_decayed × recency_factor, with usage as a
@@ -40,9 +40,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const { isAtLeast } = require('../core/profile');
 const CONSTANTS = require('../core/constants');
 const { resolveProjectRoot } = require('../core/_lib/project-root');
+const { memoryPaths } = require('../core/_lib/memory-paths');
 const { appendJsonl } = require('../core/_lib/jsonl-writer');
 const { halveUsageCount } = require('../core/_lib/memory-decay');
 
@@ -181,17 +183,60 @@ ${lines.join('\n')}
 `;
 }
 
+/**
+ * Cross-machine self-heal (ADR 0006 Amendment 2): the curated JSON source is now
+ * TRACKED and syncs over git, but the FTS5 index (.state/memory-index/memories.db)
+ * is gitignored and per-machine. After a `git pull` brings in new/updated .memory
+ * JSON, the local db is stale (or absent on a fresh clone) — search would miss the
+ * synced memories until something rebuilds. This check rebuilds it on stale:
+ * if the newest .memory JSON file is newer than the db (or the db is missing), it
+ * fires a background `rebuild-index` and returns immediately. Fire-and-forget so
+ * session start never blocks; stdio ignored + windowsHide (no detached — see the
+ * windows-detached-hide-conflict constraint) so there's no console flash.
+ * Staleness = newest JSON mtime under any .memory category dir vs the db mtime.
+ * Until the rebuild lands, search degrades to the JSON-scan fallback — never empty.
+ */
+function maybeRebuildIndex(jsonRoot, dbPath, projectDir) {
+    try {
+        let newestJson = 0;
+        for (const category of MEMORY_CATEGORIES) {
+            let files;
+            try { files = fs.readdirSync(path.join(jsonRoot, category)); } catch { continue; }
+            for (const f of files) {
+                if (!f.endsWith('.json')) continue;
+                const m = fs.statSync(path.join(jsonRoot, category, f)).mtimeMs;
+                if (m > newestJson) newestJson = m;
+            }
+        }
+        if (newestJson === 0) return;                 // no source → nothing to rebuild
+        let dbMtime = 0;
+        try { dbMtime = fs.statSync(dbPath).mtimeMs; } catch { dbMtime = 0; }  // absent → 0
+        if (dbMtime >= newestJson) return;            // index already fresh
+        const cli = path.join(__dirname, '..', 'core', 'memory-manager-cli.js');
+        const child = spawn(process.execPath, [cli, 'rebuild-index'], {
+            cwd: projectDir, stdio: 'ignore', windowsHide: true,
+        });
+        child.unref();
+    } catch { /* never block session start */ }
+}
+
 function processEvent(_parsedJson) {
     if (!isAtLeast('standard')) {
         return { output: null };
     }
 
-    // Anchor to the MAIN worktree so a session started inside a linked worktree
-    // primes from the one shared store (the worktree memory-loss fix).
+    // Split store (ADR 0006 Amendment 2): prime from the TRACKED JSON source
+    // (jsonRoot, current worktree — git checks it out everywhere). projectDir
+    // keeps the MAIN-worktree anchor for the gitignored .state/ telemetry write
+    // below (shared across worktrees, the memory-loss fix).
     const projectDir = resolveProjectRoot(path.resolve(__dirname, '..', '..'));
-    const memoriesDir = path.join(projectDir, 'docs', '.output', 'memories');
+    const { jsonRoot: memoriesDir, dbPath } = memoryPaths(path.resolve(__dirname, '..', '..'));
 
     if (!fs.existsSync(memoriesDir)) return { output: null };
+
+    // Self-heal the FTS5 index from the synced JSON source before anything reads
+    // it this session (background, non-blocking — see maybeRebuildIndex).
+    maybeRebuildIndex(memoriesDir, dbPath, projectDir);
 
     const rawN = parseInt(process.env.MEMORY_PRIME_COUNT, 10);
     const N = Number.isFinite(rawN)
@@ -239,7 +284,7 @@ function processEvent(_parsedJson) {
     // this only logs real injections (injected_count >= 1).
     try {
         const ts = new Date().toISOString();
-        const jsonlPath = path.join(projectDir, 'docs', '.output', 'telemetry', 'memory-injection.jsonl');
+        const jsonlPath = path.join(projectDir, 'docs', '.output', '.state', 'telemetry', 'memory-injection.jsonl');
         appendJsonl(jsonlPath, {
             timestamp: ts,
             type: 'memory_injection',

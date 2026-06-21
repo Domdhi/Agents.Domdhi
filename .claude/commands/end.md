@@ -74,7 +74,7 @@ BR=$(node .claude/core/handoff-path.js branch)
 ls -1t docs/.output/handoffs/*-"$BR".md 2>/dev/null | tail -n +4 | while read -r f; do git rm -q "$f" 2>/dev/null || true; done
 ```
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /end — {brief summary of session focus}
@@ -118,7 +118,7 @@ If anything remains, **review the list before staging** (this is the safety step
    ```
    chore: /end — session cleanup ({N} stray files)
    ```
-   Write the message to `docs/.output/.commit-msg`, then `node .claude/core/commit.js`.
+   Write the message to `docs/.output/.state/.commit-msg`, then `node .claude/core/commit.js`.
 5. Re-run `git status --short` to confirm. The tree is now clean, or the only remainder is the explicitly-surfaced out-of-zone files.
 
 ### 6. Show the user
@@ -134,5 +134,5 @@ Independently of `/end`, the `session-end-doc-sync.cjs` hook fires on every `Ses
 All rules live in the `session-handoff` skill — read them there. A few reminders specific to `/end`:
 
 - **Commit, don't push.** `/end` commits the handoff *and* sweeps up any other session work into a cleanup commit (Step 5) so the next session opens on a clean tree — but it does NOT auto-push. The user decides when to push. The cleanup is *reviewed*, never a blind `git add .`: only the `docs/` and `.claude/` safe zones are auto-staged; anything outside them is surfaced for a deliberate decision, not committed.
-- **Memory acquisition happens via the session-handoff skill's Step 6** (Main Agent writes 0–3 structured memories from handoff bullets that qualify as reusable learnings). The skill has the full procedure; the load-bearing rules are: **(a) check the inbox first** — `node .claude/core/memory-manager.js inbox-list`, then `inbox-promote`/`inbox-discard` each sub-agent draft; **(b) only promote bullets that generalize** — a pattern, constraint, workflow, or rejected-approach useful on a *future* session or a new project, never pure project state or 24-hour gotchas; **(c) score `importance` 1–5** (default 3) on each write — it's the decay retention floor, so be honest. Zero qualifying bullets is the common, correct outcome — don't manufacture memories to fill a quota. No auto-extraction fires from `/end` or any other command. The Stop hook still captures raw daily logs and runs the curator under `MEMORY_PROFILE=strict`. See `docs/.output/reviews/2026-04-20-adr-memory-unification.md`.
+- **Memory acquisition happens via the session-handoff skill's Step 6** (Main Agent writes 0–3 structured memories from handoff bullets that qualify as reusable learnings). The skill has the full procedure; the load-bearing rules are: **(a) check the inbox first** — `node .claude/core/memory-manager.js inbox-list`, then `inbox-promote`/`inbox-discard` each sub-agent draft; **(b) only promote bullets that generalize** — a pattern, constraint, workflow, or rejected-approach useful on a *future* session or a new project, never pure project state or 24-hour gotchas; **(c) score `importance` 1–5** (default 3) on each write — it's the decay retention floor, so be honest. Zero qualifying bullets is the common, correct outcome — don't manufacture memories to fill a quota. No auto-extraction fires from `/end` or any other command. The Stop hook still captures raw daily logs and runs the curator under `MEMORY_PROFILE=strict`. See `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md`.
 - **Supersession confirm:** Before committing the handoff (Step 4), review any write-time `supersedes_candidates` flags that were attached to memories created this session. For each flagged pair, decide: if the new memory genuinely replaces the old one, confirm by running `node .claude/core/memory-manager.js supersede <category> <oldId> <newId>`; otherwise skip it. This is always flag-then-confirm — nothing supersedes automatically. If no memories were created this session, skip this step.

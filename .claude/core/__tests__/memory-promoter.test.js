@@ -42,7 +42,7 @@ function writeHandCreatedMemory(tmp, category, slug, opts = {}) {
     metadata: { sessions: [], agents: [], confidence: 1, ...(opts.metadata || {}) },
   };
   return tmp.write(
-    path.join('docs', '.output', 'memories', category, `${slug}.json`),
+    path.join('docs', '.output', '.memory', category, `${slug}.json`),
     JSON.stringify(memory, null, 2)
   );
 }
@@ -211,10 +211,10 @@ describe('memory-promoter', () => {
       // Arrange — write concept with promoted_to in frontmatter manually
       const today = new Date().toISOString().slice(0, 10);
       const filePath = path.join(
-        tmp.root, 'docs', '.output', 'memories', 'concepts', 'decisions', 'arch-choice.md'
+        tmp.root, 'docs', '.output', '.state', 'memory-concepts', 'decisions', 'arch-choice.md'
       );
       tmp.write(
-        'docs/.output/memories/concepts/decisions/arch-choice.md',
+        'docs/.output/.state/memory-concepts/decisions/arch-choice.md',
         [
           '---',
           'title: Architecture Choice',
@@ -267,7 +267,7 @@ describe('memory-promoter', () => {
         confidence: 0.7,
         sources: ['2026-04-01'],
       });
-      tmp.write('docs/.output/memories/concepts/patterns/notes.txt', 'ignore me');
+      tmp.write('docs/.output/.state/memory-concepts/patterns/notes.txt', 'ignore me');
       const promoter = new MemoryPromoter();
 
       // Act
@@ -585,7 +585,7 @@ describe('memory-promoter', () => {
         'retry-logic': { related: ['error-handling'] },
       };
       tmp.write(
-        'docs/.output/memories/concepts/cross-references.json',
+        'docs/.output/.state/memory-concepts/cross-references.json',
         JSON.stringify(crossRefData)
       );
       const promoter = new MemoryPromoter();
@@ -601,7 +601,7 @@ describe('memory-promoter', () => {
     it('loadCrossReferences_malformedJson_returnsEmptyObject', async () => {
       // Arrange — invalid JSON should not throw; source catches and returns {}
       tmp.write(
-        'docs/.output/memories/concepts/cross-references.json',
+        'docs/.output/.state/memory-concepts/cross-references.json',
         '{ not valid json :::'
       );
       const promoter = new MemoryPromoter();
@@ -660,8 +660,8 @@ describe('memory-promoter', () => {
     it('loadHandCreatedMemories_skipsNonJsonFiles', async () => {
       // Arrange — JSON sibling + non-JSON files in same category dir
       writeHandCreatedMemory(tmp, 'patterns', 'real-pattern', { confidence: 0.7 });
-      tmp.write('docs/.output/memories/patterns/notes.txt', 'ignore me');
-      tmp.write('docs/.output/memories/patterns/draft.md', '# draft');
+      tmp.write('docs/.output/.memory/patterns/notes.txt', 'ignore me');
+      tmp.write('docs/.output/.memory/patterns/draft.md', '# draft');
       const promoter = new MemoryPromoter();
 
       // Act
@@ -712,7 +712,7 @@ describe('memory-promoter', () => {
     it('loadHandCreatedMemories_malformedJson_skipsGracefully', async () => {
       // Arrange — invalid JSON sibling + valid JSON memory
       writeHandCreatedMemory(tmp, 'patterns', 'good-one', { confidence: 0.7 });
-      tmp.write('docs/.output/memories/patterns/broken.json', '{not valid json :::');
+      tmp.write('docs/.output/.memory/patterns/broken.json', '{not valid json :::');
       const promoter = new MemoryPromoter();
 
       // Act
@@ -728,7 +728,7 @@ describe('memory-promoter', () => {
       // by the hand-created path (concepts/ is owned by the compiled markdown loader).
       writeHandCreatedMemory(tmp, 'patterns', 'real-handcreated', { confidence: 0.7 });
       tmp.write(
-        'docs/.output/memories/concepts/patterns/stray.json',
+        'docs/.output/.state/memory-concepts/patterns/stray.json',
         JSON.stringify({ id: 'stray', category: 'patterns', content: { confidence: 0.9 } })
       );
       const promoter = new MemoryPromoter();
@@ -921,7 +921,7 @@ describe('memory-promoter', () => {
         sources: ['2026-04-01', '2026-04-10'],
       });
       tmp.write(
-        'docs/.output/memories/concepts/cross-references.json',
+        'docs/.output/.state/memory-concepts/cross-references.json',
         JSON.stringify({ 'referenced': { related: ['unreferenced'] } })
       );
       const promoter = new MemoryPromoter();
@@ -954,7 +954,7 @@ describe('memory-promoter', () => {
       await promoter.mark('cache-strategy', 'skills/qa-engineer/SKILL.md');
 
       // Assert — read file back and verify frontmatter fields inserted
-      const written = tmp.read('docs/.output/memories/concepts/patterns/cache-strategy.md');
+      const written = tmp.read('docs/.output/.state/memory-concepts/patterns/cache-strategy.md');
       expect(written).toContain('promoted_to: skills/qa-engineer/SKILL.md');
       expect(written).toContain('promoted_at: ');
     });
@@ -973,7 +973,7 @@ describe('memory-promoter', () => {
       await promoter.mark('arch-decision', 'CLAUDE.md');
 
       // Assert — existing frontmatter fields preserved
-      const written = tmp.read('docs/.output/memories/concepts/decisions/arch-decision.md');
+      const written = tmp.read('docs/.output/.state/memory-concepts/decisions/arch-decision.md');
       expect(written).toContain('title: Architecture Decision');
       expect(written).toContain('confidence: 0.85');
       expect(written).toContain('category: decisions');
@@ -996,7 +996,7 @@ describe('memory-promoter', () => {
       await promoter.mark('deploy-workflow', 'agent frontmatter');
 
       // Assert
-      const written = tmp.read('docs/.output/memories/concepts/workflows/deploy-workflow.md');
+      const written = tmp.read('docs/.output/.state/memory-concepts/workflows/deploy-workflow.md');
       expect(written).toContain(`promoted_at: ${today}`);
     });
 
@@ -1021,7 +1021,7 @@ describe('memory-promoter', () => {
       // Arrange — concept already has promoted_to; DRIFT-5: process.exit(1)
       const today = new Date().toISOString().slice(0, 10);
       tmp.write(
-        'docs/.output/memories/concepts/patterns/already-promoted.md',
+        'docs/.output/.state/memory-concepts/patterns/already-promoted.md',
         [
           '---',
           'title: Already Promoted',
@@ -1067,7 +1067,7 @@ describe('memory-promoter', () => {
 
       // Assert — read JSON back, check metadata fields
       const written = JSON.parse(
-        tmp.read('docs/.output/memories/patterns/plan-first-per-wave-handoff.json')
+        tmp.read('docs/.output/.memory/patterns/plan-first-per-wave-handoff.json')
       );
       expect(written.metadata.promoted_to).toBe('.claude/skills/qa-engineer/SKILL.md');
       expect(written.metadata.promoted_at).toBeTruthy();
@@ -1107,7 +1107,7 @@ describe('memory-promoter', () => {
 
       // Assert — existing metadata preserved alongside new fields
       const written = JSON.parse(
-        tmp.read('docs/.output/memories/workflows/multi-meta-workflow.json')
+        tmp.read('docs/.output/.memory/workflows/multi-meta-workflow.json')
       );
       expect(written.metadata.sessions).toEqual(['s1', 's2']);
       expect(written.metadata.agents).toEqual(['general-purpose']);
@@ -1125,7 +1125,7 @@ describe('memory-promoter', () => {
       await promoter.mark('today-test', 'CLAUDE.md');
 
       // Assert
-      const written = JSON.parse(tmp.read('docs/.output/memories/patterns/today-test.json'));
+      const written = JSON.parse(tmp.read('docs/.output/.memory/patterns/today-test.json'));
       expect(written.metadata.promoted_at).toBe(today);
     });
 
@@ -1168,10 +1168,10 @@ describe('memory-promoter', () => {
       await promoter.mark('collision-slug', 'CLAUDE.md');
 
       // Assert — markdown was updated (frontmatter contains promoted_to), JSON untouched
-      const md = tmp.read('docs/.output/memories/concepts/patterns/collision-slug.md');
+      const md = tmp.read('docs/.output/.state/memory-concepts/patterns/collision-slug.md');
       expect(md).toContain('promoted_to: CLAUDE.md');
 
-      const json = JSON.parse(tmp.read('docs/.output/memories/patterns/collision-slug.json'));
+      const json = JSON.parse(tmp.read('docs/.output/.memory/patterns/collision-slug.json'));
       expect(json.metadata?.promoted_to).toBeUndefined();
     });
 

@@ -13,7 +13,7 @@
  *   PostToolUse:Skill — when a /command is invoked (exact command name from tool_input.skill)
  *   PostToolUse:Bash  — when gate.js is run (build/test gate signal)
  *
- * Output: docs/.output/telemetry/command-usage.jsonl
+ * Output: docs/.output/.state/telemetry/command-usage.jsonl
  *
  * Exit codes:
  *   0 = always (PostToolUse hooks cannot block)
@@ -49,11 +49,11 @@
  *   other user-typed commands can opt in the same way. The platform-event path
  *   (a future PostUserSlashCommand) would supersede this if Claude Code adds it.
  *
- *   Retro reference: `docs/.output/reviews/retro-platform-alignment-may-2026.md`
+ *   Retro reference: `docs/.output/findings/reviews/retro-platform-alignment-may-2026.md`
  *   System Improvements row "Telemetry coverage".
  *
  * Event schema (A4 enrichment — adopted from gstack:
- *   docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md A4):
+ *   docs/.output/findings/research/competitive/_hooks-and-core-scripts-comparison.md A4):
  *
  * @typedef {Object} TelemetryEvent
  * @property {string} timestamp - ISO 8601

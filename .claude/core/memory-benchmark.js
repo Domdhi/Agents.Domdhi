@@ -7,7 +7,7 @@
  * should surface for each, then runs MemoryManager.searchMemories() and
  * checks whether Haiku's expected slug appears in the top 5 results.
  *
- * Results append as JSONL to docs/.output/telemetry/memory-benchmark.jsonl
+ * Results append as JSONL to docs/.output/.state/telemetry/memory-benchmark.jsonl
  * with tail-sample rotation (copied from command-usage-logger.cjs).
  *
  * CLI:
@@ -48,8 +48,8 @@ const HAIKU_OUTPUT_PRICE = 0.000004;
 class MemoryBenchmark {
     constructor() {
         this.projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'daily');
-        this.conceptsDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'concepts');
+        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', '.state', 'memory-daily');
+        this.conceptsDir = path.join(this.projectRoot, 'docs', '.output', '.state', 'memory-concepts');
         this.indexPath = path.join(this.conceptsDir, 'index.md');
         this.telemetryDir = getTelemetryDir(this.projectRoot);
         this.jsonlPath = getJsonlPath(this.projectRoot, 'memory-benchmark.jsonl');
@@ -438,7 +438,7 @@ Cost control:
   MAX_ENTRIES_PER_RUN = ${MAX_ENTRIES_PER_RUN} (one Haiku call per entry, capped)
 
 Output:
-  docs/.output/telemetry/memory-benchmark.jsonl  (rotates at ${MAX_JSONL_LINES} lines → ${TAIL_KEEP_LINES} tail)
+  docs/.output/.state/telemetry/memory-benchmark.jsonl  (rotates at ${MAX_JSONL_LINES} lines → ${TAIL_KEEP_LINES} tail)
 `);
             process.exit(command ? 1 : 0);
     }

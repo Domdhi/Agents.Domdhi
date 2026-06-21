@@ -1,8 +1,8 @@
 /**
- * Freeze State — read/write helper for `docs/.output/freeze-state.json`.
+ * Freeze State — read/write helper for `docs/.output/.state/freeze-state.json`.
  *
  * Freeze-state (A2) adopted from gstack's `/freeze` pattern:
- *   `docs/.output/research/competitive/_hooks-and-core-scripts-comparison.md` §A2.
+ *   `docs/.output/findings/research/competitive/_hooks-and-core-scripts-comparison.md` §A2.
  * /investigate writes this file with a list of absolute paths the user is
  * actively investigating; the guardrail's Edit/Write path rejects mutations
  * of those paths with "File is frozen by /investigate". This module is the
@@ -28,7 +28,7 @@ const path = require('path');
 
 function getStateFilePath() {
     const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..', '..');
-    return path.join(projectRoot, 'docs', '.output', 'freeze-state.json');
+    return path.join(projectRoot, 'docs', '.output', '.state', 'freeze-state.json');
 }
 
 /**

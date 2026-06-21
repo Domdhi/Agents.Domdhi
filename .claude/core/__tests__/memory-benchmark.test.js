@@ -425,7 +425,7 @@ describe('memory-benchmark', () => {
 
     it('readIndexMd_emptyFile_returnsNull', () => {
       const bench = new MemoryBenchmark();
-      tmp.write('docs/.output/memories/concepts/index.md', '   \n  ');
+      tmp.write('docs/.output/.state/memory-concepts/index.md', '   \n  ');
       // After trim() the content is empty — returns null
       expect(bench.readIndexMd()).toBeNull();
     });
@@ -447,7 +447,7 @@ describe('memory-benchmark', () => {
 
     it('readIndexMd_whitespaceOnlyFile_returnsNull', () => {
       const bench = new MemoryBenchmark();
-      tmp.write('docs/.output/memories/concepts/index.md', '\n\n\n');
+      tmp.write('docs/.output/.state/memory-concepts/index.md', '\n\n\n');
       expect(bench.readIndexMd()).toBeNull();
     });
 
@@ -633,7 +633,7 @@ describe('memory-benchmark', () => {
       const bench = new MemoryBenchmark();
       vi.spyOn(bench, 'checkClaudeCli').mockReturnValue(true);
       // Write empty index
-      tmp.write('docs/.output/memories/concepts/index.md', '  ');
+      tmp.write('docs/.output/.state/memory-concepts/index.md', '  ');
 
       await bench.benchmark();
 
@@ -644,7 +644,7 @@ describe('memory-benchmark', () => {
       const bench = new MemoryBenchmark();
       vi.spyOn(bench, 'checkClaudeCli').mockReturnValue(true);
       vi.spyOn(bench, 'invokeModel').mockReturnValue(null);
-      tmp.write('docs/.output/memories/concepts/index.md', '  ');
+      tmp.write('docs/.output/.state/memory-concepts/index.md', '  ');
 
       await bench.benchmark();
 

@@ -163,11 +163,11 @@ Never silently end on CONCERNS without either fixing the safe items or making th
 Write the full gate results to disk before reporting:
 
 ```bash
-mkdir -p docs/.output/reviews
+mkdir -p docs/.output/findings/reviews
 ```
 
 Write the complete readiness check output (all agent findings + consistency + verdict) to:
-`docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md`
+`docs/.output/findings/reviews/{YYMMDD-HHMM}-readiness-check.md`
 
 File format:
 ```markdown
@@ -182,7 +182,7 @@ File format:
 
 Stage and commit the readiness check output file:
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found
@@ -191,7 +191,7 @@ docs: /review:check-readiness — {PASS/CONCERNS/FAIL}, {N} issues found
 Then run:
 
 ```bash
-git add docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md
+git add docs/.output/findings/reviews/{YYMMDD-HHMM}-readiness-check.md
 node .claude/core/commit.js
 ```
 
@@ -200,7 +200,7 @@ node .claude/core/commit.js
 ```markdown
 ## Implementation Readiness Check
 
-**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-readiness-check.md`
+**Output**: `docs/.output/findings/reviews/{YYMMDD-HHMM}-readiness-check.md`
 
 ### Verdict: {PASS / CONCERNS / FAIL}
 

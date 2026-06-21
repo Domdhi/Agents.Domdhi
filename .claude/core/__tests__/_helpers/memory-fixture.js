@@ -2,7 +2,8 @@
  * memory-fixture — writes structured JSON memory files matching the shape
  * produced by memory-extractor.js and memory-manager.js create.
  *
- * File layout: {tmpDirHelper.root}/docs/.output/memories/{category}/{id}.json
+ * File layout: {tmpDirHelper.root}/docs/.output/.memory/{category}/{id}.json
+ * (the TRACKED JSON source — jsonRoot per _lib/memory-paths.js, ADR 0006 Am. 2).
  */
 
 'use strict';
@@ -67,7 +68,7 @@ function createMemory(tmpDirHelper, category, id, opts = {}) {
     },
   };
 
-  const relPath = path.join('docs', '.output', 'memories', category, `${id}.json`);
+  const relPath = path.join('docs', '.output', '.memory', category, `${id}.json`);
   return tmpDirHelper.write(relPath, JSON.stringify(memory, null, 2));
 }
 

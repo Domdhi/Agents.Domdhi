@@ -43,7 +43,7 @@ function writeRules(yamlContent) {
 }
 
 function writeFreezeState(absPaths) {
-    return tmp.write('docs/.output/freeze-state.json', JSON.stringify({ frozen: absPaths }));
+    return tmp.write('docs/.output/.state/freeze-state.json', JSON.stringify({ frozen: absPaths }));
 }
 
 // ─── tool dispatch ────────────────────────────────────────────────────────────

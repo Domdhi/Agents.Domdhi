@@ -1,7 +1,7 @@
 // AC→source map (pre-compaction-archive, post-2026-04-20 refactor):
 //   - buildSnapshot: reads git branch/status/log, inProgress, decisions → structured markdown string
 //   - buildSnapshot: includes trigger and branch name in output
-//   - processEvent: writes snapshot to docs/.output/sessions/{date}/{time}-pre-compaction.md
+//   - processEvent: writes snapshot to docs/.output/.state/sessions/{date}/{time}-pre-compaction.md
 //   - processEvent: calls log.capture('Pre-Compaction')
 //   - processEvent: NEVER spawns memory-extractor (extraction moved to session-handoff skill)
 //   - Source no longer imports child_process.spawn; the mock is retained in case the
@@ -104,7 +104,7 @@ beforeEach(() => {
     // Isolate the hook's write paths. pre-compaction-archive.cjs resolves its
     // output root from CLAUDE_PROJECT_DIR (lazily, per call); setting it to
     // tmp.root guarantees snapshot + daily-log writes land in the sandbox
-    // and never pollute the real repo's docs/.output/sessions/ or memories/.
+    // and never pollute the real repo's docs/.output/.state/sessions/ or memories/.
     process.env.CLAUDE_PROJECT_DIR = tmp.root;
 });
 
@@ -195,7 +195,7 @@ describe('processEvent_snapshotFile', () => {
 
         processEvent({ trigger: 'test' });
 
-        const sessionsDir = path.join(tmp.root, 'docs', '.output', 'sessions');
+        const sessionsDir = path.join(tmp.root, 'docs', '.output', '.state', 'sessions');
         expect(fs.existsSync(sessionsDir)).toBe(true);
         const dateDirs = fs.readdirSync(sessionsDir);
         expect(dateDirs.length).toBeGreaterThan(0);
@@ -207,7 +207,7 @@ describe('processEvent_snapshotFile', () => {
 
         processEvent({ trigger: 'test' });
 
-        const sessionsDir = path.join(tmp.root, 'docs', '.output', 'sessions');
+        const sessionsDir = path.join(tmp.root, 'docs', '.output', '.state', 'sessions');
         const dateDirs = fs.readdirSync(sessionsDir);
         const snapshotFiles = dateDirs.flatMap(d =>
             fs.readdirSync(path.join(sessionsDir, d))
@@ -221,7 +221,7 @@ describe('processEvent_snapshotFile', () => {
 
         processEvent({ trigger: 'auto-compact' });
 
-        const sessionsDir = path.join(tmp.root, 'docs', '.output', 'sessions');
+        const sessionsDir = path.join(tmp.root, 'docs', '.output', '.state', 'sessions');
         const dateDirs = fs.readdirSync(sessionsDir);
         const dateDir = path.join(sessionsDir, dateDirs[0]);
         const files = fs.readdirSync(dateDir);
@@ -233,8 +233,8 @@ describe('processEvent_snapshotFile', () => {
         // REGRESSION: earlier versions of the hook used `parsedJson.cwd` or
         // `process.cwd()` to resolve the output root, which meant a prior
         // `cd src && ...` in the same shell would dump the snapshot into
-        // `src/docs/.output/sessions/` and the daily log into
-        // `src/docs/.output/memories/daily/`. The hook must now ignore cwd
+        // `src/docs/.output/.state/sessions/` and the daily log into
+        // `src/docs/.output/.state/memory-daily/`. The hook must now ignore cwd
         // entirely and resolve exclusively from CLAUDE_PROJECT_DIR / __dirname.
         const mockLog = makeMockLog();
         injectDailyLogMock(mockLog);
@@ -245,10 +245,10 @@ describe('processEvent_snapshotFile', () => {
         processEvent({ trigger: 'test', cwd: bogusCwd });
 
         // Snapshot lands under CLAUDE_PROJECT_DIR (tmp.root), not bogusCwd
-        const sessionsDir = path.join(tmp.root, 'docs', '.output', 'sessions');
+        const sessionsDir = path.join(tmp.root, 'docs', '.output', '.state', 'sessions');
         expect(fs.existsSync(sessionsDir)).toBe(true);
 
-        const bogusSessionsDir = path.join(bogusCwd, 'docs', '.output', 'sessions');
+        const bogusSessionsDir = path.join(bogusCwd, 'docs', '.output', '.state', 'sessions');
         expect(fs.existsSync(bogusSessionsDir)).toBe(false);
     });
 });

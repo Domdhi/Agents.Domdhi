@@ -93,7 +93,7 @@ git branch -d <feature-branch>
 # docs/.output/handoffs/) so the base branch doesn't accumulate dead handoffs.
 # The work itself lives in commits + plan files; the handoff was a pointer.
 git rm -q docs/.output/handoffs/*-<feature-branch-slug>.md 2>/dev/null && \
-  (printf 'chore: drop merged-branch handoffs (<feature-branch>)\n' > docs/.output/.commit-msg && node .claude/core/commit.js) || true
+  (printf 'chore: drop merged-branch handoffs (<feature-branch>)\n' > docs/.output/.state/.commit-msg && node .claude/core/commit.js) || true
 ```
 
 Then: Cleanup worktree (Step 5)

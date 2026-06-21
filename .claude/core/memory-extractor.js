@@ -3,12 +3,12 @@
 /**
  * Memory Extractor — Brownfield-only model-driven daily-log → memory extraction
  *
- * Reads daily logs from docs/.output/memories/daily/{YYYY-MM-DD}.md and runs each
+ * Reads daily logs from docs/.output/.state/memory-daily/{YYYY-MM-DD}.md and runs each
  * unprocessed entry through the model (single-pass extraction, Mem0 v2.0.0-aligned)
- * for structured learning candidates. Output goes to docs/.output/memories/extracted/{date}/
+ * for structured learning candidates. Output goes to docs/.output/.state/memory-extracted/{date}/
  * for adopter review.
  *
- * **Brownfield-only.** Per `docs/.output/reviews/2026-04-20-adr-memory-unification.md`,
+ * **Brownfield-only.** Per `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md`,
  * this CLI is NOT wired into in-process command flows. The in-process path uses
  * Main-Agent-authored memories at session-handoff time. The extractor exists for
  * adopters onboarding Domdhi.Agents with legacy daily logs they want to backfill
@@ -23,7 +23,7 @@
  *
  * Adopters can then either (a) review and copy fields into manual
  * `memory-manager-cli.js create` calls, or (b) move the JSON entries into
- * `docs/.output/memories/_inbox/` and run `inbox-promote` per draft for a unified
+ * `docs/.output/.state/memory-inbox/` and run `inbox-promote` per draft for a unified
  * curation flow.
  */
 
@@ -42,8 +42,8 @@ const MAX_ENTRIES_PER_RUN = 10;
 class MemoryExtractor {
     constructor() {
         this.projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'daily');
-        this.extractedDir = path.join(this.projectRoot, 'docs', '.output', 'memories', 'extracted');
+        this.dailyDir = path.join(this.projectRoot, 'docs', '.output', '.state', 'memory-daily');
+        this.extractedDir = path.join(this.projectRoot, 'docs', '.output', '.state', 'memory-extracted');
     }
 
     /**
@@ -86,7 +86,7 @@ class MemoryExtractor {
      * Single-pass extraction (Mem0 v2.0.0-aligned shape, R-C 2026-05-11):
      * one LLM call per entry, ADD-only output, schema matches the canonical
      * memory content shape used by `memory-manager-cli.js create` and the
-     * inbox pattern (`docs/.output/memories/_inbox/*.json`).
+     * inbox pattern (`docs/.output/.state/memory-inbox/*.json`).
      *
      * Returns array of {category, suggested_id, content: {description, evidence?, confidence}}.
      * Returns [] on failure (graceful degradation).
@@ -204,7 +204,7 @@ class MemoryExtractor {
     }
 
     /**
-     * Write extracted learnings to docs/.output/memories/extracted/{date}/{timestamp}.json
+     * Write extracted learnings to docs/.output/.state/memory-extracted/{date}/{timestamp}.json
      */
     async writeExtractedLearnings(date, learnings, timestamp) {
         const dateDir = path.join(this.extractedDir, date);
@@ -498,7 +498,7 @@ async function main() {
                 '  { category, suggested_id, content: { description, evidence?, confidence } }',
                 '',
                 'Brownfield-only — not wired into in-process command flows (see ADR',
-                'docs/.output/reviews/2026-04-20-adr-memory-unification.md). Adopters review',
+                'docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md). Adopters review',
                 'the extracted/ output and create memories manually via memory-manager-cli.js,',
                 'or move entries to _inbox/ and use inbox-promote.',
             ].join('\n'));

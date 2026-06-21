@@ -129,7 +129,7 @@ describe('loadMemoryMetrics', () => {
             content: { description: 'ancient stale memory' },
             metadata: { sessions: [], agents: [], confidence: 0.1 },
         };
-        const categoryDir = path.join(tmp.root, 'docs', '.output', 'memories', 'patterns');
+        const categoryDir = path.join(tmp.root, 'docs', '.output', '.memory', 'patterns');
         fs.mkdirSync(categoryDir, { recursive: true });
         fs.writeFileSync(
             path.join(categoryDir, 'stale-pattern-2.json'),

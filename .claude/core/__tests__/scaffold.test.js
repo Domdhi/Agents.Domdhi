@@ -771,9 +771,11 @@ describe('runScaffold — SKILL_TEMPLATE_MANIFEST (skill-owned templates)', () =
         const domainDirs = [
             'modules',
             'architecture/decisions',
+            'engineering',
             'operations/runbooks',
+            'reference',
             'work', 'work/todo',
-            '.output', '.output/work',
+            '.output', '.output/.state/work',
         ];
         for (const d of domainDirs) {
             expect(fs.existsSync(path.join(tmp.root, 'docs', d))).toBe(true);
@@ -856,7 +858,7 @@ describe('runScaffold — gitignore managed-block merge', () => {
 
     it('brownfield_existingGitignore_managedBlockAppendedAndOriginalPreserved', () => {
         // Arrange — adopter already has a .gitignore; template adds Domdhi rules
-        seedGitignoreTemplate(tmp.root, 'docs/.output/memories/\ndocs/.output/telemetry*/\n');
+        seedGitignoreTemplate(tmp.root, 'docs/.output/.state/\n.claude/agent-memory/\n');
         const original = '# adopter rules\nnode_modules/\n.env\n';
         fs.writeFileSync(path.join(tmp.root, '.gitignore'), original);
 
@@ -868,13 +870,13 @@ describe('runScaffold — gitignore managed-block merge', () => {
         expect(merged).toContain('# adopter rules');
         expect(merged).toContain('node_modules/');
         expect(merged).toContain(MANAGED_START);
-        expect(merged).toContain('docs/.output/memories/');
-        expect(merged).toContain('docs/.output/telemetry*/');
+        expect(merged).toContain('docs/.output/.state/');
+        expect(merged).toContain('.claude/agent-memory/');
     });
 
     it('greenfield_noGitignore_createdWithManagedBlock', () => {
         // Arrange — no pre-existing .gitignore
-        seedGitignoreTemplate(tmp.root, 'docs/.output/memories/\n');
+        seedGitignoreTemplate(tmp.root, 'docs/.output/.state/\n');
 
         // Act
         runScaffold(tmp.root, { silent: true });
@@ -882,7 +884,7 @@ describe('runScaffold — gitignore managed-block merge', () => {
         // Assert — file created carrying the managed block + template content
         const created = fs.readFileSync(path.join(tmp.root, '.gitignore'), 'utf8');
         expect(created).toContain(MANAGED_START);
-        expect(created).toContain('docs/.output/memories/');
+        expect(created).toContain('docs/.output/.state/');
     });
 
     it('missingRenameSource_recordsWarning_doesNotThrow', () => {

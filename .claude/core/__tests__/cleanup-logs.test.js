@@ -142,7 +142,7 @@ describe('cleanupLogs', () => {
 
     /** Return the telemetry/logs dir for the current tmp root */
     function logsDir() {
-        return path.join(tmp.root, 'docs', '.output', 'telemetry', 'logs');
+        return path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'logs');
     }
 
     it('does nothing when the logs dir does not exist', async () => {
@@ -382,7 +382,7 @@ describe('cleanup-logs CLI main guard (subprocess)', () => {
     });
 
     it('deletes old folders when invoked via CLI', () => {
-        const dir = path.join(tmp.root, 'docs', '.output', 'telemetry', 'logs');
+        const dir = path.join(tmp.root, 'docs', '.output', '.state', 'telemetry', 'logs');
         const oldDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
         const oldFolder = createLogFolder(dir, oldDate, 'cli-test');
 

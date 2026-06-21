@@ -57,14 +57,17 @@ function processEvent(parsedJson) {
 
     const filePath = parsedJson?.tool_input?.file_path || '';
 
-    // Only care about writes to memory directories
-    if (!filePath.includes('memories') || !filePath.endsWith('.json')) {
+    // Only care about writes to the curated JSON source (.memory/ — ADR 0006
+    // Am. 2; the store split moved the category JSON out of the old `memories/`
+    // dir). `.state/memory-inbox` drafts and `.state/memory-daily` logs do NOT
+    // contain the `.memory` path segment, so the per-category guard ignores them.
+    if (!filePath.includes('.memory') || !filePath.endsWith('.json')) {
         return null;
     }
 
-    // Extract category from path: .../memories/{category}/file.json
+    // Extract category from path: .../.memory/{category}/file.json
     const parts = filePath.replace(/\\/g, '/').split('/');
-    const memoriesIdx = parts.indexOf('memories');
+    const memoriesIdx = parts.indexOf('.memory');
     if (memoriesIdx === -1 || memoriesIdx + 1 >= parts.length) {
         return null;
     }

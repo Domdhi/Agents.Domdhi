@@ -184,7 +184,7 @@ const SKIP_PATHS = [
     // NOTE: docs/.output/ is deliberately NOT skipped. It holds generated
     // reviews/digests/handoffs that routinely quote config — the single most
     // likely place to echo a real secret (a /review:security report writing
-    // into docs/.output/reviews/ is exactly how a live CoinGecko key once
+    // into docs/.output/findings/reviews/ is exactly how a live CoinGecko key once
     // leaked past this scanner). Hook-internal writes (telemetry, memories)
     // go through fs, not the Write tool, so they bypass the PreToolUse scan
     // regardless; only Claude-authored Write/Edit + staged-commit content is

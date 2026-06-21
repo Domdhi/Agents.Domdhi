@@ -42,11 +42,11 @@ The digest parses captured telemetry (command-usage, hook-events, skill-usage, m
 
 ### 2. Write the collectible sidecar
 
-Write the raw JSON to `docs/.output/reviews/feedback-{YYMMDD-HHMM}.json` verbatim. This is the machine-readable record an aggregation step can pull across many projects — keep its shape stable.
+Write the raw JSON to `docs/.output/findings/reviews/feedback-{YYMMDD-HHMM}.json` verbatim. This is the machine-readable record an aggregation step can pull across many projects — keep its shape stable.
 
 ### 3. Compose the report
 
-Write `docs/.output/reviews/feedback-{YYMMDD-HHMM}.md` with this structure. The frontmatter mirrors `summarize()` from the digest so aggregation can parse many reports without opening the body.
+Write `docs/.output/findings/reviews/feedback-{YYMMDD-HHMM}.md` with this structure. The frontmatter mirrors `summarize()` from the digest so aggregation can parse many reports without opening the body.
 
 ```markdown
 ---
@@ -90,7 +90,7 @@ Skim the digest for anomalies and call them out in the report body (one line eac
 
 ### 5. Commit
 
-Follow the **Post-Command Commit Convention**. Stage `docs/.output/reviews/feedback-{YYMMDD-HHMM}.md` and `.json` (same stamp computed once this run), write the message to `docs/.output/.commit-msg`:
+Follow the **Post-Command Commit Convention**. Stage `docs/.output/findings/reviews/feedback-{YYMMDD-HHMM}.md` and `.json` (same stamp computed once this run), write the message to `docs/.output/.state/.commit-msg`:
 
 ```
 docs: /review:feedback — {project} template-performance report

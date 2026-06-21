@@ -3,7 +3,7 @@
 /**
  * Memory Promoter - Scans concept articles for promotion candidates
  *
- * Reads compiled concept articles from docs/.output/memories/concepts/{category}/
+ * Reads compiled concept articles from docs/.output/.state/memory-concepts/{category}/
  * Ranks by composite score: decayed_confidence * (1 + usage_boost) * (1 + cross_ref_density)
  * Surfaces candidates for human-gated promotion into templates, skills, and agents.
  *
@@ -28,14 +28,16 @@ const TARGET_SUGGESTIONS = {
     patterns: 'relevant SKILL.md',
     constraints: 'architecture/overview.md template',
     workflows: 'agent frontmatter',
-    'rejected-approaches': 'docs/.output/investigations/ or CLAUDE.md dead-ends section'
+    'rejected-approaches': 'docs/.output/findings/investigations/ or CLAUDE.md dead-ends section'
 };
 
 class MemoryPromoter {
     constructor() {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.memoriesDir = path.join(projectRoot, 'docs', '.output', 'memories');
-        this.conceptsDir = path.join(this.memoriesDir, 'concepts');
+        // Split store (ADR 0006 Am. 2): JSON categories under .memory/; derived
+        // concept articles under .state/memory-concepts.
+        this.memoriesDir = path.join(projectRoot, 'docs', '.output', '.memory');
+        this.conceptsDir = path.join(projectRoot, 'docs', '.output', '.state', 'memory-concepts');
         this._activeDaysResolver = createActiveDaysResolver({ projectRoot });
     }
 
@@ -243,7 +245,7 @@ class MemoryPromoter {
     }
 
     /**
-     * Load hand-created JSON memories from `docs/.output/memories/{category}/*.json`.
+     * Load hand-created JSON memories from `docs/.output/.memory/{category}/*.json`.
      *
      * These are written by `node memory-manager.js create <category> <slug> '{...}'`
      * and represent intentional human curation — they bypass the sources>=2 filter

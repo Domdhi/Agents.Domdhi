@@ -3,9 +3,9 @@
 /**
  * Memory Compiler - Consolidates daily log files into concept articles
  *
- * Reads daily logs from docs/.output/memories/daily/{YYYY-MM-DD}.md
- * Writes concept articles to docs/.output/memories/concepts/{category}/{slug}.md
- * Generates docs/.output/memories/concepts/index.md
+ * Reads daily logs from docs/.output/.state/memory-daily/{YYYY-MM-DD}.md
+ * Writes concept articles to docs/.output/.state/memory-concepts/{category}/{slug}.md
+ * Generates docs/.output/.state/memory-concepts/index.md
  *
  * Idempotent: re-running updates existing concepts, does not duplicate.
  * Daily logs are never deleted — they are the audit trail.
@@ -54,8 +54,8 @@ const CATEGORY_SIGNALS = {
 class MemoryCompiler {
     constructor() {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.dailyDir    = path.join(projectRoot, 'docs', '.output', 'memories', 'daily');
-        this.conceptsDir = path.join(projectRoot, 'docs', '.output', 'memories', 'concepts');
+        this.dailyDir    = path.join(projectRoot, 'docs', '.output', '.state', 'memory-daily');
+        this.conceptsDir = path.join(projectRoot, 'docs', '.output', '.state', 'memory-concepts');
     }
 
     // -------------------------------------------------------------------------

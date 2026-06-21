@@ -157,7 +157,7 @@ const SEED_MEMORIES = [
         id: 'command-usage-telemetry',
         importance: 3,
         content: {
-            description: 'Slash command usage is logged to docs/.output/telemetry/command-usage.jsonl by the command-usage-logger.cjs hook. Gate pass/fail outcome is read from _latest-summary.json and appended to the same file.',
+            description: 'Slash command usage is logged to docs/.output/.state/telemetry/command-usage.jsonl by the command-usage-logger.cjs hook. Gate pass/fail outcome is read from _latest-summary.json and appended to the same file.',
             evidence: 'CLAUDE.md Hooks table; command-usage-logger.cjs.',
             confidence: 0.8,
         },
@@ -217,7 +217,7 @@ const SEED_MEMORIES = [
         id: 'inbox-staging-protocol',
         importance: 4,
         content: {
-            description: 'Sub-agents drop draft memories to docs/.output/memories/_inbox/ — never write directly to the curated store. Main Agent reviews with inbox-list, promotes keepers via inbox-promote (with optional category/id override), discards the rest with inbox-discard.',
+            description: 'Sub-agents drop draft memories to docs/.output/.state/memory-inbox/ — never write directly to the curated store. Main Agent reviews with inbox-list, promotes keepers via inbox-promote (with optional category/id override), discards the rest with inbox-discard.',
             evidence: 'CLAUDE.md Memory System section; Memory Inbox Protocol in agent definitions.',
             confidence: 0.85,
         },

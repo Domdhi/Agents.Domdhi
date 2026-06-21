@@ -105,7 +105,7 @@ module.exports = {
     // the canonical iteration order consumed by memory-manager, memory-curator,
     // memory-promoter, decision-viz, session-start-prime hook,
     // and test fixtures. Changing this order changes the section order of the
-    // compiled concept index (docs/.output/memories/concepts/index.md).
+    // compiled concept index (docs/.output/.state/memory-concepts/index.md).
     MEMORY_CATEGORIES: {
         PATTERNS: 'patterns',
         CONSTRAINTS: 'constraints',
@@ -243,14 +243,82 @@ module.exports = {
         roadmap:      'work/roadmap.md',
         timeline:     'work/timeline.md',
         todo:         'work/todo',                        // dir (+ _archive/)
-        // task working files live in the generated zone, NOT work/ (gitignored)
-        scratch:      '.output/work',                     // dir — {date}/{task}/
+        // task working files live in the generated state zone, NOT work/ (gitignored)
+        scratch:      '.output/.state/work',              // dir — {date}/{task}/ (ADR 0006)
         // reference/ — how do I find my way?
         onboarding:   'reference/onboarding.md',
         glossary:     'reference/glossary.md',
         links:        'reference/links.md',
         // fractal axis (not a domain) — per-feature zoom
         modules:      'modules',                          // dir — {name}/brief.md
+    },
+
+    // ── Canonical docs/.output/ compartments — the generated-zone registry ──────
+    //
+    // ADR 0006 ".output Taxonomy". `.output/` is the generated zone (the machine's
+    // exhaust): agents WRITE here constantly, re-read by grep-on-slug or
+    // resolve-latest, almost never by browsing. This map is the SINGLE SOURCE for
+    // every compartment, generalizing DOC_PATHS to the output zone. Code obtains
+    // paths ONLY via `_lib/output-paths.js` (the only door); prose producers
+    // (commands/skills/agents) carry the registry's `dir` string in instruction
+    // text and are lint-checked against it by the output-taxonomy guard test.
+    //
+    // Two orthogonal axes + a special machine-managed store:
+    //   zone   'durable' = tracked (handoffs, findings, plans, evolution — AND the
+    //          curated `.memory/` source); 'state' = gitignored regenerable working
+    //          state, all under docs/.output/.state/ (one gitignore line). The
+    //          tracked/ignored boundary is a FOLDER, never a per-path list.
+    //   managed 'memory' entries are owned by the memory subsystem (its own
+    //          resolver), not output-paths.js — they carry no `shape` and are
+    //          exempt from the shape contract. `.memory/` (tracked source) +
+    //          `.state/memory-{index,inbox,daily}` (rebuilt/transient) realize the
+    //          three-tier source≠index≠disposable split.
+    //   shape  'discrete' = {kind}/{YYYY-MM}/{YYMMDD-HHMM}-{slug}.{ext};
+    //          'daylog'   = {kind}/{YYYY-MM}/{YYYY-MM-DD}.md (## Run {HH:MM} inside);
+    //          'rununit'  = {kind}/{YYYY-MM}/{YYMMDD-HHMM}-{slug}/… (multi-file).
+    //   bucket 'month' = YYYY-MM/ folder bounds the dir + gives a cleanup edge
+    //          (the filename stamp is the real index); 'none' = flat (state zone).
+    //
+    // Dirs are `.output/`-relative; output-paths.js composes
+    // `path.join(docsDir, '.output', dir, …)`. `kind` is a path for grouped
+    // compartments ('findings/reviews'). A `group:true` entry holds no files —
+    // only sub-compartments. The set is OPEN: specialization may add compartments
+    // (Mfa.Hub grew bugs/, emails/); shape-based enforcement passes new names.
+    OUTPUT_PATHS: {
+        // ── durable history: TRACKED (write-once / read-rarely) ──
+        // where was I? how do I resume? (resolver-accessed: "latest")
+        handoffs:                  { dir: 'handoffs', zone: 'durable', shape: 'discrete', bucket: 'month' },
+        // what we learned / judged / discovered
+        findings:                  { dir: 'findings', group: true },
+        'findings/reviews':        { dir: 'findings/reviews',        zone: 'durable', shape: 'discrete', bucket: 'month' },
+        'findings/investigations': { dir: 'findings/investigations', zone: 'durable', shape: 'discrete', bucket: 'month' },
+        'findings/research':       { dir: 'findings/research',       zone: 'durable', shape: 'discrete', bucket: 'month' },
+        // what am I executing? (do / run-todo intent)
+        plans:                     { dir: 'plans', zone: 'durable', shape: 'discrete', bucket: 'month' },
+        // what production tells us & how we adapt
+        evolution:                 { dir: 'evolution', group: true },
+        'evolution/intake':        { dir: 'evolution/intake', zone: 'durable', shape: 'daylog',  bucket: 'month' }, // /listen
+        'evolution/triage':        { dir: 'evolution/triage', zone: 'durable', shape: 'daylog',  bucket: 'month' }, // /triage
+        'evolution/canary':        { dir: 'evolution/canary', zone: 'durable', shape: 'rununit', bucket: 'month' }, // /run-tests canary
+        'evolution/skills':        { dir: 'evolution/skills', zone: 'durable', shape: 'rununit', bucket: 'month' }, // /review:evolve-skills
+        'evolution/agents':        { dir: 'evolution/agents', zone: 'durable', shape: 'daylog',  bucket: 'month' }, // agent-updates
+        // ── curated memory SOURCE: TRACKED durable, machine-managed (ADR 0006
+        //    amendment — third lifecycle zone). The JSON store IS your knowledge;
+        //    it syncs over git like handoffs/findings. NOT month-bucketed and NOT
+        //    written via output-paths.js — the memory subsystem (memory-manager.js
+        //    + project-root.js) owns it. `managed:'memory'` exempts it from the
+        //    discrete/daylog/rununit shape contract the guard test enforces.
+        memory:                    { dir: '.memory', zone: 'durable', managed: 'memory', bucket: 'none' },
+        // ── regenerable state: GITIGNORED (one zone — docs/.output/.state/) ──
+        //    Memory's DERIVED index + TRANSIENT drafts + RAW capture logs split out
+        //    from the tracked source above — all rebuildable/regenerable.
+        'state/memory-index':      { dir: '.state/memory-index', zone: 'state', managed: 'memory', bucket: 'none' }, // rebuilt FTS5 memories.db
+        'state/memory-inbox':      { dir: '.state/memory-inbox', zone: 'state', managed: 'memory', bucket: 'none' }, // transient sub-agent drafts
+        'state/memory-daily':      { dir: '.state/memory-daily', zone: 'state', managed: 'memory', bucket: 'none' }, // raw daily capture logs (compiled → source)
+        'state/telemetry':         { dir: '.state/telemetry',   zone: 'state', shape: 'discrete', bucket: 'none' },
+        'state/sessions':          { dir: '.state/sessions',    zone: 'state', shape: 'discrete', bucket: 'none' },
+        'state/screenshots':       { dir: '.state/screenshots', zone: 'state', shape: 'rununit',  bucket: 'none' },
+        'state/work':              { dir: '.state/work',        zone: 'state', shape: 'rununit',  bucket: 'none' },
     },
 
     // Artifacts produced by each phase

@@ -4,15 +4,19 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 /**
- * Resolve the project root that anchors per-project working state — above all
- * the memory store at docs/.output/memories/ (JSON + memories.db).
+ * Resolve the project root that anchors per-project GITIGNORED working state —
+ * above all the regenerable/transient half of the memory store now under
+ * docs/.output/.state/memory-{index,inbox,daily} (the rebuilt FTS5 db, the
+ * sub-agent inbox drafts, and the raw daily logs). ADR 0006 Amendment 2 split
+ * the store: the curated JSON SOURCE moved to docs/.output/.memory/ and is now
+ * TRACKED — resolve THAT with resolveWorktreeRoot() below, not this function.
  *
  * WHY THIS EXISTS — the git-worktree memory-loss bug. A worktree only checks out
- * TRACKED files, and docs/.output/memories/ is gitignored, so a fresh worktree
- * starts with an EMPTY store: recall finds nothing, and any memory written
- * during worktree work lands in the worktree-local dir, which is deleted with
- * the worktree. The store must instead be SHARED across the main repo and every
- * linked worktree.
+ * TRACKED files, so any GITIGNORED store starts EMPTY in a fresh worktree and
+ * anything written there is deleted with the worktree. The ignored .state/ half
+ * must therefore be SHARED across the main repo and every linked worktree by
+ * anchoring it to the main worktree. (The tracked .memory/ source no longer
+ * needs this — git checks it out into each worktree naturally.)
  *
  * Resolution order:
  *   1. CLAUDE_PROJECT_DIR — explicit override, always wins.
@@ -50,4 +54,37 @@ function resolveProjectRoot(fallbackDir) {
     return fallbackDir;
 }
 
-module.exports = { resolveProjectRoot };
+/**
+ * Resolve the NORMAL (current-worktree) project root — for TRACKED state that
+ * git checks out into each worktree on its own, above all the curated memory
+ * SOURCE at docs/.output/.memory/ (ADR 0006 Amendment 2).
+ *
+ * This is the counterpart to resolveProjectRoot(): where that one anchors the
+ * gitignored .state/ half to the MAIN worktree (so it is shared, not lost), this
+ * one returns the CURRENT worktree's top — because a tracked file is physically
+ * present in whichever worktree you are in, and the source-of-truth edits should
+ * land in that worktree's checkout, not the main repo's.
+ *
+ * Resolution order:
+ *   1. CLAUDE_PROJECT_DIR — explicit override, always wins (parity with above).
+ *   2. The current worktree top, via `git rev-parse --show-toplevel`. In the
+ *      MAIN worktree this equals resolveProjectRoot(); they diverge only inside
+ *      a linked worktree, which is exactly the case the split is for.
+ *   3. `fallbackDir` — the caller's own location (non-git / standalone template).
+ */
+function resolveWorktreeRoot(fallbackDir) {
+    if (process.env.CLAUDE_PROJECT_DIR) return process.env.CLAUDE_PROJECT_DIR;
+    try {
+        const top = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+            cwd: fallbackDir,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        if (top) return top;
+    } catch {
+        // not a git repo, or git unavailable — use the fallback
+    }
+    return fallbackDir;
+}
+
+module.exports = { resolveProjectRoot, resolveWorktreeRoot };

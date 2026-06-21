@@ -147,22 +147,22 @@ Different callers have different information to emphasize. Fill the template wit
 - **Decisions & Context:** bug summaries, blocker root causes, flaky test patterns
 - **Next Actions:** fix bugs found (ordered by severity), re-run failed categories, or retro
 - **Blockers:** every `[!]` category from testing, with root cause
-- **Key Files:** `docs/.output/screenshots/{date}/{task}/TEST-REPORT.md` always listed
+- **Key Files:** `docs/.output/.state/screenshots/{date}/{task}/TEST-REPORT.md` always listed
 
 ### `/todo` — after TODO creation
 - **Decisions & Context:** one bullet on why this TODO was created, what it accomplishes
 - **Next Actions:** always `/run-todo {path}` as #1, `/do {first-story-id}` as #2
-- **Key Files:** the new TODO path + research files from `docs/.output/work/{date}/{slug}/`
+- **Key Files:** the new TODO path + research files from `docs/.output/.state/work/{date}/{slug}/`
 
 ## Key Files lifecycle (mandatory — applies to every caller)
 
-`/prime` Step 2 reads every Key File in full. Listing the wrong files turns one cold start into a 90-100k token session. The rules below come from cross-repo token-economics audits (`docs/.output/investigations/2026-04-25-token-economics.md` and `…-DISPATCH.md`); they are mandatory, not advisory.
+`/prime` Step 2 reads every Key File in full. Listing the wrong files turns one cold start into a 90-100k token session. The rules below come from cross-repo token-economics audits (`docs/.output/findings/investigations/2026-04-25-token-economics.md` and `…-DISPATCH.md`); they are mandatory, not advisory.
 
 ### Never list as Key Files
 
 - **`CLAUDE.md` and `docs/CLAUDE.md`.** Both auto-load at session start. Listing them causes `/prime` to read them again — pure waste. Measured cost: 116k tokens of redundant loading over 14 days on Agents (21 occurrences × 5.5k tokens each).
 - **Raw telemetry: `*.jsonl`, hook-events logs, command-usage logs.** Append-only data files, not session-resumption context. `hook-events.jsonl` alone added 20.7k tokens to a single `/prime` in the audit window. If telemetry needs analysis, the next session can read it on demand — not at cold start.
-- **Files over 20kb (~5k tokens).** Line-range annotations (`:47-89`) do NOT save tokens — `/prime` Step 2 explicitly ignores them and reads the whole file. If a heavy file is genuinely needed for resume, split it: smaller live file + archive on disk. Reference precedent: `docs/.output/agent-updates.md` 38kb → 1kb live + 37kb archive on 2026-04-25.
+- **Files over 20kb (~5k tokens).** Line-range annotations (`:47-89`) do NOT save tokens — `/prime` Step 2 explicitly ignores them and reads the whole file. If a heavy file is genuinely needed for resume, split it: smaller live file + archive on disk. Reference precedent: `docs/.output/evolution/agents.md` 38kb → 1kb live + 37kb archive on 2026-04-25.
 - **TODO files for closed epics.** Once the epic's final wave commits, the TODO becomes historical record. Replace with a one-line summary in Decisions & Context: *"Epic X complete — N stories, see commit Y."* Drop the file from Key Files on the same `/end` that closes the epic.
 - **Source files past their story commit.** During active structural work on `routes/login.tsx` (or any source file), listing it as a Key File is correct — the next session needs the full file to resume. After the story closes, drop it. Source-file Key Files carrying 2-3 sessions past completion add 2-5k tokens of cold-start detail with zero resumption value.
 - **Large reference docs** (`docs/reference/commands.md`, system maps, etc.) outside the specific session's scope. They're CLAUDE.md-equivalent overviews — useful when researching commands, noise on every other session.
@@ -192,7 +192,7 @@ After writing Decisions & Context, read your own bullets with fresh eyes and ask
 
 ### Step 6a: Check the inbox first
 
-Sub-agents may have flagged drafts to `docs/.output/memories/_inbox/` during the session (per the Memory Inbox Protocol in `.claude/agents/*.md`). The dispatch templates in `/do` and `/run-todo` are supposed to curate per-dispatch — but if a session was interrupted, or a curation step was skipped, drafts can survive into handoff time.
+Sub-agents may have flagged drafts to `docs/.output/.state/memory-inbox/` during the session (per the Memory Inbox Protocol in `.claude/agents/*.md`). The dispatch templates in `/do` and `/run-todo` are supposed to curate per-dispatch — but if a session was interrupted, or a curation step was skipped, drafts can survive into handoff time.
 
 Run the listing:
 
@@ -345,5 +345,5 @@ Default to `/remember` for fleeting captures you want off your mental stack. Use
 - Path resolver: `.claude/core/handoff-path.js` (`write <caller>` / `latest` / `branch`) — single source of stamp + branch slug + newest-for-branch resolution.
 - Reads: `git status`, `git log`, `docs/.output/plans/**/*.md` (for unfinished plans check)
 - Produces: `docs/.output/handoffs/{stamp}-{caller}-{branch}.md` (one per run, overwrite-within-run)
-- Writes: structured memories to `docs/.output/memories/{category}/{slug}.json` via `memory-manager.js create` (Step 6, 0–3 per session)
+- Writes: structured memories to `docs/.output/.memory/{category}/{slug}.json` via `memory-manager.js create` (Step 6, 0–3 per session)
 - Consumed by: `/prime` (reads the resolver's `latest` + its Key Files on cold start) and `pre-compaction-archive.cjs` (snapshots `latest`)

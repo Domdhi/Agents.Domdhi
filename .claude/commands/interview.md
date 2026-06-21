@@ -63,7 +63,7 @@ The closing chat summary (Step 6) is the only downstream-observable record of wh
 Write the summary with the Write tool to:
 
 ```
-docs/.output/work/{YYYY-MM-DD}/interview/{topic-slug}.md
+docs/.output/.state/work/{YYYY-MM-DD}/interview/{topic-slug}.md
 ```
 
 where `{topic-slug}` is a kebab-case slug of the interview topic (the argument). Include:
@@ -119,7 +119,7 @@ Write what the closing summary contains, in the user's own framing as far as pra
 
 ### Inbox as middle ground
 
-When unsure whether a decision qualifies, drop a draft into `docs/.output/memories/_inbox/` instead — the same inbox sub-agents use (per the Memory Inbox Protocol in agents.md). Main Agent (you, on next handoff) or the user reviews and promotes/discards. Better to flag and have it discarded than skip and lose the insight.
+When unsure whether a decision qualifies, drop a draft into `docs/.output/.state/memory-inbox/` instead — the same inbox sub-agents use (per the Memory Inbox Protocol in agents.md). Main Agent (you, on next handoff) or the user reviews and promotes/discards. Better to flag and have it discarded than skip and lose the insight.
 
 ### Over-promotion is the dominant failure mode
 

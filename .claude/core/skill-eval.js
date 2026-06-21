@@ -15,7 +15,7 @@
  * beats baseline on pass-rate. This replaces skill-authoring's old "failing
  * test FIRST" rule with "evidence-of-gap first, differential eval after".
  *
- * Directory contract (created at runtime under docs/.output/skill-evolution/):
+ * Directory contract (created at runtime under docs/.output/evolution/skills/):
  *   <iteration>/
  *     eval-<id>-<name>/
  *       eval_metadata.json          { eval_id, eval_name, prompt, assertions:[{text,passed,evidence}] }

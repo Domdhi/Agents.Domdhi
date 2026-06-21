@@ -64,11 +64,11 @@ git log --format="%aN" {from}..{to} | sort -u
 - Group by epic
 
 **From Retros:**
-- Read any `docs/.output/reviews/retro-*.md` files created during this period
+- Read any `docs/.output/findings/reviews/retro-*.md` files created during this period
 - Extract key decisions and pattern changes
 
 **From Daily Logs:**
-- Read `docs/.output/memories/daily/*.md` files within the scope period
+- Read `docs/.output/.state/memory-daily/*.md` files within the scope period
 - Extract session context and key decisions
 
 ### 3. Delegate to Agent (main agent → doc-writer)

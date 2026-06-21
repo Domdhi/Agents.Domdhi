@@ -55,7 +55,21 @@ describe('aggregate', () => {
         const agg = aggregate([]);
         expect(agg.total).toBe(0);
         expect(agg.byDecision).toEqual({});
+        expect(agg.byPathClass).toEqual({});
         expect(agg.range).toEqual({ first: null, last: null });
+    });
+
+    it('aggregates byPathClass, skipping null/undefined pathClass (C1)', () => {
+        const events = [
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf', pathClass: 'build-artifact', timestamp: '2026-06-21T10:00:00Z' },
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf', pathClass: 'build-artifact', timestamp: '2026-06-21T10:01:00Z' },
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf', pathClass: 'project-path', timestamp: '2026-06-21T10:02:00Z' },
+            { event: 'guardrail', decision: 'confirm', rule: 'git push --force', pathClass: null, timestamp: '2026-06-21T10:03:00Z' },
+            { event: 'guardrail', decision: 'block', rule: 'mkfs', timestamp: '2026-06-21T10:04:00Z' }, // no pathClass field
+        ];
+        const agg = aggregate(events);
+        expect(agg.total).toBe(5);
+        expect(agg.byPathClass).toEqual({ 'build-artifact': 2, 'project-path': 1 });
     });
 });
 
@@ -84,5 +98,21 @@ describe('formatReport', () => {
 
     it('shows an empty-state line when there are no hits', () => {
         expect(formatReport(aggregate([]))).toContain('No guardrail hits recorded yet');
+    });
+
+    it('prints a "By path class" section when delete-style hits carry a pathClass (C1)', () => {
+        const events = [
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf', pathClass: 'build-artifact', timestamp: '2026-06-21T10:00:00Z' },
+            { event: 'guardrail', decision: 'nudge', rule: 'rm -rf', pathClass: 'project-path', timestamp: '2026-06-21T10:01:00Z' },
+        ];
+        const out = formatReport(aggregate(events));
+        expect(out).toContain('By path class');
+        expect(out).toContain('build-artifact');
+        expect(out).toContain('project-path');
+    });
+
+    it('omits the "By path class" section when no hit carried a pathClass', () => {
+        // EVENTS has no pathClass on any record → section suppressed.
+        expect(formatReport(aggregate(EVENTS))).not.toContain('By path class');
     });
 });

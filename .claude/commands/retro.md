@@ -5,7 +5,7 @@ argument-hint: [epic name or number] [--skip-review]
 
 # Retrospective
 
-Analyze a completed epic to extract lessons learned and patterns. Runs a **code-review pass over the epic's commits first** — its findings feed the retro (mirroring `/sweep`'s Phase 1→2 flow) — then produces `docs/.output/reviews/retro-{epic-slug}.md`.
+Analyze a completed epic to extract lessons learned and patterns. Runs a **code-review pass over the epic's commits first** — its findings feed the retro (mirroring `/sweep`'s Phase 1→2 flow) — then produces `docs/.output/findings/reviews/retro-{epic-slug}.md`.
 
 ## Telemetry (run first)
 
@@ -45,7 +45,7 @@ Capture the epic's **commit range** (first → last commit) from `git log --onel
 
 ### 2. Run Code-Review Pass (main agent → code-reviewer)
 
-> **Skip this entire step if `--skip-review` is set** — but still gather any pre-existing code-review findings for this epic (a recent `docs/.output/reviews/*-code-review.md`, or `/sweep` Phase 1 output) and carry them into Steps 3 & 5.
+> **Skip this entire step if `--skip-review` is set** — but still gather any pre-existing code-review findings for this epic (a recent `docs/.output/findings/reviews/*-code-review.md`, or `/sweep` Phase 1 output) and carry them into Steps 3 & 5.
 
 Reuses the `/review:code-review` methodology, scoped to the epic. This is the retro's first analytical input — a fresh review whose findings surface in *What Didn't Go Well*, *System Improvements*, and the *Code Review Findings* section.
 
@@ -59,7 +59,7 @@ Reuses the `/review:code-review` methodology, scoped to the epic. This is the re
    - Instruction to evaluate Correctness, Security, Performance, Architecture Compliance, Memory Pattern Compliance, Test Coverage, and classify findings CRITICAL > MAJOR > MINOR > NIT
 4. **Consolidate** the findings (full table). They are now retro input — the `doc-writer` writes them into the retro's *Code Review Findings* section in Step 5, so there's **no separate file** (one artifact: the retro doc). This keeps the retro out of the `retro-*.md` glob's way (`/review:optimize-agents` + `/review:changelog` scan that glob for retrospectives, not review dumps).
 
-> **Posture:** the retro is *diagnostic*, not a fix loop. The code-review pass here **surfaces** findings for the retrospective — it does NOT auto-fix them (that's `/sweep` Phase 3, or a follow-up `/do`). For a deeper second opinion, run the standalone `/review:code-review --deep` or `--council` separately.
+> **Posture: resolve in-pass when standalone; defer to the wrapper inside `/sweep`.** A retro you run directly is bound by the operating standard like everything else — it does NOT just file findings for you to action later. After producing the retro doc it **resolves the actionable findings in the same pass** (Step 6.5): CRITICAL/MAJOR code-review findings, mechanical doc-drift, and clear single-target System-Improvement recs get fixed and re-verified; only genuine FORKS (mutually-exclusive approaches, irreversible/outward actions, a new-agent/taxonomy-scale decision) are surfaced for your call. The ONE exception: when retro runs **under `/sweep`** (which passes `--skip-review`), sweep's Phase 3 owns the fix loop — retro stays diagnostic there so nothing is fixed twice. For a deeper second opinion, run `/review:code-review --deep` or `--council` separately. (Canonical standard: `.claude/skills/verification-before-completion/SKILL.md` → "Autonomous & batch commands".)
 
 ### 3. Gather Data (main agent)
 
@@ -87,7 +87,7 @@ node .claude/core/memory-manager.js report
 Review existing patterns for relevance to this epic.
 
 **From Telemetry:**
-- Read `docs/.output/telemetry/command-usage.jsonl` (if it exists)
+- Read `docs/.output/.state/telemetry/command-usage.jsonl` (if it exists)
 - Filter entries to the epic's date range (use the first/last commit dates from git log)
 - Compute:
   - **Command frequency**: count of each `command_invocation` event grouped by `command` field
@@ -110,12 +110,12 @@ Use the Task tool with `subagent_type: "doc-writer"` to generate the retrospecti
 3. **The code-review findings from Step 2** (full findings table)
 4. Doc sync findings from Step 4
 5. The `doc-writer` agent auto-loads the `project-planning` skill via frontmatter.
-6. Instruction to write to `docs/.output/reviews/retro-{epic-slug}.md` using the output template below
+6. Instruction to write to `docs/.output/findings/reviews/retro-{epic-slug}.md` using the output template below
 7. Instruction to analyze: what went well, what didn't, key decisions, metrics, recommendations
 8. Instruction to populate the **Code Review Findings** section from Step 2, and to **weave CRITICAL/MAJOR findings into *What Didn't Go Well* and *System Improvements*** (a real bug that shipped is a "didn't go well"; a finding that points to a missing convention is a system improvement)
 9. Instruction to include a System Improvements section evaluating agent/skill/command/memory effectiveness
 10. Instruction to include the Doc Sync Summary from the check-sync findings
-11. **Output boundary (MUST include verbatim):** *"Your ONLY output is the retro markdown at the specified path. Do NOT create additional files. Do NOT write memories. Do NOT write to `.claude/agent-memory/`, `docs/.output/memories/`, or anywhere else. Main Agent handles memory extraction in Step 6."* The doc-writer tends to over-deliver when it sees a multi-step workflow described in the prompt — without this boundary, it has authored phantom memory directories outside its assigned task. Reference incident: 2026-04-20 retro MU dispatch.
+11. **Output boundary (MUST include verbatim):** *"Your ONLY output is the retro markdown at the specified path. Do NOT create additional files. Do NOT write memories. Do NOT write to `.claude/agent-memory/`, `docs/.output/.memory/`, or anywhere else. Main Agent handles memory extraction in Step 6."* The doc-writer tends to over-deliver when it sees a multi-step workflow described in the prompt — without this boundary, it has authored phantom memory directories outside its assigned task. Reference incident: 2026-04-20 retro MU dispatch.
 
 **Output template for the agent:**
 
@@ -215,17 +215,32 @@ node .claude/core/memory-manager.js create patterns "{pattern-id}" '{"descriptio
 
 **Promote existing patterns:** If a pattern created by `/do` (confidence 0.6) was validated during this epic, update its confidence to 0.8+.
 
+### 6.5. Resolve actionable findings in-pass (standalone runs only)
+
+> **Skip this step when invoked under `/sweep`** (`--skip-review` is set) — Phase 3 owns resolution there; resolving here too would double-fix.
+
+The retro is not done when findings are *filed* — it's done when the worth-fixing ones are *fixed*. Per the operating standard (`.claude/skills/verification-before-completion/SKILL.md` → "Autonomous & batch commands"), resolve in the same pass rather than handing the user a punch-list:
+
+- **CRITICAL / MAJOR code-review findings** → fix and re-verify. A real bug a retro surfaced is not a "next epic" item; it gets fixed now (delegate to `general-purpose` for non-trivial fixes, same as `/do`).
+- **Mechanical doc-drift** (from Step 4 check-sync) → apply the fix.
+- **Single-target System-Improvement recs** (update this skill, add this agent step, fix this command line) → apply them in-pass.
+- **Re-run `node .claude/core/gate.js test`** after any code fix; everything stays green before the Step 7 commit.
+
+Surface to the user (in Step 8) **only genuine forks**: mutually-exclusive approaches, irreversible/outward actions, or scope that materially expands (standing up a new agent, a taxonomy change). Everything else, the retro fixes.
+
 ### 7. Commit (main agent)
 
-Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — the retro doc and any memory updates — and commit with a descriptive message.
+Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — the retro doc, the in-pass fixes from Step 6.5, and any memory updates — and commit with a descriptive message.
 
 ### 8. Report (main agent)
 
 ```markdown
 ## Retrospective Complete
 
-**Output**: docs/.output/reviews/retro-{epic-slug}.md
+**Output**: docs/.output/findings/reviews/retro-{epic-slug}.md
 **Code review**: {critical}C/{major}M/{minor}m findings ({Deep/Standard/Fast-Lane}) — or "skipped (--skip-review)"
+**Resolved in-pass**: {N findings/recs fixed + re-verified (gate green), or "none — diagnostic only (ran under /sweep; Phase 3 resolves)"}
+**Forks for you**: {genuine decisions only — or "none — all actionable findings resolved in-pass"}
 **Patterns extracted**: {count}
 **Key takeaway**: {1 sentence}
 

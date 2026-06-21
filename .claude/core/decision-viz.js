@@ -31,7 +31,8 @@ const { renderDecisionHtml, printTextSummary, esc } = require('./_lib/decision-h
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-const OUTPUT_DIR = path.join(PROJECT_ROOT, 'docs', '.output');
+// ADR 0006: generated dashboards are regenerable state → docs/.output/.state/.
+const OUTPUT_DIR = path.join(PROJECT_ROOT, 'docs', '.output', '.state');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'decisions.html');
 const TEXT_ONLY = process.argv.includes('--text-only');
 

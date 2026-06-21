@@ -132,11 +132,11 @@ If option 2 or 3: delegate the rewrite to the project-planner agent with specifi
 Write the full analysis to disk before committing:
 
 ```bash
-mkdir -p docs/.output/reviews
+mkdir -p docs/.output/findings/reviews
 ```
 
 Write the complete backlog optimization report (dependency graph + critical path + parallel workstreams + recommendations) to:
-`docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
+`docs/.output/findings/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
 
 File format:
 ```markdown
@@ -150,7 +150,7 @@ File format:
 
 ### 7. Commit (main agent)
 
-Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md` — and commit with a descriptive message.
+Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/findings/reviews/{YYMMDD-HHMM}-backlog-optimization.md` — and commit with a descriptive message.
 
 ### 8. Report (main agent)
 
@@ -159,7 +159,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 
 **Input**: docs/work/backlog.md
 **Stories analyzed**: {count}
-**Output**: `docs/.output/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
+**Output**: `docs/.output/findings/reviews/{YYMMDD-HHMM}-backlog-optimization.md`
 **Critical path**: {count} stories, ~{hours} hours ({story chain})
 **Parallel tracks**: {count} independent workstreams identified
 **Optimizations found**: {count} over-specified deps, {count} phase moves

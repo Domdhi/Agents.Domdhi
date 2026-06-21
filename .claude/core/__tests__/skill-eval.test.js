@@ -7,7 +7,7 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 
 // NOTE: These tests assert the harness LOGIC against synthetic fixtures only.
-// They do NOT read the live docs/.output/skill-evolution tree.
+// They do NOT read the live docs/.output/evolution/skills tree.
 
 let m;
 let tmpDir;

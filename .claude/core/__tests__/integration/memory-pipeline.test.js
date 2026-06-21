@@ -104,7 +104,7 @@ describe('Memory Pipeline Integration', () => {
         ]);
 
         // Assert daily log files are on disk before compiling
-        const dailyDir = `${tmp.root}/docs/.output/memories/daily`;
+        const dailyDir = `${tmp.root}/docs/.output/.state/memory-daily`;
         const dailyFiles = fs.readdirSync(dailyDir);
         expect(dailyFiles, 'Stage 1: three daily log files should exist').toHaveLength(3);
 
@@ -113,7 +113,7 @@ describe('Memory Pipeline Integration', () => {
         const compiler = new MemoryCompiler();
         await compiler.compile();
 
-        const conceptsBase = `${tmp.root}/docs/.output/memories/concepts`;
+        const conceptsBase = `${tmp.root}/docs/.output/.state/memory-concepts`;
         expect(
             fs.existsSync(conceptsBase),
             'Stage 2: concepts/ directory should exist after compile()',
@@ -245,7 +245,7 @@ describe('Memory Pipeline Integration', () => {
         ).not.toBeNull();
 
         // Read and assert the JSONL output
-        const jsonlPath = `${tmp.root}/docs/.output/telemetry/memory-benchmark.jsonl`;
+        const jsonlPath = `${tmp.root}/docs/.output/.state/telemetry/memory-benchmark.jsonl`;
         expect(
             fs.existsSync(jsonlPath),
             'Stage 5: memory-benchmark.jsonl should exist after benchmark()',

@@ -11,10 +11,10 @@
  *   - Narrative markdown with ## sections, inline commit hashes, technical details
  *   - ## Objectives for Tomorrow section
  *
- * Target format: docs/.output/memories/daily/{YYYY-MM-DD}.md
+ * Target format: docs/.output/.state/memory-daily/{YYYY-MM-DD}.md
  *   - ## HH:MM — ingested entries with Branch, Recent Commits, In-Progress Work, Key Decisions
  *
- * Pipeline: memory-ingester.js (this tool) → docs/.output/memories/daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create
+ * Pipeline: memory-ingester.js (this tool) → docs/.output/.state/memory-daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create
  */
 
 const fs = require('fs');
@@ -23,7 +23,7 @@ const path = require('path');
 class MemoryIngester {
     constructor(outputDir) {
         const projectRoot = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-        this.outputDir = outputDir || path.join(projectRoot, 'docs', '.output', 'memories', 'daily');
+        this.outputDir = outputDir || path.join(projectRoot, 'docs', '.output', '.state', 'memory-daily');
     }
 
     // -------------------------------------------------------------------------
@@ -409,11 +409,11 @@ Usage:
 
 Options:
   --dry-run       Show what would be written without writing files
-  --output-dir    Override output directory (default: docs/.output/memories/daily/)
+  --output-dir    Override output directory (default: docs/.output/.state/memory-daily/)
 
 Source format:  daily_recap_YYYY_MM_DD.md (narrative recaps with YAML frontmatter)
 Target format:  YYYY-MM-DD.md (daily log entries for memory-extractor.js, manual Haiku pipeline)
-Pipeline:       memory-ingester.js (this tool) → docs/.output/memories/daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create`);
+Pipeline:       memory-ingester.js (this tool) → docs/.output/.state/memory-daily/YYYY-MM-DD.md → memory-extractor.js (manual Haiku pipeline, brownfield only) → memory-manager.js create`);
 }
 
 if (require.main === module) {

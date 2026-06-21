@@ -12,13 +12,13 @@
 
 const path = require('path');
 
-const DAILY_SUBPATH = ['docs', '.output', 'memories', 'daily'];
+const DAILY_SUBPATH = ['docs', '.output', '.state', 'memory-daily'];
 
 /**
  * Return the canonical daily-log directory for a project.
  *
  * @param {string} projectRoot  Absolute path to the project root
- * @returns {string}            <projectRoot>/docs/.output/memories/daily
+ * @returns {string}            <projectRoot>/docs/.output/.state/memory-daily
  */
 function getDailyDir(projectRoot) {
     return path.join(projectRoot, ...DAILY_SUBPATH);
@@ -29,7 +29,7 @@ function getDailyDir(projectRoot) {
  *
  * @param {Date|string} date     Date object, 'YYYY-MM-DD' string, or longer ISO string
  * @param {string}      projectRoot  Absolute path to the project root
- * @returns {string}             <projectRoot>/docs/.output/memories/daily/<YYYY-MM-DD>.md
+ * @returns {string}             <projectRoot>/docs/.output/.state/memory-daily/<YYYY-MM-DD>.md
  */
 function getDailyLogPath(date, projectRoot) {
     const dateStr = date instanceof Date

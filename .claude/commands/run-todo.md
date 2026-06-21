@@ -78,7 +78,7 @@ node .claude/core/gate.js test
 
 ### Step 1: Gather context
 
-**Check for existing research first.** If `/todo` was run, research files exist in `docs/.output/work/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
+**Check for existing research first.** If `/todo` was run, research files exist in `docs/.output/.state/work/{YYYY-MM-DD}/{slug}/`. Read them — do not re-scan.
 
 If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `Explore`) — Explore is read-only and cannot persist findings to disk.**
 
@@ -86,7 +86,7 @@ If no research exists, launch ONE research agent. **Use `general-purpose` (NOT `
 Agent(
   subagent_type: "general-purpose",
   model: "sonnet",
-  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/.output/work/{date}/{slug}/{time}-runtodo-research.md",
+  prompt: "For each pending story in {TODO_PATH}: find exact file paths, current file content, existing tests, and file ownership overlaps. Write findings to docs/.output/.state/work/{date}/{slug}/{time}-runtodo-research.md",
   description: "Research for {slug}"
 )
 ```
@@ -292,6 +292,8 @@ After all stories complete → proceed to Step 5 (gate).
 
 For each story in the wave, dispatch dev agents in parallel. Tests were already written by Main Agent in Step 2b — dev agents implement to pass them.
 
+**Parallel count-assertion rule (must be in every dispatch prompt for the wave).** When the wave fans out N agents that each add one item to a *globally-counted* list guarded by an architecture/structure test (nav-item count, registered-service count, `hub-card` count, RoleEntityType count), each dispatch prompt MUST instruct the agent **not to touch that count assertion**. Each agent independently bumping it `+1` yields a final count wrong by N — the classic `61→62` three times when the answer was `64`. The orchestrator reconciles the single correct total once at merge (failure-mode #3 in Step 4b is *orchestrator*-owned, not per-agent). Per-story local assertions (the agent's own new test) are still the agent's job — this rule is only for assertions that count across the whole accumulated set.
+
 ##### Populating the Prior Learnings block (per-story, before dispatch)
 
 For each story in the wave, Main Agent queries FTS5 with the story's title and relevant keywords, then reads the top 3–5 memory payloads:
@@ -299,7 +301,7 @@ For each story in the wave, Main Agent queries FTS5 with the story's title and r
 ```bash
 node .claude/core/memory-manager.js search "<story title + keywords>"
 # Then for each top result:
-cat docs/.output/memories/{category}/{id}.json
+cat docs/.output/.memory/{category}/{id}.json
 ```
 
 Rank results by `decayed_confidence * relevance` and keep the top 3–5. Format each as a labeled snippet: `- [category/id]: 1-2 sentence summary`.
@@ -416,7 +418,7 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 | Status | Action |
 |--------|--------|
 | **DONE** | Proceed to misalignment check |
-| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification. Log to docs/.output/agent-updates/{YYYY-MM-DD}.md. |
+| **DONE_WITH_CONCERNS** | Read concerns. If valid → fix before gate. Flag for closer AC verification. Log to docs/.output/evolution/agents/{YYYY-MM-DD}.md. |
 | **BLOCKED** | Read blocker. Fix if possible (missing file, wrong path, missing dep). If truly blocked → mark story `[!]`, remove from wave, continue with remaining stories. |
 | **NEEDS_CONTEXT** | Answer questions by reading more files. Re-dispatch that agent only with additional context. |
 
@@ -425,7 +427,7 @@ Skip this step if Main Agent implemented directly (Path A) — proceed to Step 5
 node .claude/core/_lib/attribution-ledger.js append \
   '{"story_id":"{story ID}","agent":"{agent-type}","model":"{sonnet|opus}","files_touched":["path/a","path/b"],"status":"{DONE|DONE_WITH_CONCERNS|BLOCKED}"}'
 ```
-One entry per dispatched story. The ledger lands at `docs/.output/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
+One entry per dispatched story. The ledger lands at `docs/.output/.state/telemetry/attribution-{YYMMDD}.jsonl` and appends within the day.
 
 **4b. Check for known failure modes:**
 
@@ -444,7 +446,7 @@ One entry per dispatched story. The ledger lands at `docs/.output/telemetry/attr
 
 **4c. Inbox curation — promote sub-agent memory drafts (Path B only).**
 
-Sub-agents flag draft memories to `docs/.output/memories/_inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). After fixing misalignments, before the gate:
+Sub-agents flag draft memories to `docs/.output/.state/memory-inbox/` during their work (per the `## Memory Inbox Protocol` block in every agent definition). After fixing misalignments, before the gate:
 
 > **`_inbox/` is the only channel this step curates (F28).** A dev sub-agent may *also* write to `.claude/agent-memory/{agent}/` — that's the agent's **private, agent-local scratchpad** (regenerable, gitignored per C10), not a promotion channel. It is intentionally **not** consumed by inbox curation and does not become a curated project memory. If a learning there is worth keeping project-wide, the agent must drop it in `_inbox/` (the reviewed path); don't go fishing in `.claude/agent-memory/` here. The two are separate by design: agent-local notebook vs. Main-Agent-reviewed promotion.
 
@@ -673,7 +675,7 @@ Log **every** agent misalignment, no matter how small. Model doesn't matter — 
 
 We only put up rails for things that go wrong. Do not log "what worked well" — noise crowds out signal.
 
-If any misalignment or quality issue was observed in Step 4, append to today's day-scoped log `docs/.output/agent-updates/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
+If any misalignment or quality issue was observed in Step 4, append to today's day-scoped log `docs/.output/evolution/agents/{YYYY-MM-DD}.md` (create the file if today's doesn't exist — the `agent-updates/` folder rotates by day so no single file grows unbounded):
 
 ```markdown
 ## {date} — Wave {N} ({story IDs})
@@ -719,7 +721,7 @@ Why per-wave: if the session dies after this wave, the next session's `/prime` s
 
 **8f. Commit (wave + TODO updates + plan + handoff, all atomic)**
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 feat: wave {N} — {story IDs joined}
@@ -828,7 +830,7 @@ node .claude/hooks/organize.cjs
 | Misalignments fixed | {n} |
 | File ownership violations | {n} |
 | Signature mismatches | {n} |
-| Issues logged to docs/.output/agent-updates/{YYYY-MM-DD}.md | {n} |
+| Issues logged to docs/.output/evolution/agents/{YYYY-MM-DD}.md | {n} |
 
 ### Issues
 {Any blocked stories, deferred items, manual-only ACs needing UI testing}
@@ -845,7 +847,7 @@ After the plan file is updated, regenerate the session handoff ONE MORE TIME usi
 
 The plan file update + final handoff need a small follow-up commit (the last wave's commit already covered implementation):
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool — no shell escaping):
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool — no shell escaping):
 
 ```
 docs: /run-todo {slug} — final report + handoff
@@ -885,7 +887,7 @@ Stories that are read-only verification (no code changes):
 8. **AC verification is a gate, not a formality.** Every AC bullet is checked. Failed AC = not done. This applies to BOTH paths.
 9. **Every wave commit regenerates the session handoff** (the run's single `$HANDOFF` file, captured once on wave 1). Phase 2 Step 8e is non-optional. If the run stops mid-way, the next session's `/prime` sees a handoff pointed at the right resume wave. Use the `session-handoff` skill.
 10. **Always update TODO after completing a story. Always commit after updating TODO.** Before starting a story, check for pending commits.
-11. **Log every agent fuck-up to `docs/.output/agent-updates/{YYYY-MM-DD}.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
+11. **Log every agent fuck-up to `docs/.output/evolution/agents/{YYYY-MM-DD}.md`.** Every misalignment, no matter how small. `/review:optimize-agents` decides what's systemic, not you. Only applies when delegation was used (Path B). Do not log "what worked well" — rails are for failures only.
 12. **Log new decisions and implementations** that affect agent alignment. Keep agents current.
 13. **Use `/review:organize` to clean up plan files** after they're created.
 14. **Commit per wave, not per story.** Keeps git history clean and atomic.

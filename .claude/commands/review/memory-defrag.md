@@ -58,7 +58,7 @@ Dispatch a Sonnet `general-purpose` agent with this prompt template:
 TASK: Analyze the memory store for overlap clusters. Output a markdown plan
 with discrete merge / split / cross-ref proposals.
 
-INPUT: All memories under docs/.output/memories/{decisions,patterns,constraints,workflows,rejected-approaches}/.
+INPUT: All memories under docs/.output/.memory/{decisions,patterns,constraints,workflows,rejected-approaches}/.
 Read every JSON file. Examine the `content` object — particularly `description`,
 `evidence`, `wrong_pattern`, `correct_pattern`, `alternatives`, `reference`, and
 `code_example` fields. The `metadata.confidence` and `usage_count` are also signals.
@@ -126,7 +126,7 @@ DO NOT modify any memory files. You are read-only. Report back when done.
 
 ### Step 2: Persist the plan BEFORE user interaction
 
-Read the agent's reply. Persist it to `docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md` with this header:
+Read the agent's reply. Persist it to `docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md` with this header:
 
 ```markdown
 # Memory Defrag — {YYYY-MM-DD}
@@ -165,7 +165,7 @@ For each proposal in the agent's plan (in order):
 For each accepted proposal:
 
 #### MERGE
-1. Read primary and duplicate memories: `cat docs/.output/memories/{cat}/{id}.json`
+1. Read primary and duplicate memories: `cat docs/.output/.memory/{cat}/{id}.json`
 2. Construct merged `content` object — primary's content wins by default; specific fields from duplicate that are load-bearing (evidence, code_example, reference, alternatives entries) get appended to the corresponding fields in the merged content.
 3. Update primary:
    ```bash
@@ -211,25 +211,25 @@ If the category is at 49 (one below the hard cap of 50), warn the user and sugge
 Stage the modified memory JSON files plus the plan file:
 
 ```bash
-git add docs/.output/memories/ docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
+git add docs/.output/.memory/ docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
-Write the commit message to `docs/.output/.commit-msg` (Write tool) then `node .claude/core/commit.js`:
+Write the commit message to `docs/.output/.state/.commit-msg` (Write tool) then `node .claude/core/commit.js`:
 ```
 docs: /review:memory-defrag — N proposals applied
 
 {Brief summary: M merges, S splits, X cross-refs.}
 
-Plan: docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
+Plan: docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
 If zero proposals were accepted, commit only the plan file (it's still a useful audit artifact):
 
 ```bash
-git add docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
+git add docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md
 ```
 
-Write the commit message to `docs/.output/.commit-msg` then `node .claude/core/commit.js`:
+Write the commit message to `docs/.output/.state/.commit-msg` then `node .claude/core/commit.js`:
 ```
 docs: /review:memory-defrag — analysis only (0 proposals applied)
 ```
@@ -241,7 +241,7 @@ If the agent abstained (no overlap identified), skip the commit entirely — the
 ```markdown
 ## /review:memory-defrag Complete
 
-**Plan:** docs/.output/reviews/{YYMMDD-HHMM}-memory-defrag.md
+**Plan:** docs/.output/findings/reviews/{YYMMDD-HHMM}-memory-defrag.md
 
 | Proposal | Type | Action | Result |
 |----------|------|--------|--------|
@@ -270,4 +270,4 @@ Memory corpus size: before {N_before} → after {N_after}.
 - Companion command: `/review:memory-health` (lint + decay, read-only)
 - Companion command: `/review:promote-memories` (concept-to-template promotion)
 - Light dedup runs on Stop hook via `memory-curator.js` (strict profile only) — defrag is the heavier, less frequent intervention
-- Memory architecture decision: `docs/.output/reviews/2026-04-20-adr-memory-unification.md`
+- Memory architecture decision: `docs/.output/findings/reviews/2026-04-20-adr-memory-unification.md`

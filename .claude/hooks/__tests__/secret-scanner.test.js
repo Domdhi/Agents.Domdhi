@@ -291,7 +291,7 @@ describe('recordScannerBlock', () => {
     const { recordScannerBlock } = scanner;
 
     function readGuardrailEvents(root) {
-        const p = path.join(root, 'docs', '.output', 'telemetry', 'guardrail-events.jsonl');
+        const p = path.join(root, 'docs', '.output', '.state', 'telemetry', 'guardrail-events.jsonl');
         if (!fs.existsSync(p)) return [];
         return fs.readFileSync(p, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
     }

@@ -10,7 +10,7 @@
 // (both CLIs silently leave it unset sometimes — never trust the create output).
 //
 // WORKFLOW:
-//   1. Write the PR body (markdown) to docs/.output/.pr-body using the Write tool
+//   1. Write the PR body (markdown) to docs/.output/.state/.pr-body using the Write tool
 //      (no shell escaping). Or pass --body-file <path>.
 //   2. Run:
 //        node .claude/core/pull-request.js create --title "feat: thing"
@@ -33,7 +33,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_BODY_FILE = path.join('docs', '.output', '.pr-body');
+const DEFAULT_BODY_FILE = path.join('docs', '.output', '.state', '.pr-body');
 
 // ── External-CLI spawn (az/gh are .cmd shims on Windows) ─────────────────────
 // Node >= the CVE-2024-27980 fix refuses to spawn .cmd/.bat files without a shell:

@@ -101,8 +101,8 @@ Also check for:
 Check for runtime agent issues tracked by `/do` and `/run-todo`:
 
 ```
-Read: docs/.output/agent-updates/*.md (newest day-files; e.g. last 30 days)
-      ↳ fall back to legacy flat docs/.output/agent-updates.md if the folder is absent
+Read: docs/.output/evolution/agents/*.md (newest day-files; e.g. last 30 days)
+      ↳ fall back to legacy flat docs/.output/evolution/agents.md if the folder is absent
 ```
 
 The `agent-updates/` folder rotates by day (`{YYYY-MM-DD}.md`) so no single file grows unbounded — read across the recent files. These contain:
@@ -119,7 +119,7 @@ Cross-reference issues against agent context sections. If an agent repeatedly ca
 Search for system improvement recommendations:
 
 ```
-Glob: docs/.output/reviews/retro-*.md
+Glob: docs/.output/findings/reviews/retro-*.md
 ```
 
 For each retro file, extract the `## System Improvements` table:
@@ -172,7 +172,7 @@ Delegate skill audit to the `code-reviewer` agent via Task tool with `subagent_t
 2. List of all skill directories: `Glob: .claude/skills/*/SKILL.md`
 3. Instruction to classify each skill: `ACTIVE` (covers tech in codebase), `NOT_USED` (covers tech not in codebase)
 4. Instruction to identify gaps: technologies in `DETECTED_STACK` with no corresponding skill
-5. Instruction to cross-reference retro findings from `Glob: docs/.output/reviews/retro-*.md` for skill improvement recommendations
+5. Instruction to cross-reference retro findings from `Glob: docs/.output/findings/reviews/retro-*.md` for skill improvement recommendations
 6. The `code-reviewer` agent auto-loads the `code-review` skill via frontmatter
 
 **Agent must return**: Skill classification table, gap list with suggested names, and unapplied retro recommendations.
@@ -203,11 +203,11 @@ node .claude/core/memory-health-check.js
 Write the full scan results to disk before committing:
 
 ```bash
-mkdir -p docs/.output/reviews
+mkdir -p docs/.output/findings/reviews
 ```
 
 Write the complete optimization report (stack scan + agent alignment + skill audit + memory health) to:
-`docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`
+`docs/.output/findings/reviews/{YYMMDD-HHMM}-agent-optimization.md`
 
 File format:
 ```markdown
@@ -221,7 +221,7 @@ File format:
 
 ### 10. Commit (main agent)
 
-Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md` — and commit with a descriptive message.
+Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files created or modified by this command — including `docs/.output/findings/reviews/{YYMMDD-HHMM}-agent-optimization.md` — and commit with a descriptive message.
 
 ### 11. Report (main agent)
 
@@ -231,7 +231,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ### Run Mode: {--fix / --dry-run / --report-only}
 ### Date: {YYYY-MM-DD}
 ### Project: {PROJECT_NAME}
-### Output: `docs/.output/reviews/{YYMMDD-HHMM}-agent-optimization.md`
+### Output: `docs/.output/findings/reviews/{YYMMDD-HHMM}-agent-optimization.md`
 
 ---
 
@@ -352,7 +352,7 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 ```
 /specialize --fix          (once, during initial project setup)
     ↓
-/do | /run-todo            (builds code, logs agent issues to docs/.output/agent-updates/{date}.md)
+/do | /run-todo            (builds code, logs agent issues to docs/.output/evolution/agents/{date}.md)
     ↓
 /retro                     (after epic, promotes patterns to 0.8, flags system issues)
     ↓
@@ -364,8 +364,8 @@ Follow the **Post-Command Commit Convention** in CLAUDE.md. Stage all files crea
 
 **Data sources for optimization:**
 ```
-docs/.output/agent-updates/{date}.md  ← runtime issues from /do and /run-todo (day-rotated, continuous)
-docs/.output/reviews/retro-*.md                ← system improvements from /retro (per epic)
+docs/.output/evolution/agents/{date}.md  ← runtime issues from /do and /run-todo (day-rotated, continuous)
+docs/.output/findings/reviews/retro-*.md                ← system improvements from /retro (per epic)
 codebase scan                  ← actual dependencies, patterns, structure (live)
 memory system                  ← proven patterns at confidence ≥ 0.7 (accumulated)
 ```

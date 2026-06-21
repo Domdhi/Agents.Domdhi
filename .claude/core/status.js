@@ -5,7 +5,7 @@
  *
  * Scans for TODO files in docs/, parses checkbox markers, and produces:
  *   - A compact text summary to stdout
- *   - An HTML dashboard at docs/.output/status.html
+ *   - An HTML dashboard at docs/.output/.state/status.html
  *
  * Usage:
  *   node .claude/core/status.js              # Full scan + HTML
@@ -40,7 +40,10 @@ const { readSummary }       = require('./_lib/gate-summary');
 const { generateHtml, esc } = require('./_lib/status-html');
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
-const OUTPUT_DIR   = path.join(PROJECT_ROOT, 'docs', '.output');
+// ADR 0006: generated dashboards are regenerable state → docs/.output/.state/.
+// OUTPUT_DIR feeds both status.html and the decisions.html link below (line ~688),
+// so both land in .state together.
+const OUTPUT_DIR   = path.join(PROJECT_ROOT, 'docs', '.output', '.state');
 const OUTPUT_FILE  = path.join(OUTPUT_DIR, 'status.html');
 const TEXT_ONLY    = process.argv.includes('--text-only');
 
@@ -234,7 +237,7 @@ function parseStoryHeaderChecklist(lines, result, storyHeader) {
 // directory layout and have no other consumers.
 
 function computeTelemetryMetrics(projectRoot) {
-  const telemetryFile = path.join(projectRoot, 'docs', '.output', 'telemetry', 'command-usage.jsonl');
+  const telemetryFile = path.join(projectRoot, 'docs', '.output', '.state', 'telemetry', 'command-usage.jsonl');
   if (!fs.existsSync(telemetryFile)) return null;
   let raw;
   try { raw = fs.readFileSync(telemetryFile, 'utf8'); } catch { return null; }
@@ -266,7 +269,7 @@ function computeTelemetryMetrics(projectRoot) {
   }
 
   let sessions = 0;
-  const sessionsDir = path.join(projectRoot, 'docs', '.output', 'sessions');
+  const sessionsDir = path.join(projectRoot, 'docs', '.output', '.state', 'sessions');
   try {
     if (fs.existsSync(sessionsDir))
       sessions = fs.readdirSync(sessionsDir, { withFileTypes: true }).filter(e => e.isDirectory()).length;
@@ -278,7 +281,7 @@ function computeTelemetryMetrics(projectRoot) {
 
 // Parse memory-benchmark.jsonl for last-30-days hit rate (AMEM-8.1).
 function parseMemoryBenchmark(projectRoot) {
-  const file = path.join(projectRoot, 'docs', '.output', 'telemetry', 'memory-benchmark.jsonl');
+  const file = path.join(projectRoot, 'docs', '.output', '.state', 'telemetry', 'memory-benchmark.jsonl');
   if (!fs.existsSync(file)) return null;
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); } catch { return null; }

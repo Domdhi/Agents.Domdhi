@@ -51,8 +51,8 @@ See [`./skills.md`](./skills.md) for the skill catalog and the auto-load mechani
 Most tasks don't need an agent — the main agent handles them directly. Dispatch when:
 
 - **The task spans many files or exceeds ~500 new LOC** → `general-purpose` (Forge). Delegation overhead pays off at that size; below it, main-agent-direct is faster and loses nothing in translation.
-- **You need an independent second opinion on code quality** → `code-reviewer`. Read-only by design — produces review artifacts at `docs/.output/reviews/`, never modifies source.
-- **Pre-merge security review** → `security-auditor`. Writes audit reports to `docs/.output/reviews/`. Scope-limited write: cannot edit source files.
+- **You need an independent second opinion on code quality** → `code-reviewer`. Read-only by design — produces review artifacts at `docs/.output/findings/reviews/`, never modifies source.
+- **Pre-merge security review** → `security-auditor`. Writes audit reports to `docs/.output/findings/reviews/`. Scope-limited write: cannot edit source files.
 - **A story has acceptance criteria and no tests** → `qa-engineer`. Writes tests from AC *before* implementation — the TDD gate in `/do` Step 5.
 - **End-of-epic docs, changelogs, mechanical TODO updates** → `doc-writer`. Haiku is fine for template-driven output.
 - **Browser testing, screenshot-driven verification** → `playwright`. Haiku is fine — DOM checks don't need Opus reasoning.

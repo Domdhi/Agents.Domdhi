@@ -54,10 +54,10 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | Command | Agent | Skill | Modifies files? |
 |---------|-------|-------|----------------|
 | `/review:code-review` | code-reviewer | code-review | No (read-only) |
-| `/review:security` | security-auditor | code-review | Yes (writes to `docs/.output/reviews/`) |
+| `/review:security` | security-auditor | code-review | Yes (writes to `docs/.output/findings/reviews/`) |
 | `/review:check-readiness` | architect + product-strategist + project-planner + ux-designer | project-planning, architecture, ux-design | No (read-only) |
 | `/review:check-sync` | architect + project-planner + product-strategist | — | No (read-only) |
-| `/review:check-templates` | — (main) | — | Yes (writes to `docs/.output/reviews/`, `--multi` for cross-project) |
+| `/review:check-templates` | — (main) | — | Yes (writes to `docs/.output/findings/reviews/`, `--multi` for cross-project) |
 | `/review:update-docs` | doc-writer | project-planning | Yes (fixes drift) |
 | `/review:qa` | qa-engineer | qa-engineer | Yes (generates tests) |
 | `/review:optimize-backlog` | project-planner | project-planning | Optional |
@@ -66,7 +66,7 @@ This is a **reference** doc: tables, inventories, and workflow graphs, kept in s
 | `/review:specialize` | architect | tailwind (as exemplar) | Yes (updates agents, creates skills) |
 | `/review:optimize-agents` | — (main) | — | Optional (--fix mode) |
 | `/review:personalize` | doc-writer | — | Yes (updates agent files) |
-| `/review:memory-health` | — (script) | — | Yes (writes to `docs/.output/reviews/` when not SILENT) |
+| `/review:memory-health` | — (script) | — | Yes (writes to `docs/.output/findings/reviews/` when not SILENT) |
 | `/review:promote-memories` | — (script) | — | Optional (marks promotions) |
 
 ---
@@ -226,7 +226,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 
 | Script | Purpose |
 |--------|---------|
-| `gate.js` | Build/test gate with auto-detection. Output: `docs/.output/telemetry/` |
+| `gate.js` | Build/test gate with auto-detection. Output: `docs/.output/.state/telemetry/` |
 | `constants.js` | System-wide constants, phase artifacts, doc chain, memory decay config |
 | `scaffold.js` | Copies templates → `docs/` and root configs |
 | `memory-manager.js` | Memory CRUD + search + active-day decay + linting (JSON + SQLite FTS5) + inbox pattern (`inboxList/Promote/Discard`) + `deleteMemory` for /review:memory-defrag merge operations |
@@ -242,7 +242,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `template-updater.js` | Zone-aware template sync to downstream projects (`--merge`, `--dry-run`) |
 | `guardrail-stats.js` | Guardrail hit-counter reporter — aggregates `guardrail-events.jsonl` (block/nudge/confirm) by decision + rule (`npm run guardrail:stats`, `--json`/`--since`/`--top`) |
 | `_lib/hook-telemetry.js` | Hook telemetry emitters — `emitHookEvent` (timing) + `emitGuardrailHit` (guardrail hit counter, secret-safe: rule/decision/tier, never the raw command) |
-| `_lib/project-root.js` | `resolveProjectRoot()` — anchors the gitignored memory store (`docs/.output/memories/`) to the MAIN git worktree via `git rev-parse --git-common-dir`, so all linked worktrees share one store (no copy, no loss on worktree removal). Precedence: `CLAUDE_PROJECT_DIR` > git-common-dir > `__dirname/../..` (non-git fallback). Used by `memory-manager.js` + the `memory-capture`/`session-start-prime` hooks |
+| `_lib/project-root.js` | `resolveProjectRoot()` — anchors the **gitignored** `.state/memory-*` parts (FTS5 index, inbox, daily logs) to the MAIN git worktree via `git rev-parse --git-common-dir`, so all linked worktrees share one index/inbox (no copy, no loss on worktree removal). The **tracked** `.memory/` JSON source instead resolves via `resolveWorktreeRoot()` — a linked worktree checks it out naturally (ADR 0006 Am. 2). Precedence: `CLAUDE_PROJECT_DIR` > git-common-dir > `__dirname/../..` (non-git fallback). Used by `memory-manager.js` + the `memory-capture`/`session-start-prime` hooks |
 | `tools/fleet.js` | Fleet orchestrator (workshop-only, not shipped) — roster-driven (`tools/fleet.json`) `status`/`sync`/`release` wrapping template-updater + publish + gate into one pass with a rollup (`npm run fleet:status\|sync\|release`). `release` caps `version.json` at `CHANGELOG_INLINE_CAP` (3) releases inline; older entries overflow to root `CHANGELOG.md` (workshop-only, never synced) |
 | `status.js` | TODO progress + metrics → text + HTML dashboard |
 | `memory-health-check.js` | Headless memory health check — lint + decay report for `/review:memory-health` |
@@ -262,7 +262,7 @@ One intentional exception: `specialize.md` tells the architect to read `tailwind
 | `post-read-scrubber.cjs` | Post-Read | Warns on secrets in read files (non-blocking) |
 | `organize.cjs` | Post-ExitPlanMode, Post-Bash | Organizes plans + screenshots into dated folders |
 | `damage-control.cjs` | Post-Bash | Error analysis on failures — prevents retry spin loops |
-| `command-usage-logger.cjs` | Post-Read/Bash | Logs command invocations + gate runs to `docs/.output/telemetry/` |
+| `command-usage-logger.cjs` | Post-Read/Bash | Logs command invocations + gate runs to `docs/.output/.state/telemetry/` |
 | `memory-guard.cjs` | Post-Write | Warns when memory category approaches limit |
 | `memory-capture.cjs` | Stop, PostToolUse:Bash | Captures daily log on Stop + curates under strict profile; commit enrichment on Bash. Compile pipeline retired 2026-04-20. |
 | `session-start-prime.cjs` | SessionStart | Injects top structured memories (JSON from `memory-manager.js`) as system-reminder at session opening |
