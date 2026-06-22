@@ -152,10 +152,31 @@ describe('isPathSkipped — allowlist', () => {
         expect(mig.isPathSkipped('.claude/core/migrate-docs-domains.js')).toBe(true);
         expect(mig.isPathSkipped('node_modules/x/index.js')).toBe(true);
     });
+    it('skips linked worktrees (a separate checkout, not ours to rewrite)', () => {
+        expect(mig.isPathSkipped('.claude/worktrees/feature-x/.claude/commands/do.md')).toBe(true);
+        expect(mig.isPathSkipped('worktrees/wt/CLAUDE.md')).toBe(true);
+    });
     it('does NOT skip ordinary template files', () => {
         expect(mig.isPathSkipped('.claude/commands/do.md')).toBe(false);
         expect(mig.isPathSkipped('docs/reference/system-map.md')).toBe(false);
         expect(mig.isPathSkipped('CLAUDE.md')).toBe(false);
+    });
+});
+
+describe('collectFiles — nested-checkout guard', () => {
+    it('never descends into a directory holding a .git entry', () => {
+        const root = mkTmp();
+        fs.mkdirSync(path.join(root, '.claude'), { recursive: true });
+        fs.writeFileSync(path.join(root, '.claude/keep.md'), 'x');
+        fs.mkdirSync(path.join(root, '.claude/wt'), { recursive: true });
+        fs.writeFileSync(path.join(root, '.claude/wt/.git'), 'gitdir: /elsewhere'); // linked worktree marker
+        fs.writeFileSync(path.join(root, '.claude/wt/leak.md'), 'x');
+
+        const found = mig.collectFiles(path.join(root, '.claude'), root, [])
+            .map((f) => path.relative(root, f).split(path.sep).join('/'));
+
+        expect(found).toContain('.claude/keep.md');
+        expect(found.some((f) => f.includes('/wt/'))).toBe(false);
     });
 });
 

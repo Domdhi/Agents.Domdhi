@@ -4,11 +4,14 @@
 // routing, idempotency, the bare-catch-all boundary guard (no over-match), and the
 // prose skip-list that protects historical/append-only records and test fixtures.
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { transform, isSkippedMd } = require('../migrate-memory-store-paths');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { transform, isSkippedMd, walk, isNestedCheckout } = require('../migrate-memory-store-paths');
 
 describe('migrate-memory-store-paths — transform RULES', () => {
     it('routes each derived/transient sub-path under .state/memory-*', () => {
@@ -73,5 +76,44 @@ describe('migrate-memory-store-paths — isSkippedMd (historical-record protecti
         expect(isSkippedMd('docs/reference/concepts/memory.md', 'memory.md')).toBe(false);
         // an active (non-wave-1b) TODO is still swept
         expect(isSkippedMd('docs/work/todo/TODO_memory-value-system.md', 'TODO_memory-value-system.md')).toBe(false);
+    });
+});
+
+describe('migrate-memory-store-paths — walk() scan-scope guard', () => {
+    let tmp;
+    afterEach(() => { if (tmp) { fs.rmSync(tmp, { recursive: true, force: true }); tmp = null; } });
+
+    function mk(rel, body = 'x') {
+        const abs = path.join(tmp, rel);
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, body);
+    }
+
+    it('never descends into archived history, worktrees/, or a nested git checkout', () => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mmsp-walk-'));
+        mk('live/keep.md');                 // ordinary file — must be collected
+        mk('.archive/old.md');              // archived history — skip
+        mk('_archive/older.md');            // archived history — skip
+        mk('worktrees/wt/leak.md');         // conventional worktree home — skip by dir name
+        mk('node_modules/dep/x.js');        // vendored — skip
+        // a linked worktree placed OUTSIDE worktrees/ — marked by a `.git` entry
+        mk('elsewhere/.git', 'gitdir: /somewhere');
+        mk('elsewhere/leak.md');
+
+        const found = walk(tmp).map((f) => path.relative(tmp, f).split(path.sep).join('/'));
+
+        expect(found).toContain('live/keep.md');
+        expect(found.some((f) => f.includes('.archive/') || f.includes('_archive/'))).toBe(false);
+        expect(found.some((f) => f.startsWith('worktrees/'))).toBe(false);
+        expect(found.some((f) => f.startsWith('node_modules/'))).toBe(false);
+        expect(found.some((f) => f.startsWith('elsewhere/'))).toBe(false); // nested-checkout guard
+    });
+
+    it('isNestedCheckout detects a directory holding a .git entry', () => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mmsp-nested-'));
+        mk('repo/.git', 'gitdir: x');
+        mk('plain/file.md');
+        expect(isNestedCheckout(path.join(tmp, 'repo'))).toBe(true);
+        expect(isNestedCheckout(path.join(tmp, 'plain'))).toBe(false);
     });
 });

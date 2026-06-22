@@ -124,6 +124,7 @@ const SKIP_PATH_RES = [
     /(^|\/)\.git(\/|$)/,
     /(^|\/)_archive(\/|$)/,
     /(^|\/)\.archive(\/|$)/,
+    /(^|\/)worktrees(\/|$)/,           // linked git worktrees — a separate checkout, not ours
     /(^|\/)\.output(\/|$)/,            // generated reports/memories (incl. the ADR + this plan)
     /(^|\/)architecture\/decisions(\/|$)/,   // ADRs are immutable as-of-date history
     /(^|\/)CHANGELOG\.md$/,            // historical release notes
@@ -428,6 +429,9 @@ function collectFiles(absRoot, projectRoot, acc) {
     const rel = path.relative(projectRoot, absRoot);
     if (rel && isPathSkipped(rel)) return acc;
     if (stat.isDirectory()) {
+        // Never descend into a nested git checkout (linked worktree / submodule /
+        // nested clone) — a `.git` entry marks a foreign tree we must not rewrite.
+        if (rel && fs.existsSync(path.join(absRoot, '.git'))) return acc;
         for (const entry of fs.readdirSync(absRoot)) {
             collectFiles(path.join(absRoot, entry), projectRoot, acc);
         }

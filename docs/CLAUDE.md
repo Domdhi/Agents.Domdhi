@@ -65,10 +65,14 @@ docs/
 ├── modules/{name}/            # Per-feature zoom — mirrors the codebase
 │   └── brief.md               # Scope, key files, dependencies (+ more as earned)
 │
-└── .output/                   # Operational output (partly gitignored — see note)
-    ├── handoffs/  reviews/  investigations/  research/  plans/
-    ├── memories/  telemetry/  intake/  triage/  canary/  agent-updates/
-    └── work/{date}/{task}/     # Task working files (gitignored, dated/ephemeral)
+└── .output/                   # Generated zone (ADR 0006 lifecycle split)
+    ├── handoffs/  findings/  plans/  evolution/   # durable history — TRACKED
+    │      # findings/ = reviews + investigations + research
+    │      # evolution/ = intake + triage + canary + skills + agents
+    ├── .memory/                # curated memory SOURCE — TRACKED, syncs over git
+    │      # patterns/ constraints/ decisions/ workflows/ rejected-approaches/
+    └── .state/                 # ALL regenerable/derived/transient — GITIGNORED (one folder)
+           # memory-{index,inbox,daily}/ telemetry/ sessions/ screenshots/ work/{date}/{task}/
 ```
 
 ## Conventions
@@ -84,10 +88,12 @@ docs/
 - **`work/` owns the durable plan** (backlog, roadmap, timeline, todo). Ephemeral
   task working files live in the generated zone at `.output/.state/work/{date}/{task}/`,
   not in `work/` — so the living plan stays scannable and scratch never ships.
-- **`.output/` is operational.** Only the regenerable/session-specific subdirs are
-  gitignored (`work/`, `memories/`, `telemetry/`, `screenshots/`, `sessions/`,
-  generated `status.html`); durable records (`plans/`, `reviews/`, `research/`,
-  `investigations/`, `handoffs/`) are **tracked**.
+- **`.output/` is operational (ADR 0006 lifecycle split).** One gitignored folder —
+  `.output/.state/` — holds ALL regenerable/derived/transient state (the rebuilt
+  memory index, drafts, daily logs, telemetry, sessions, screenshots, `work/` scratch,
+  `status.html`). Durable history (`handoffs/`, `findings/`, `plans/`, `evolution/`)
+  and the curated memory SOURCE (`.memory/`) are **tracked**. The boundary is a
+  folder, not a path list — nothing under `.state/` can be tracked-despite-ignored.
 
 ## Adding a New Module
 

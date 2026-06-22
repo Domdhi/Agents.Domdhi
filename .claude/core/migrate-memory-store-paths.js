@@ -20,6 +20,12 @@
  * rules run BEFORE the bare catch-all, so each literal is rewritten exactly once;
  * the result no longer contains `.output/memories`, making the pass idempotent.
  *
+ * SCAN SAFETY: the walker never descends into vendored/VCS dirs, test trees,
+ * archived history (`.archive/`/`_archive/`), `worktrees/`, or ANY directory holding
+ * a `.git` entry (a linked worktree / submodule / nested clone — a foreign checkout,
+ * not ours to rewrite). Without this an adopter run would corrupt archived records and
+ * a separate worktree's tree.
+ *
  * CODE SCOPE: .js/.cjs under .claude/core/ + .claude/hooks/. EXCLUDED (hand-edited —
  * a literal rewrite would be semantically wrong there):
  *   - memory-guard.cjs       — detects the store via a bare `'memories'` token (logic, not a path literal)
@@ -102,14 +108,29 @@ const RULES = [
     [/docs\/\.output\/memories(?![\w-])/g, 'docs/.output/.memory'],
 ];
 
-// Generic walker — collects every file, skipping vendored/VCS dirs. Callers filter.
+// Dir names never descended into: vendored/VCS, test trees (fixtures hold
+// intentional old-path strings as regression assertions — rewriting breaks them),
+// archived history (a rewrite would falsify the record), and `worktrees/` (the
+// conventional home for linked git worktrees — a separate checkout, not ours to touch).
+const SKIP_DIR_NAMES = new Set([
+    'node_modules', '.git', '__tests__', '_helpers', '.archive', '_archive', 'worktrees',
+]);
+
+// A directory holding a `.git` entry is a FOREIGN checkout — a linked worktree (.git
+// file), submodule, or nested clone — regardless of where it sits. Never rewrite inside
+// it. Belt-and-braces with SKIP_DIR_NAMES so a worktree placed outside `worktrees/` is
+// still skipped.
+function isNestedCheckout(dir) {
+    try { return fs.existsSync(path.join(dir, '.git')); } catch { return false; }
+}
+
+// Generic walker — collects every file, skipping vendored/VCS/archive/worktree dirs.
 function walk(dir, out = []) {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, ent.name);
         if (ent.isDirectory()) {
-            // Skip vendored/VCS dirs and test trees — fixtures hold intentional
-            // old-path strings as regression assertions; rewriting breaks them.
-            if (['node_modules', '.git', '__tests__', '_helpers'].includes(ent.name)) continue;
+            if (SKIP_DIR_NAMES.has(ent.name)) continue;
+            if (isNestedCheckout(full)) continue;
             walk(full, out);
         } else {
             out.push(full);
@@ -182,5 +203,5 @@ function main() {
 
 if (require.main === module) main();
 
-// Exported for unit tests (the pure transforms + the prose skip predicate).
-module.exports = { transform, isSkippedMd, RULES };
+// Exported for unit tests (the pure transforms + the prose/dir skip predicates).
+module.exports = { transform, isSkippedMd, walk, isNestedCheckout, SKIP_DIR_NAMES, RULES };
