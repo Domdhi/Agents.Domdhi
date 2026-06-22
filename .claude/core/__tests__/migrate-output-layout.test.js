@@ -163,6 +163,65 @@ describe('isPathSkipped — allowlist', () => {
     });
 });
 
+describe('effectiveRefRewrites — tracked-work carve-out', () => {
+    function gitInit(root) {
+        execFileSync('git', ['init', '-q'], { cwd: root });
+        execFileSync('git', ['config', 'user.email', 't@t'], { cwd: root });
+        execFileSync('git', ['config', 'user.name', 't'], { cwd: root });
+    }
+    const hasWorkRule = (rules) => rules.some(([t]) => t === mig.WORK_REF_RULE_TOKEN);
+
+    it('keeps the full ruleset when .output/work has NO tracked files (workshop case)', () => {
+        const root = mkTmp();
+        gitInit(root);
+        const r = mig.effectiveRefRewrites(root);
+        expect(r.suppressedWork).toBe(false);
+        expect(r.trackedCount).toBe(0);
+        expect(hasWorkRule(r.rules)).toBe(true);
+    });
+
+    it('drops the work→.state rule when .output/work has tracked files (adopter case)', () => {
+        const root = mkTmp();
+        gitInit(root);
+        write(root, 'docs/.output/work/FINDINGS.md', 'durable cited content');
+        execFileSync('git', ['add', 'docs/.output/work/FINDINGS.md'], { cwd: root });
+        const r = mig.effectiveRefRewrites(root);
+        expect(r.suppressedWork).toBe(true);
+        expect(r.trackedCount).toBe(1);
+        expect(hasWorkRule(r.rules)).toBe(false);
+        // every OTHER rule survives — only the work token is dropped
+        expect(r.rules.length).toBe(mig.REF_REWRITES.length - 1);
+    });
+
+    it('--migrate-tracked-work forces the full ruleset even with tracked work files', () => {
+        const root = mkTmp();
+        gitInit(root);
+        write(root, 'docs/.output/work/FINDINGS.md', 'x');
+        execFileSync('git', ['add', 'docs/.output/work/FINDINGS.md'], { cwd: root });
+        const r = mig.effectiveRefRewrites(root, { force: true });
+        expect(r.suppressedWork).toBe(false);
+        expect(hasWorkRule(r.rules)).toBe(true);
+    });
+
+    it('trackedWorkFiles returns [] in a non-git directory (degrades safe)', () => {
+        const root = mkTmp();
+        expect(mig.trackedWorkFiles(root)).toEqual([]);
+    });
+
+    it('the carve-out keeps .output/work citations intact while still rewriting others', () => {
+        const root = mkTmp();
+        gitInit(root);
+        write(root, 'docs/.output/work/FINDINGS.md', 'x');
+        execFileSync('git', ['add', 'docs/.output/work/FINDINGS.md'], { cwd: root });
+        write(root, 'CLAUDE.md', 'see docs/.output/work/FINDINGS.md and docs/.output/reviews/r.md');
+        const { rules } = mig.effectiveRefRewrites(root);
+        mig.runRefs(root, { apply: true, paths: ['CLAUDE.md'], rules });
+        const after = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
+        expect(after).toContain('docs/.output/work/FINDINGS.md');          // citation preserved
+        expect(after).toContain('docs/.output/findings/reviews/r.md');     // other rule still applied
+    });
+});
+
 describe('collectFiles — nested-checkout guard', () => {
     it('never descends into a directory holding a .git entry', () => {
         const root = mkTmp();

@@ -26,10 +26,19 @@
  *                     identifier. Covers the compartment relocations AND the Wave 1
  *                     `.state/` prose gotcha (code moved to .state/ but prose lagged).
  *
+ * TRACKED-WORK CARVE-OUT: the bare `.output/work` token reclassifies to the gitignored
+ * `.state/work`. That is correct ONLY when `.output/work/` is genuine ephemeral scratch.
+ * Older repos accreted durable, CITED content there (CLAUDE.md / immutable ADRs / TODOs
+ * point into it); reclassifying that would de-track it and 404 the citations. So --refs
+ * and --verify check `git ls-files .output/work` and, when it is non-empty, DROP the
+ * work→.state rule (a loud notice explains why + names the on-taxonomy home, findings/).
+ * --migrate-tracked-work forces it. The workshop has 0 tracked there, so this is a no-op
+ * for it and auto-protects adopters.
+ *
  * Modes:
- *   --move   <outputRoot> [--apply] [--date-undated]   enumerate + git mv (dry-run default)
- *   --refs   [--apply] [--root <dir>] [paths…]         rewrite references (dry-run default)
- *   --verify [--root <dir>] [paths…]                   grep for surviving legacy tokens; exit 1 if any
+ *   --move   <outputRoot> [--apply] [--date-undated]      enumerate + git mv (dry-run default)
+ *   --refs   [--apply] [--root <dir>] [--migrate-tracked-work] [paths…]   rewrite refs (dry-run default)
+ *   --verify [--root <dir>] [--migrate-tracked-work] [paths…]             grep survivors; exit 1 if any
  *
  * --date-undated: instead of parking artifacts with no in-filename date, give each
  * its REAL create-date (the first commit that added it, else fs birthtime) as a
@@ -115,6 +124,63 @@ const REF_REWRITES_RAW = [
 
 // Longest-first: a longer old-token is a superset match and must win.
 const REF_REWRITES = [...REF_REWRITES_RAW].sort((a, b) => b[0].length - a[0].length);
+
+// ── Tracked-work carve-out ───────────────────────────────────────────────────
+// The rule that reclassifies the bare `.output/work` path as ephemeral `.state/work`.
+// In the current taxonomy `.output/work` is a PRE-split fossil: the only sanctioned
+// homes are `docs/work/` (durable plan) and `.output/.state/work/{date}/{task}/`
+// (ephemeral scratch). But older repos accreted DURABLE, CITED content under the bare
+// tracked `.output/work/` — reclassifying THAT to the gitignored `.state/` would
+// de-track it and 404 its citations (CLAUDE.md / immutable ADRs / TODOs). So the rule
+// is suppressed whenever the repo actually has tracked files there.
+const WORK_REF_RULE_TOKEN = '.output/work';
+
+/**
+ * Git-tracked files under `docs/.output/work/` (relative paths), or [] when none / not
+ * a git repo. A non-empty result is the signal that this repo carries durable content
+ * at the pre-taxonomy `.output/work/` path.
+ */
+function trackedWorkFiles(projectRoot) {
+    try {
+        const out = execFileSync('git', ['ls-files', '-z', '--', `${OUTPUT_ROOT}/work`], {
+            cwd: projectRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        return out.split('\0').filter(Boolean);
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * The REF_REWRITES to actually apply for this repo. When `.output/work/` holds tracked
+ * files (and `force` is off), the work→.state/work rule is dropped — the "tracked-work
+ * carve-out" — so those citations keep resolving in place. `--verify` MUST use the same
+ * effective set, else it flags the intentionally-kept literals as survivors.
+ * @returns {{ rules, suppressedWork: boolean, trackedCount: number }}
+ */
+function effectiveRefRewrites(projectRoot, { force = false } = {}) {
+    if (force) return { rules: REF_REWRITES, suppressedWork: false, trackedCount: 0 };
+    const tracked = trackedWorkFiles(projectRoot);
+    if (tracked.length === 0) return { rules: REF_REWRITES, suppressedWork: false, trackedCount: 0 };
+    const rules = REF_REWRITES.filter(([oldTok]) => oldTok !== WORK_REF_RULE_TOKEN);
+    return { rules, suppressedWork: true, trackedCount: tracked.length };
+}
+
+/** The notice printed when the carve-out fires — states WHY and the on-taxonomy home. */
+function trackedWorkNotice(count) {
+    return [
+        ``,
+        `  ⚠ TRACKED-WORK CARVE-OUT — ${count} git-tracked file(s) under ${OUTPUT_ROOT}/work/.`,
+        `    The ${OUTPUT_ROOT}/work → ${OUTPUT_ROOT}/.state/work reclassification is SKIPPED here so`,
+        `    those references keep resolving in place (moving them would de-track the files and`,
+        `    404 citations in CLAUDE.md / immutable ADRs / TODOs). These look like durable`,
+        `    FINDINGS misfiled under work/ — the on-taxonomy home is ${OUTPUT_ROOT}/findings/ —`,
+        `    but they are kept tracked in place to honor the immutable ADR citations. New`,
+        `    ephemeral scratch still belongs in ${OUTPUT_ROOT}/.state/work/{date}/{task}/.`,
+        `    Pass --migrate-tracked-work to force the reclassification anyway.`,
+        ``,
+    ].join('\n');
+}
 
 // ── Skip-allowlist ──────────────────────────────────────────────────────────
 // Paths that intentionally retain legacy tokens (history, generated output) or
@@ -384,14 +450,14 @@ function matchesAt(line, i, oldTok) {
  * — so an inserted segment can't be re-matched by a shorter rule. Collision-safe
  * and inherently idempotent. Keep-marked lines pass through verbatim.
  */
-function rewriteLine(line) {
+function rewriteLine(line, rules = REF_REWRITES) {
     if (line.includes(LINE_KEEP_MARKER)) return { text: line, changed: false };
     let out = '';
     let i = 0;
     let changed = false;
     while (i < line.length) {
         let matched = null;
-        for (const [oldTok, newTok] of REF_REWRITES) {   // longest-first
+        for (const [oldTok, newTok] of rules) {   // longest-first
             if (matchesAt(line, i, oldTok)) { matched = [oldTok, newTok]; break; }
         }
         if (matched) {
@@ -407,13 +473,13 @@ function rewriteLine(line) {
 }
 
 /** Find legacy-token survivors in a line (for --verify). Returns [{token, col}]. */
-function findSurvivors(line) {
+function findSurvivors(line, rules = REF_REWRITES) {
     if (line.includes(LINE_KEEP_MARKER)) return [];
     const hits = [];
     let i = 0;
     while (i < line.length) {
         let matched = null;
-        for (const [oldTok] of REF_REWRITES) {
+        for (const [oldTok] of rules) {
             if (matchesAt(line, i, oldTok)) { matched = oldTok; break; }
         }
         if (matched) { hits.push({ token: matched, col: i + 1 }); i += matched.length; }
@@ -457,7 +523,7 @@ function resolveFileset(projectRoot, explicitPaths) {
 }
 
 /** @returns {{ changedFiles: Array<{file, hunks}>, scanned: number }} */
-function runRefs(projectRoot, { apply = false, paths = null } = {}) {
+function runRefs(projectRoot, { apply = false, paths = null, rules = REF_REWRITES } = {}) {
     const files = resolveFileset(projectRoot, paths);
     const changedFiles = [];
     for (const abs of files) {
@@ -469,7 +535,7 @@ function runRefs(projectRoot, { apply = false, paths = null } = {}) {
         const hunks = [];
         let fileChanged = false;
         const outLines = lines.map((line, i) => {
-            const { text, changed } = rewriteLine(line);
+            const { text, changed } = rewriteLine(line, rules);
             if (changed) {
                 fileChanged = true;
                 hunks.push({ line: i + 1, before: line, after: text });
@@ -485,7 +551,7 @@ function runRefs(projectRoot, { apply = false, paths = null } = {}) {
 }
 
 /** @returns {{ violations: Array<{file, line, token, col}>, scanned: number }} */
-function runVerify(projectRoot, { paths = null } = {}) {
+function runVerify(projectRoot, { paths = null, rules = REF_REWRITES } = {}) {
     const files = resolveFileset(projectRoot, paths);
     const violations = [];
     for (const abs of files) {
@@ -494,7 +560,7 @@ function runVerify(projectRoot, { paths = null } = {}) {
         let content;
         try { content = fs.readFileSync(abs, 'utf8'); } catch { continue; }
         content.split('\n').forEach((line, i) => {
-            for (const h of findSurvivors(line)) {
+            for (const h of findSurvivors(line, rules)) {
                 violations.push({ file: rel, line: i + 1, token: h.token, col: h.col });
             }
         });
@@ -554,7 +620,10 @@ function main() {
     if (argv.includes('--verify')) {
         const root = getRoot(argv);
         const paths = positional(argv);
-        const { violations, scanned } = runVerify(root, { paths: paths.length ? paths : null });
+        const force = argv.includes('--migrate-tracked-work');
+        const { rules, suppressedWork, trackedCount } = effectiveRefRewrites(root, { force });
+        const { violations, scanned } = runVerify(root, { paths: paths.length ? paths : null, rules });
+        if (suppressedWork) process.stdout.write(trackedWorkNotice(trackedCount));
         if (violations.length === 0) {
             process.stdout.write(`--verify: clean — 0 legacy .output tokens across ${scanned} files.\n`);
             process.exit(0);
@@ -567,9 +636,13 @@ function main() {
     if (argv.includes('--refs')) {
         const root = getRoot(argv);
         const paths = positional(argv);
-        const { changedFiles, scanned } = runRefs(root, { apply, paths: paths.length ? paths : null });
+        const force = argv.includes('--migrate-tracked-work');
+        const { rules, suppressedWork, trackedCount } = effectiveRefRewrites(root, { force });
+        const { changedFiles, scanned } = runRefs(root, { apply, paths: paths.length ? paths : null, rules });
         const verb = apply ? 'APPLIED' : 'DRY-RUN (no writes)';
-        process.stdout.write(`--refs ${verb} — ${changedFiles.length}/${scanned} files would change\n\n`);
+        process.stdout.write(`--refs ${verb} — ${changedFiles.length}/${scanned} files would change\n`);
+        if (suppressedWork) process.stdout.write(trackedWorkNotice(trackedCount));
+        process.stdout.write('\n');
         for (const f of changedFiles) {
             process.stdout.write(`── ${f.file} (${f.hunks.length})\n`);
             for (const h of f.hunks) {
@@ -580,7 +653,7 @@ function main() {
         process.exit(0);
     }
 
-    process.stderr.write('usage: migrate-output-layout.js [--move <outputRoot> [--date-undated]|--refs|--verify] [--apply] [--root <dir>] [paths…]\n');
+    process.stderr.write('usage: migrate-output-layout.js [--move <outputRoot> [--date-undated]|--refs|--verify] [--apply] [--root <dir>] [--migrate-tracked-work] [paths…]\n');
     process.exit(2);
 }
 
@@ -605,4 +678,7 @@ module.exports = {
     runVerify,
     collectFiles,
     resolveFileset,
+    trackedWorkFiles,
+    effectiveRefRewrites,
+    WORK_REF_RULE_TOKEN,
 };
