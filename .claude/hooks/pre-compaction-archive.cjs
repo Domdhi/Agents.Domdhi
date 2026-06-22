@@ -89,16 +89,28 @@ function buildSnapshot(projectRoot, log, trigger) {
     // back to the flat file.
     let agentUpdates = '';
     try {
-        const updatesDir = path.join(projectRoot, 'docs', '.output', 'agent-updates');
-        const flatPath = path.join(projectRoot, 'docs', '.output', 'agent-updates.md');
+        const updatesDir = path.join(projectRoot, 'docs', '.output', 'evolution', 'agents');
+        const flatPath = path.join(projectRoot, 'docs', '.output', 'evolution', 'agents.md');
         let updatesContent = '';
         if (fs.existsSync(updatesDir) && fs.statSync(updatesDir).isDirectory()) {
-            const dayFiles = fs.readdirSync(updatesDir)
-                .filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f))  // day-files only; skips README.md
-                .sort()        // {YYYY-MM-DD}.md sorts chronologically
-                .slice(-3);    // newest few days
+            // Day-files sit flat ({YYYY-MM-DD}.md, native) or one level deep under a
+            // {YYYY-MM}/ month dir (homed). Collect both so neither layout is missed.
+            const isDayFile = f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f);
+            const dayFiles = [];
+            for (const ent of fs.readdirSync(updatesDir, { withFileTypes: true })) {
+                if (ent.isFile() && isDayFile(ent.name)) {              // skips README.md
+                    dayFiles.push({ name: ent.name, abs: path.join(updatesDir, ent.name) });
+                } else if (ent.isDirectory() && /^\d{4}-\d{2}$/.test(ent.name)) {
+                    const monthDir = path.join(updatesDir, ent.name);
+                    for (const f of fs.readdirSync(monthDir)) {
+                        if (isDayFile(f)) dayFiles.push({ name: f, abs: path.join(monthDir, f) });
+                    }
+                }
+            }
             updatesContent = dayFiles
-                .map(f => fs.readFileSync(path.join(updatesDir, f), 'utf8'))
+                .sort((a, b) => a.name.localeCompare(b.name))  // {YYYY-MM-DD}.md chronological
+                .slice(-3)                                     // newest few days
+                .map(d => fs.readFileSync(d.abs, 'utf8'))
                 .join('\n');
         } else if (fs.existsSync(flatPath)) {
             updatesContent = fs.readFileSync(flatPath, 'utf8');

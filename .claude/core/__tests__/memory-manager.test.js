@@ -1229,6 +1229,13 @@ describe('memory-manager', () => {
       // the SAME decayed_confidence — the importance factor is normalized at 3 so
       // existing memories are untouched (AC: no change to the decay curve itself).
       const manager = makeManager();
+      // Pin active-days so both calls use the SAME decay power. Without this the manager
+      // recomputes activeDays from a live Date.now() per call (git-unavailable fallback in
+      // _lib/memory-decay), so the two readings differ by microseconds and the result
+      // diverges at ~1e-10 — a racy comparison that exact-equality at 10 digits cannot hold
+      // as the decay derivative grows. Pinning makes the importance-factor equivalence the
+      // only thing under test, which is the point.
+      manager._activeDaysResolver = { getActiveDaysSince: () => 10 };
       const updated = new Date(Date.now() - 10 * 86400000).toISOString();
       const base = { category: 'patterns', usage_count: 0, updated, metadata: { confidence: 1.0 } };
 

@@ -208,6 +208,22 @@ describe('effectiveRefRewrites — tracked-work carve-out', () => {
         expect(mig.trackedWorkFiles(root)).toEqual([]);
     });
 
+    it('carve-out holds when projectRoot is a SUBDIR of the git toplevel (F4 regression)', () => {
+        // The :/ -magic pathspec must anchor to the repo root regardless of CWD. With a
+        // CWD-relative `--` pathspec this returns [] (suppressedWork:false) and silently
+        // re-enables the de-tracking the carve-out exists to prevent — the F4 bug.
+        const root = mkTmp();
+        gitInit(root);
+        write(root, 'docs/.output/work/FINDINGS.md', 'durable cited content');
+        execFileSync('git', ['add', 'docs/.output/work/FINDINGS.md'], { cwd: root });
+        const sub = path.join(root, 'docs', 'engineering');
+        fs.mkdirSync(sub, { recursive: true });
+        const r = mig.effectiveRefRewrites(sub);   // projectRoot BELOW the git toplevel
+        expect(r.suppressedWork).toBe(true);
+        expect(r.trackedCount).toBe(1);
+        expect(hasWorkRule(r.rules)).toBe(false);
+    });
+
     it('the carve-out keeps .output/work citations intact while still rewriting others', () => {
         const root = mkTmp();
         gitInit(root);

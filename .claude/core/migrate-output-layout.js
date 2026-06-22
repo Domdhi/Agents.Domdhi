@@ -142,7 +142,10 @@ const WORK_REF_RULE_TOKEN = '.output/work';
  */
 function trackedWorkFiles(projectRoot) {
     try {
-        const out = execFileSync('git', ['ls-files', '-z', '--', `${OUTPUT_ROOT}/work`], {
+        // `:/`-magic pathspec anchors to the working-tree ROOT, so the query is correct even
+        // when projectRoot is a subdir of the git toplevel (a CWD-relative `--` pathspec would
+        // silently return [] there, re-enabling the de-tracking this carve-out exists to prevent).
+        const out = execFileSync('git', ['ls-files', '-z', '--', `:/${OUTPUT_ROOT}/work`], {
             cwd: projectRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
         });
         return out.split('\0').filter(Boolean);

@@ -171,16 +171,32 @@ function clusterMemories(memories, { minShared = CLUSTER_MIN_SHARED, minSize = C
 
 // ── Disk collectors ─────────────────────────────────────────────────────────
 
-function collectAgentUpdates(dir) {
+// Day-rotated update files live either flat (evolution/agents/{YYYY-MM-DD}.md — the
+// tool's native write) OR bucketed one level deep under a {YYYY-MM}/ month dir (the
+// homing/organize tool re-files them there). Read BOTH so the reader is robust to
+// whichever layout the project ended up in.
+function listDayFiles(dir) {
     const out = [];
     if (!fs.existsSync(dir)) return out;
-    const files = fs
-        .readdirSync(dir)
-        .filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)) // day-rotated only; skip README/archive
-        .sort()
-        .reverse();
-    for (const file of files) {
-        const content = fs.readFileSync(path.join(dir, file), 'utf8');
+    const isDayFile = (f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f);
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.isFile() && isDayFile(ent.name)) {
+            out.push({ file: ent.name, abs: path.join(dir, ent.name) });
+        } else if (ent.isDirectory() && /^\d{4}-\d{2}$/.test(ent.name)) {
+            const monthDir = path.join(dir, ent.name);
+            for (const f of fs.readdirSync(monthDir)) {
+                if (isDayFile(f)) out.push({ file: f, abs: path.join(monthDir, f) });
+            }
+        }
+    }
+    return out;
+}
+
+function collectAgentUpdates(dir) {
+    const out = [];
+    const files = listDayFiles(dir).sort((a, b) => b.file.localeCompare(a.file)); // newest first
+    for (const { file, abs } of files) {
+        const content = fs.readFileSync(abs, 'utf8');
         const date = file.replace(/\.md$/, '');
         // Split on top-level `## ` section headers; each section is one signal.
         const sections = content.split(/\n(?=## )/).filter((s) => /^## /.test(s.trim()));
@@ -226,7 +242,7 @@ function intake({ projectDir, since = null } = {}) {
     const root = projectDir || process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..', '..');
     const skillsRoot = path.join(root, '.claude', 'skills');
     const memRoot = path.join(root, 'docs', '.output', '.memory');
-    const auDir = path.join(root, 'docs', '.output', 'agent-updates');
+    const auDir = path.join(root, 'docs', '.output', 'evolution', 'agents');
 
     const skillIndex = buildSkillIndex(skillsRoot);
 
@@ -386,7 +402,7 @@ function main(argv) {
             console.log(JSON.stringify(report, null, 2));
             return;
         }
-        const outDir = path.join(root, 'docs', '.output', 'skill-evolution', date || 'latest');
+        const outDir = path.join(root, 'docs', '.output', 'evolution', 'skills', date || 'latest');
         fs.mkdirSync(outDir, { recursive: true });
         fs.writeFileSync(path.join(outDir, 'intake.json'), JSON.stringify(report, null, 2));
         fs.writeFileSync(path.join(outDir, 'intake.md'), renderIntakeMd(report, date));
@@ -406,15 +422,28 @@ function main(argv) {
     }
 
     if (cmd === 'status') {
-        const base = path.join(root, 'docs', '.output', 'skill-evolution');
+        const base = path.join(root, 'docs', '.output', 'evolution', 'skills');
         if (!fs.existsSync(base)) {
             console.log('[SKILL-EVOLUTION] no runs yet.');
             return;
         }
-        for (const d of fs.readdirSync(base).sort().reverse()) {
-            const intakeMd = path.join(base, d, 'intake.md');
-            if (fs.existsSync(intakeMd)) console.log(`- ${d}/intake.md`);
+        // Run-dirs are named {YYYY-MM-DD} and sit either flat under base (native write)
+        // or one level deep under a {YYYY-MM}/ month dir (homed). List both.
+        const runs = [];
+        for (const ent of fs.readdirSync(base, { withFileTypes: true })) {
+            if (!ent.isDirectory()) continue;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ent.name)) {
+                if (fs.existsSync(path.join(base, ent.name, 'intake.md'))) runs.push(ent.name);
+            } else if (/^\d{4}-\d{2}$/.test(ent.name)) {
+                const monthDir = path.join(base, ent.name);
+                for (const d of fs.readdirSync(monthDir)) {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && fs.existsSync(path.join(monthDir, d, 'intake.md'))) {
+                        runs.push(path.join(ent.name, d));
+                    }
+                }
+            }
         }
+        for (const r of runs.sort().reverse()) console.log(`- ${r}/intake.md`);
         return;
     }
 

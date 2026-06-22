@@ -284,7 +284,7 @@ describe('intake routing: caught review-domain signal → dispatchGaps, not IMPR
             ].join('\n'),
         );
 
-        const auDir = path.join(projectDir, 'docs', '.output', 'agent-updates');
+        const auDir = path.join(projectDir, 'docs', '.output', 'evolution', 'agents');
         fs.mkdirSync(auDir, { recursive: true });
         // A reviewer-CAUGHT defect: the review skill worked → dispatch gap, not skill gap.
         fs.writeFileSync(
@@ -429,6 +429,21 @@ describe('collectAgentUpdates', () => {
     it('returns empty array for non-existent dir', () => {
         const updates = m.collectAgentUpdates(path.join(tmpDir, 'does-not-exist'));
         expect(updates).toEqual([]);
+    });
+
+    it('reads day-files bucketed under a {YYYY-MM}/ month dir (homed layout)', () => {
+        // The ADR-0006 migration month-buckets day-files; the reader must descend one
+        // level into {YYYY-MM}/ or it silently returns 0 (the 2026-06-21 false-0 bug).
+        const root = path.join(tmpDir, 'au-month-nested');
+        const monthDir = path.join(root, '2026-06');
+        fs.mkdirSync(monthDir, { recursive: true });
+        fs.writeFileSync(path.join(monthDir, '2026-06-13.md'), '## Nested Signal\nbucketed under month dir.\n');
+        fs.writeFileSync(path.join(root, '2026-06-20.md'), '## Flat Signal\nflat day-file.\n');  // mixed layout
+        const updates = m.collectAgentUpdates(root);
+        const contexts = updates.map((u) => u.context);
+        expect(contexts).toContain('Nested Signal');   // would be missing without month-descent
+        expect(contexts).toContain('Flat Signal');     // flat still read
+        expect(updates).toHaveLength(2);
     });
 });
 
@@ -629,7 +644,7 @@ describe('intake', () => {
         );
 
         // docs/.output/evolution/agents/2026-06-05.md with one section
-        const auDir = path.join(projectDir, 'docs', '.output', 'agent-updates');
+        const auDir = path.join(projectDir, 'docs', '.output', 'evolution', 'agents');
         fs.mkdirSync(auDir, { recursive: true });
         fs.writeFileSync(
             path.join(auDir, '2026-06-05.md'),

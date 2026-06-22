@@ -182,6 +182,17 @@ Decision A was made for reason B.
         const snap = buildSnapshot(tmp.root, mockLog, 'test');
         expect(snap).toContain('Decision A');
     });
+
+    it('buildSnapshot_readsAgentUpdatesBucketedUnderMonthDir', () => {
+        const mockLog = makeMockLog();
+        // The ADR-0006 migration month-buckets day-files under {YYYY-MM}/. The reader
+        // must descend into the month dir or it silently captures no agent updates.
+        tmp.write('docs/.output/evolution/agents/2026-06/2026-06-14.md',
+            '## Wave 1 misalignment\nA bucketed agent-update signal.\n');
+        const snap = buildSnapshot(tmp.root, mockLog, 'test');
+        expect(snap).toContain('Recent Agent Updates');
+        expect(snap).toContain('A bucketed agent-update signal.');
+    });
 });
 
 // ---------------------------------------------------------------------------

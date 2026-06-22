@@ -341,6 +341,39 @@ describe('scanContent', () => {
             expect(secretFindings).toHaveLength(0);
         });
 
+        it('scanContent_dummyPrefixValue_test123_noDetection', () => {
+            // Documented dummy fixture (e.g. the secret-scanner protocol example) — not a real key
+            const content = 'apiKey: "test-123"';
+            const findings = scanContent(content, 'CLAUDE.md');
+            const secretFindings = findings.filter(f => f.name === 'Secret Assignment');
+            expect(secretFindings).toHaveLength(0);
+        });
+
+        it('scanContent_dummyPrefixValue_mockKey_noDetection', () => {
+            const content = 'apiKey = "mock-key"';
+            const findings = scanContent(content, 'config.js');
+            expect(findings.filter(f => f.name === 'Secret Assignment')).toHaveLength(0);
+        });
+
+        it('scanContent_dummyPrefixGenericHighEntropy_stillDetected', () => {
+            // F2 regression: pins the suffix cap INDEPENDENT of any named-provider pattern.
+            // A dummy-prefixed value whose suffix exceeds the cap and matches NO dedicated
+            // pattern (pure alnum, no `sk_live_`/`AKIA`/etc.) must still block as a generic
+            // Secret Assignment. The prior probe used `test-sk_live_…`, which blocked via the
+            // Stripe pattern — so it stayed green even when the cap was removed (false confidence).
+            const content = 'apiKey = "mock-aB3xK9mP2qR7tY1wZ5nL8vC4"';
+            const findings = scanContent(content, 'config.js');
+            expect(findings.filter(f => f.name === 'Secret Assignment').length).toBeGreaterThan(0);
+        });
+
+        it('scanContent_dummyPrefixNamedSecret_stillDetected', () => {
+            // The allowlist never suppresses a named-provider secret — dedicated patterns
+            // bypass PLACEHOLDER_PATTERNS entirely, so a dummy prefix can't smuggle one through.
+            const content = 'awsKey = "test-AKIAIOSFODNN7EXAMPLE"';
+            const findings = scanContent(content, 'config.js');
+            expect(findings.length).toBeGreaterThan(0);
+        });
+
         it('scanContent_emptyString_returnsEmptyArray', () => {
             const findings = scanContent('', 'empty.js');
             expect(findings).toEqual([]);

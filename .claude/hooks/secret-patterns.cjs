@@ -106,6 +106,15 @@ const PATTERNS = [
 const PLACEHOLDER_PATTERNS = [
     /^['"]?(?:changeme|password|example|test(?:ing)?|dummy|placeholder|xxx+|sample|default)['"]?$/i,
     /^['"]?(?:your[_-]?(?:key|token|secret|password|api[_-]?key)|TODO|REPLACE[_-]?ME|INSERT[_-]?HERE)['"]?$/i,
+    // Known dummy-word prefix + short suffix: test-123, mock-key, sample_abc, example-key.
+    // This only suppresses the GENERIC Secret/Password Assignment findings — named-provider
+    // secrets (AWS/Stripe/Anthropic/GitHub/GCP/private keys) have dedicated PATTERNS entries
+    // that bypass this allowlist entirely, so they always block regardless of prefix.
+    // The dummy-word prefix is a naming-convention gate, NOT an entropy control; the ≤8-char
+    // suffix cap is what keeps a generic high-entropy secret from slipping through (every real
+    // placeholder — test-123, mock-key, example-key — has a tiny suffix). Residual accepted
+    // gap: a ≤8-char low-entropy generic value with a dummy prefix.
+    /^['"]?(?:test(?:ing)?|mock|fake|sample|example|dummy|placeholder)[-_][a-z0-9][a-z0-9_-]{0,7}['"]?$/i,
     /^['"]?<[^>]+>['"]?$/,                  // <your-key-here>
     /^['"]?\{[^}]+\}['"]?$/,                // {placeholder}
     /^['"]?\$\{[^}]+\}['"]?$/,              // ${VARIABLE}
